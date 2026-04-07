@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
+	"github.com/flipped-aurora/gin-vue-admin/server/model/device"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/example"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
 
@@ -65,6 +66,15 @@ func RegisterTables() {
 		system.SysError{},
 		system.SysApiToken{},
 		system.SysLoginLog{},
+
+		device.DeviceCategory{},
+		device.DeviceModel{},
+		device.FirmwareVersion{},
+		device.ModelFirmwareRel{},
+		device.FirmwareChangeItem{},
+		device.FirmwareVersionLog{},
+		device.FirmwareTag{},
+		device.FirmwareVersionTagRel{},
 
 		example.ExaFile{},
 		example.ExaCustomer{},

@@ -105,13 +105,13 @@ mcp:
     url_prefix: ""
     separate: false
 minio:
-    endpoint: yourEndpoint
-    access-key-id: yourAccessKeyId
-    access-key-secret: yourAccessKeySecret
-    bucket-name: yourBucketName
+    endpoint: 192.168.110.15:9000
+    access-key-id: admin
+    access-key-secret: 878123aaLiu
+    bucket-name: alpha
     use-ssl: false
-    base-path: ""
-    bucket-url: http://host:9000/yourBucketName
+    base-path: firmware
+    bucket-url: http://192.168.110.15:9000/alpha
 mongo:
     coll: ""
     options: ""
@@ -227,7 +227,7 @@ sqlite:
     log-zap: false
 system:
     db-type: mysql
-    oss-type: local
+    oss-type: minio
     router-prefix: ""
     addr: 8888
     iplimit-count: 15000

@@ -255,6 +255,48 @@ func (i *initApi) InitializeData(ctx context.Context) (context.Context, error) {
 		{ApiGroup: "版本控制", Method: "POST", Path: "/sysVersion/importVersion", Description: "同步版本"},
 		{ApiGroup: "版本控制", Method: "DELETE", Path: "/sysVersion/deleteSysVersion", Description: "删除版本"},
 		{ApiGroup: "版本控制", Method: "DELETE", Path: "/sysVersion/deleteSysVersionByIds", Description: "批量删除版本"},
+
+		{ApiGroup: "设备固件-设备类别", Method: "POST", Path: "/deviceCategory/createDeviceCategory", Description: "创建设备类别"},
+		{ApiGroup: "设备固件-设备类别", Method: "DELETE", Path: "/deviceCategory/deleteDeviceCategory", Description: "删除设备类别"},
+		{ApiGroup: "设备固件-设备类别", Method: "DELETE", Path: "/deviceCategory/deleteDeviceCategoryByIds", Description: "批量删除设备类别"},
+		{ApiGroup: "设备固件-设备类别", Method: "PUT", Path: "/deviceCategory/updateDeviceCategory", Description: "更新设备类别"},
+		{ApiGroup: "设备固件-设备类别", Method: "GET", Path: "/deviceCategory/findDeviceCategory", Description: "获取设备类别详情"},
+		{ApiGroup: "设备固件-设备类别", Method: "GET", Path: "/deviceCategory/getDeviceCategoryList", Description: "获取设备类别列表"},
+
+		{ApiGroup: "设备固件-设备型号", Method: "POST", Path: "/deviceModel/createDeviceModel", Description: "创建设备型号"},
+		{ApiGroup: "设备固件-设备型号", Method: "DELETE", Path: "/deviceModel/deleteDeviceModel", Description: "删除设备型号"},
+		{ApiGroup: "设备固件-设备型号", Method: "DELETE", Path: "/deviceModel/deleteDeviceModelByIds", Description: "批量删除设备型号"},
+		{ApiGroup: "设备固件-设备型号", Method: "PUT", Path: "/deviceModel/updateDeviceModel", Description: "更新设备型号"},
+		{ApiGroup: "设备固件-设备型号", Method: "GET", Path: "/deviceModel/findDeviceModel", Description: "获取设备型号详情"},
+		{ApiGroup: "设备固件-设备型号", Method: "GET", Path: "/deviceModel/getDeviceModelList", Description: "获取设备型号列表"},
+
+		{ApiGroup: "设备固件-固件版本", Method: "POST", Path: "/firmwareVersion/createFirmwareVersion", Description: "创建固件版本"},
+		{ApiGroup: "设备固件-固件版本", Method: "DELETE", Path: "/firmwareVersion/deleteFirmwareVersion", Description: "删除固件版本"},
+		{ApiGroup: "设备固件-固件版本", Method: "DELETE", Path: "/firmwareVersion/deleteFirmwareVersionByIds", Description: "批量删除固件版本"},
+		{ApiGroup: "设备固件-固件版本", Method: "PUT", Path: "/firmwareVersion/updateFirmwareVersion", Description: "更新固件版本"},
+		{ApiGroup: "设备固件-固件版本", Method: "GET", Path: "/firmwareVersion/findFirmwareVersion", Description: "获取固件版本详情"},
+		{ApiGroup: "设备固件-固件版本", Method: "GET", Path: "/firmwareVersion/getFirmwareVersionList", Description: "获取固件版本列表"},
+		{ApiGroup: "设备固件-固件版本", Method: "POST", Path: "/firmwareVersion/changeFirmwareVersionStatus", Description: "更新固件版本状态"},
+
+		{ApiGroup: "设备固件-型号关系", Method: "POST", Path: "/modelFirmware/createModelFirmwareRel", Description: "创建型号固件关系"},
+		{ApiGroup: "设备固件-型号关系", Method: "DELETE", Path: "/modelFirmware/deleteModelFirmwareRel", Description: "删除型号固件关系"},
+		{ApiGroup: "设备固件-型号关系", Method: "DELETE", Path: "/modelFirmware/deleteModelFirmwareRelByIds", Description: "批量删除型号固件关系"},
+		{ApiGroup: "设备固件-型号关系", Method: "PUT", Path: "/modelFirmware/updateModelFirmwareRel", Description: "更新型号固件关系"},
+		{ApiGroup: "设备固件-型号关系", Method: "GET", Path: "/modelFirmware/findModelFirmwareRel", Description: "获取型号固件关系详情"},
+		{ApiGroup: "设备固件-型号关系", Method: "GET", Path: "/modelFirmware/getModelFirmwareRelList", Description: "获取型号固件关系列表"},
+		{ApiGroup: "设备固件-型号关系", Method: "POST", Path: "/modelFirmware/setModelFirmwareRecommended", Description: "设置推荐版本"},
+		{ApiGroup: "设备固件-型号关系", Method: "POST", Path: "/modelFirmware/setModelFirmwareTestResult", Description: "设置测试结果"},
+
+		{ApiGroup: "设备固件-标签", Method: "POST", Path: "/firmwareTag/createFirmwareTag", Description: "创建固件标签"},
+		{ApiGroup: "设备固件-标签", Method: "DELETE", Path: "/firmwareTag/deleteFirmwareTag", Description: "删除固件标签"},
+		{ApiGroup: "设备固件-标签", Method: "DELETE", Path: "/firmwareTag/deleteFirmwareTagByIds", Description: "批量删除固件标签"},
+		{ApiGroup: "设备固件-标签", Method: "PUT", Path: "/firmwareTag/updateFirmwareTag", Description: "更新固件标签"},
+		{ApiGroup: "设备固件-标签", Method: "GET", Path: "/firmwareTag/findFirmwareTag", Description: "获取固件标签详情"},
+		{ApiGroup: "设备固件-标签", Method: "GET", Path: "/firmwareTag/getFirmwareTagList", Description: "获取固件标签列表"},
+		{ApiGroup: "设备固件-标签", Method: "POST", Path: "/firmwareTag/setFirmwareTags", Description: "设置固件标签"},
+
+		{ApiGroup: "设备固件-日志", Method: "GET", Path: "/firmwareVersionLog/findFirmwareVersionLog", Description: "获取固件日志详情"},
+		{ApiGroup: "设备固件-日志", Method: "GET", Path: "/firmwareVersionLog/getFirmwareVersionLogList", Description: "获取固件日志列表"},
 	}
 	if err := db.Create(&entities).Error; err != nil {
 		return ctx, errors.Wrap(err, sysModel.SysApi{}.TableName()+"表数据初始化失败!")
