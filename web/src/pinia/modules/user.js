@@ -16,7 +16,7 @@ export const useUserStore = defineStore('user', () => {
 
   const userInfo = ref({
     uuid: '',
-    nickName: '',
+    nickName: 'ALPHA',
     headerImg: '',
     authority: {}
   })
@@ -86,7 +86,7 @@ export const useUserStore = defineStore('user', () => {
         router.addRoute(asyncRouter)
       })
 
-      if(router.currentRoute.value.query.redirect) {
+      if (router.currentRoute.value.query.redirect) {
         await router.replace(router.currentRoute.value.query.redirect)
         return true
       }
