@@ -1,216 +1,214 @@
 <template>
   <div>
-    <el-tabs v-model="activeTab">
-      <el-tab-pane label="设备类别" name="category">
-        <div class="gva-search-box">
-          <el-form :inline="true" :model="categorySearch">
-            <el-form-item label="类别名称">
-              <el-input v-model="categorySearch.name" clearable placeholder="类别名称" />
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" icon="search" @click="loadCategories">查询</el-button>
-              <el-button icon="refresh" @click="resetCategorySearch">重置</el-button>
-            </el-form-item>
-          </el-form>
-        </div>
-        <div class="gva-table-box">
-          <div class="gva-btn-list">
-            <el-button type="primary" icon="plus" @click="openCategoryDialog()">新增类别</el-button>
-          </div>
-          <el-table :data="categoryTableData" row-key="ID">
-            <el-table-column label="创建时间" width="180">
-              <template #default="scope">{{ formatDate(scope.row.CreatedAt) }}</template>
-            </el-table-column>
-            <el-table-column label="类别名称" prop="name" min-width="160" />
-            <el-table-column label="排序" prop="sort" width="90" />
-            <el-table-column label="状态" width="100">
-              <template #default="scope">
-                <el-tag :type="scope.row.status === 1 ? 'success' : 'info'">{{ scope.row.status === 1 ? '启用' : '禁用' }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="备注" prop="remark" min-width="180" show-overflow-tooltip />
-            <el-table-column label="操作" width="160" fixed="right">
-              <template #default="scope">
-                <el-button type="primary" link icon="edit" @click="openCategoryDialog(scope.row)">编辑</el-button>
-                <el-button type="primary" link icon="delete" @click="deleteCategoryRow(scope.row)">删除</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
-      </el-tab-pane>
+    <div class="gva-search-box">
+      <el-form :inline="true">
+        <el-form-item label="类别名称">
+          <el-input v-model="categorySearch.name" clearable placeholder="类别名称" />
+        </el-form-item>
+        <el-form-item label="型号名称">
+          <el-input v-model="modelSearch.modelName" clearable placeholder="型号名称" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" icon="search" @click="loadDeviceTree">查询</el-button>
+          <el-button icon="refresh" @click="resetDeviceTreeSearch">重置</el-button>
+        </el-form-item>
+      </el-form>
+    </div>
 
-      <el-tab-pane label="设备型号" name="model">
-        <div class="gva-search-box">
-          <el-form :inline="true" :model="modelSearch">
-            <el-form-item label="设备类别">
-              <el-select v-model="modelSearch.categoryId" clearable placeholder="全部" style="width: 180px">
-                <el-option v-for="item in categoryOptions" :key="item.ID" :label="item.name" :value="item.ID" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="型号名称">
-              <el-input v-model="modelSearch.modelName" clearable placeholder="型号名称" />
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" icon="search" @click="loadModels">查询</el-button>
-              <el-button icon="refresh" @click="resetModelSearch">重置</el-button>
-            </el-form-item>
-          </el-form>
+    <div class="gva-table-box">
+      <div class="section-head">
+        <div>
+          <div class="section-title">设备管理</div>
+          <div class="section-subtitle">先维护设备类别，再在类别下面添加型号，形成树形结构。</div>
         </div>
-        <div class="gva-table-box">
-          <div class="gva-btn-list">
-            <el-button type="primary" icon="plus" @click="openModelDialog()">新增型号</el-button>
-          </div>
-          <el-table :data="modelTableData" row-key="ID">
-            <el-table-column label="设备类别" min-width="140">
-              <template #default="scope">{{ scope.row.category?.name || '-' }}</template>
-            </el-table-column>
-            <el-table-column label="型号名称" prop="modelName" min-width="160" />
-            <el-table-column label="代际" prop="generation" min-width="100" />
-            <el-table-column label="状态" width="100">
-              <template #default="scope">
-                <el-tag :type="scope.row.status === 1 ? 'success' : 'info'">{{ scope.row.status === 1 ? '启用' : '禁用' }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="160" fixed="right">
-              <template #default="scope">
-                <el-button type="primary" link icon="edit" @click="openModelDialog(scope.row)">编辑</el-button>
-                <el-button type="primary" link icon="delete" @click="deleteModelRow(scope.row)">删除</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+        <div class="gva-btn-list">
+          <el-button type="primary" icon="plus" @click="openCategoryDialog()">新增类别</el-button>
         </div>
-      </el-tab-pane>
+      </div>
 
-      <el-tab-pane label="固件管理" name="firmware">
-        <div class="gva-search-box">
-          <el-form :inline="true" :model="firmwareSearch">
-            <el-form-item label="版本号">
-              <el-input v-model="firmwareSearch.versionCode" clearable placeholder="版本号" />
-            </el-form-item>
-            <el-form-item label="状态">
-              <el-select v-model="firmwareSearch.status" clearable placeholder="全部" style="width: 160px">
-                <el-option v-for="item in firmwareStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
-              </el-select>
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" icon="search" @click="loadFirmwares">查询</el-button>
-              <el-button icon="refresh" @click="resetFirmwareSearch">重置</el-button>
-            </el-form-item>
-          </el-form>
-        </div>
-        <div class="gva-table-box">
-          <div class="gva-btn-list">
-            <el-button type="primary" icon="plus" @click="openFirmwareDialog()">新增固件</el-button>
+      <el-table
+        :data="deviceTreeData"
+        row-key="rowKey"
+        default-expand-all
+        :tree-props="{ children: 'children' }"
+        :row-class-name="getDeviceTreeRowClassName"
+      >
+        <el-table-column label="序号" width="90">
+          <template #default="scope">
+            <span class="tree-seq-col">{{ scope.row.displayOrder }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="名称" min-width="220">
+          <template #default="scope">
+            <div class="tree-name-cell" :class="{ 'tree-name-cell--child': scope.row.nodeType === 'model' }">
+              <span class="tree-name">{{ scope.row.nodeType === 'category' ? scope.row.name : scope.row.modelName }}</span>
+              <el-tag v-if="scope.row.nodeType === 'category'" type="info" size="small">类别</el-tag>
+              <el-tag v-else type="success" size="small">型号</el-tag>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="100">
+          <template #default="scope">
+            <el-tag :type="scope.row.status === 1 ? 'success' : 'info'">
+              {{ scope.row.status === 1 ? '启用' : '禁用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="排序/代际" min-width="120">
+          <template #default="scope">
+            {{ scope.row.nodeType === 'category' ? scope.row.sort : (scope.row.generation || '-') }}
+          </template>
+        </el-table-column>
+        <el-table-column label="备注" min-width="220" show-overflow-tooltip>
+          <template #default="scope">
+            {{ scope.row.remark || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" min-width="300" fixed="right">
+          <template #default="scope">
+            <template v-if="scope.row.nodeType === 'category'">
+              <el-button type="primary" link icon="plus" @click="openModelDialog(null, scope.row)">添加型号</el-button>
+              <el-button type="primary" link icon="edit" @click="openCategoryDialog(scope.row)">编辑类别</el-button>
+              <el-button type="primary" link icon="delete" @click="deleteCategoryRow(scope.row)">删除类别</el-button>
+            </template>
+            <template v-else>
+              <el-button type="primary" link @click="enterFirmwareCenter(scope.row)">固件管理</el-button>
+              <el-button type="primary" link icon="edit" @click="openModelDialog(scope.row)">编辑型号</el-button>
+              <el-button type="primary" link icon="delete" @click="deleteModelRow(scope.row)">删除型号</el-button>
+            </template>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <div class="gva-table-box">
+      <div class="section-head section-head--compact">
+        <div>
+          <div class="section-title">型号固件管理</div>
+          <div class="section-subtitle">
+            {{ currentModel ? `当前型号：${currentModel.modelName}` : '从上面的树形设备管理里，点某个型号的“固件管理”进入。' }}
           </div>
-          <el-table :data="firmwareTableData" row-key="ID">
-            <el-table-column label="版本号" prop="versionCode" min-width="130" />
-            <el-table-column label="版本名称" prop="versionName" min-width="150" />
-            <el-table-column label="状态" width="120">
+        </div>
+        <div v-if="currentModel" class="gva-btn-list">
+          <el-button icon="refresh" @click="clearCurrentModel">清除当前型号</el-button>
+        </div>
+      </div>
+
+      <div v-if="currentModel">
+        <div class="firmware-context-card">
+          <div class="context-item">
+            <span class="context-label">当前型号</span>
+            <span class="context-value">{{ currentModel.modelName }}</span>
+          </div>
+          <div class="context-item">
+            <span class="context-label">设备类别</span>
+            <span class="context-value">{{ currentModel.category?.name || currentCategoryName || '-' }}</span>
+          </div>
+          <div class="context-item">
+            <span class="context-label">推荐版本</span>
+            <span class="context-value">{{ recommendedFirmwareLabel || '暂未设置' }}</span>
+          </div>
+          <div class="context-item">
+            <span class="context-label">已关联固件</span>
+            <span class="context-value">{{ relationTableData.length }} 个</span>
+          </div>
+        </div>
+
+        <div class="gva-btn-list">
+          <el-button type="primary" icon="plus" @click="openFirmwareDialog()">上传新固件</el-button>
+          <el-button icon="link" @click="openBindExistingDialog">关联已有固件</el-button>
+        </div>
+
+        <el-table :data="relationTableData" row-key="ID">
+            <el-table-column label="版本号" min-width="150">
+              <template #default="scope">{{ resolveFirmware(scope.row).versionCode || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="版本名称" min-width="180">
+              <template #default="scope">{{ resolveFirmware(scope.row).versionName || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="状态" width="110">
               <template #default="scope">
-                <el-tag :type="firmwareStatusTag(scope.row.status)">{{ firmwareStatusLabel(scope.row.status) }}</el-tag>
+                <el-tag :type="firmwareStatusTag(resolveFirmware(scope.row).status)">
+                  {{ firmwareStatusLabel(resolveFirmware(scope.row).status) }}
+                </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="标签" min-width="180">
+            <el-table-column label="测试结果" width="110">
               <template #default="scope">
-                <div class="tag-wrap">
-                  <el-tag v-for="tagRel in scope.row.tags || []" :key="`${scope.row.ID}-${tagRel.tagId}`" size="small">
-                    {{ tagRel.tag?.tagName || '-' }}
-                  </el-tag>
-                </div>
+                <el-tag :type="relationTestTag(scope.row.testResult)">
+                  {{ relationTestLabel(scope.row.testResult) }}
+                </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="上传人" prop="uploadedBy" width="120" />
-            <el-table-column label="时间" width="180">
-              <template #default="scope">{{ formatDate(scope.row.uploadedAt || scope.row.CreatedAt) }}</template>
-            </el-table-column>
-            <el-table-column label="操作" width="300" fixed="right">
-              <template #default="scope">
-                <el-button type="primary" link @click="focusFirmwareRelations(scope.row)">查看关联</el-button>
-                <el-button type="primary" link icon="edit" @click="openFirmwareDialog(scope.row)">编辑</el-button>
-                <el-button type="primary" link @click="openStatusDialog(scope.row)">改状态</el-button>
-                <el-button type="primary" link @click="openLogDrawer(scope.row)">日志</el-button>
-                <el-button type="primary" link icon="delete" @click="deleteFirmwareRow(scope.row)">删除</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
-        <div class="gva-search-box">
-          <div class="relation-header">
-            <span class="relation-title">型号固件关系</span>
-            <span class="relation-current">
-              {{ currentFirmwareLabel ? `当前固件：${currentFirmwareLabel}` : '当前显示全部固件关系' }}
-            </span>
-            <el-button v-if="relationSearch.firmwareId" link type="primary" @click="clearFirmwareRelationFilter">清除固件筛选</el-button>
-          </div>
-          <el-form :inline="true" :model="relationSearch">
-            <el-form-item label="设备型号">
-              <el-select v-model="relationSearch.modelId" clearable filterable placeholder="全部" style="width: 220px">
-                <el-option v-for="item in modelOptions" :key="item.ID" :label="item.modelName" :value="item.ID" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="固件版本">
-              <el-select v-model="relationSearch.firmwareId" clearable filterable placeholder="全部" style="width: 220px">
-                <el-option v-for="item in firmwareOptions" :key="item.ID" :label="item.versionCode" :value="item.ID" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="测试结果">
-              <el-select v-model="relationSearch.testResult" clearable placeholder="全部" style="width: 160px">
-                <el-option v-for="item in relationTestResultOptions" :key="item.value" :label="item.label" :value="item.value" />
-              </el-select>
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" icon="search" @click="loadRelations">查询</el-button>
-              <el-button icon="refresh" @click="resetRelationSearch">重置</el-button>
-            </el-form-item>
-          </el-form>
-        </div>
-        <div class="gva-table-box">
-          <div class="gva-btn-list">
-            <el-button type="primary" icon="plus" @click="openRelationDialog()">新增关系</el-button>
-          </div>
-          <el-table :data="relationTableData" row-key="ID">
-            <el-table-column label="设备型号" min-width="160">
-              <template #default="scope">{{ scope.row.model?.modelName || '-' }}</template>
-            </el-table-column>
-            <el-table-column label="固件版本" min-width="140">
-              <template #default="scope">{{ scope.row.firmware?.versionCode || '-' }}</template>
-            </el-table-column>
-            <el-table-column label="推荐" width="100">
+            <el-table-column label="推荐" width="90">
               <template #default="scope">
                 <el-tag v-if="scope.row.isRecommended" type="warning">推荐中</el-tag>
                 <span v-else>否</span>
               </template>
             </el-table-column>
-            <el-table-column label="测试结果" width="110">
+            <el-table-column label="标签" min-width="180">
               <template #default="scope">
-                <el-tag :type="relationTestTag(scope.row.testResult)">{{ relationTestLabel(scope.row.testResult) }}</el-tag>
+                <div class="tag-wrap">
+                  <el-tag
+                    v-for="tagRel in resolveFirmware(scope.row).tags || []"
+                    :key="`${scope.row.ID}-${tagRel.tagId}`"
+                    size="small"
+                  >
+                    {{ tagRel.tag?.tagName || '-' }}
+                  </el-tag>
+                  <span v-if="!(resolveFirmware(scope.row).tags || []).length">-</span>
+                </div>
               </template>
             </el-table-column>
-            <el-table-column label="测试人" prop="tester" width="120" />
-            <el-table-column label="操作" width="280" fixed="right">
+            <el-table-column label="上传人" width="120">
+              <template #default="scope">{{ resolveFirmware(scope.row).uploadedBy || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="上传时间" width="180">
+              <template #default="scope">{{ formatDate(resolveFirmware(scope.row).uploadedAt || resolveFirmware(scope.row).CreatedAt) }}</template>
+            </el-table-column>
+            <el-table-column label="操作" min-width="420" fixed="right">
               <template #default="scope">
-                <el-button type="primary" link icon="edit" @click="openRelationDialog(scope.row)">编辑</el-button>
-                <el-button type="primary" link @click="setRecommended(scope.row)">设推荐</el-button>
+                <el-button type="primary" link icon="edit" @click="openFirmwareDialog(scope.row)">编辑固件</el-button>
+                <el-button type="primary" link @click="openStatusDialog(scope.row)">改状态</el-button>
                 <el-button type="primary" link @click="openTestDialog(scope.row)">测结果</el-button>
-                <el-button type="primary" link icon="delete" @click="deleteRelationRow(scope.row)">删除</el-button>
+                <el-button type="primary" link @click="setRecommended(scope.row)">设推荐</el-button>
+                <el-button type="primary" link @click="openLogDrawer(scope.row)">日志</el-button>
+                <el-button
+                  v-if="resolveFirmware(scope.row).packageUrl"
+                  type="primary"
+                  link
+                  @click="downloadPackage(scope.row)"
+                >
+                  下载
+                </el-button>
+                <el-button type="primary" link icon="delete" @click="deleteRelationRow(scope.row)">移除关联</el-button>
               </template>
             </el-table-column>
-          </el-table>
-        </div>
-      </el-tab-pane>
-    </el-tabs>
+        </el-table>
+      </div>
+
+      <div v-else class="empty-panel">
+        <el-empty description="请先在上面的设备树里添加类别和型号，然后从型号行进入固件管理" />
+      </div>
+    </div>
 
     <el-dialog v-model="categoryDialogVisible" :title="categoryDialogType === 'create' ? '新增设备类别' : '编辑设备类别'" width="520px">
       <el-form :model="categoryForm" label-width="90px">
-        <el-form-item label="类别名称"><el-input v-model="categoryForm.name" /></el-form-item>
-        <el-form-item label="排序"><el-input-number v-model="categoryForm.sort" :min="0" /></el-form-item>
+        <el-form-item label="类别名称">
+          <el-input v-model="categoryForm.name" />
+        </el-form-item>
+        <el-form-item label="排序">
+          <el-input-number v-model="categoryForm.sort" :min="0" />
+        </el-form-item>
         <el-form-item label="状态">
           <el-radio-group v-model="categoryForm.status">
             <el-radio :value="1">启用</el-radio>
             <el-radio :value="2">禁用</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="备注"><el-input v-model="categoryForm.remark" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="categoryForm.remark" type="textarea" :rows="3" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="categoryDialogVisible = false">取消</el-button>
@@ -221,19 +219,23 @@
     <el-dialog v-model="modelDialogVisible" :title="modelDialogType === 'create' ? '新增设备型号' : '编辑设备型号'" width="620px">
       <el-form :model="modelForm" label-width="90px">
         <el-form-item label="设备类别">
-          <el-select v-model="modelForm.categoryId" style="width: 100%">
-            <el-option v-for="item in categoryOptions" :key="item.ID" :label="item.name" :value="item.ID" />
-          </el-select>
+          <el-input :model-value="selectedModelCategoryName" readonly />
         </el-form-item>
-        <el-form-item label="型号名称"><el-input v-model="modelForm.modelName" /></el-form-item>
-        <el-form-item label="代际"><el-input v-model="modelForm.generation" /></el-form-item>
+        <el-form-item label="型号名称">
+          <el-input v-model="modelForm.modelName" />
+        </el-form-item>
+        <el-form-item label="代际">
+          <el-input v-model="modelForm.generation" />
+        </el-form-item>
         <el-form-item label="状态">
           <el-radio-group v-model="modelForm.status">
             <el-radio :value="1">启用</el-radio>
             <el-radio :value="2">禁用</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="备注"><el-input v-model="modelForm.remark" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="modelForm.remark" type="textarea" :rows="3" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="modelDialogVisible = false">取消</el-button>
@@ -241,10 +243,17 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="firmwareDialogVisible" :title="firmwareDialogType === 'create' ? '新增固件版本' : '编辑固件版本'" width="720px">
+    <el-dialog v-model="firmwareDialogVisible" :title="firmwareDialogTitle" width="720px">
       <el-form :model="firmwareForm" label-width="100px">
-        <el-form-item label="版本号"><el-input v-model="firmwareForm.versionCode" /></el-form-item>
-        <el-form-item label="版本名称"><el-input v-model="firmwareForm.versionName" /></el-form-item>
+        <el-form-item label="当前型号">
+          <el-input :model-value="currentModel?.modelName || '-'" readonly />
+        </el-form-item>
+        <el-form-item label="版本号">
+          <el-input v-model="firmwareForm.versionCode" />
+        </el-form-item>
+        <el-form-item label="版本名称">
+          <el-input v-model="firmwareForm.versionName" />
+        </el-form-item>
         <el-form-item label="固件包上传">
           <div class="upload-row">
             <el-upload
@@ -258,13 +267,19 @@
               <el-button type="primary" :loading="firmwareUploading">上传固件包</el-button>
             </el-upload>
             <span class="upload-tip">
-              {{ firmwareUploading ? '正在上传到 MinIO...' : firmwareUploadName || '支持标准后缀和 update.bin_G3X... 这类自定义命名' }}
+              {{ firmwareUploading ? '正在上传到 MinIO...' : firmwareUploadName || '支持 update.bin_G3X... 这类自定义命名文件' }}
             </span>
           </div>
         </el-form-item>
-        <el-form-item label="安装包地址"><el-input v-model="firmwareForm.packageUrl" readonly /></el-form-item>
-        <el-form-item label="安装包名称"><el-input v-model="firmwareForm.packageName" readonly /></el-form-item>
-        <el-form-item label="校验值"><el-input v-model="firmwareForm.checksum" /></el-form-item>
+        <el-form-item label="安装包地址">
+          <el-input v-model="firmwareForm.packageUrl" readonly />
+        </el-form-item>
+        <el-form-item label="安装包名称">
+          <el-input v-model="firmwareForm.packageName" readonly />
+        </el-form-item>
+        <el-form-item label="校验值">
+          <el-input v-model="firmwareForm.checksum" />
+        </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="firmwareForm.status" style="width: 100%">
             <el-option v-for="item in firmwareStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
@@ -275,9 +290,15 @@
             <el-option v-for="item in tagOptions" :key="item.ID" :label="item.tagName" :value="item.ID" />
           </el-select>
         </el-form-item>
-        <el-form-item label="上传人"><el-input v-model="firmwareForm.uploadedBy" /></el-form-item>
-        <el-form-item label="版本说明"><el-input v-model="firmwareForm.releaseNote" type="textarea" :rows="3" /></el-form-item>
-        <el-form-item label="测试总结"><el-input v-model="firmwareForm.testSummary" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="上传人">
+          <el-input v-model="firmwareForm.uploadedBy" />
+        </el-form-item>
+        <el-form-item label="版本说明">
+          <el-input v-model="firmwareForm.releaseNote" type="textarea" :rows="3" />
+        </el-form-item>
+        <el-form-item label="测试总结">
+          <el-input v-model="firmwareForm.testSummary" type="textarea" :rows="3" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="firmwareDialogVisible = false">取消</el-button>
@@ -285,29 +306,25 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="relationDialogVisible" :title="relationDialogType === 'create' ? '新增关系' : '编辑关系'" width="620px">
-      <el-form :model="relationForm" label-width="100px">
-        <el-form-item label="设备型号">
-          <el-select v-model="relationForm.modelId" filterable style="width: 100%">
-            <el-option v-for="item in modelOptions" :key="item.ID" :label="item.modelName" :value="item.ID" />
-          </el-select>
+    <el-dialog v-model="bindDialogVisible" title="关联已有固件" width="560px">
+      <el-form :model="bindForm" label-width="90px">
+        <el-form-item label="当前型号">
+          <el-input :model-value="currentModel?.modelName || '-'" readonly />
         </el-form-item>
         <el-form-item label="固件版本">
-          <el-select v-model="relationForm.firmwareId" filterable style="width: 100%">
-            <el-option v-for="item in firmwareOptions" :key="item.ID" :label="item.versionCode" :value="item.ID" />
+          <el-select v-model="bindForm.firmwareId" filterable style="width: 100%" placeholder="选择已有固件版本">
+            <el-option
+              v-for="item in availableBindFirmwareOptions"
+              :key="item.ID"
+              :label="`${item.versionCode}${item.versionName ? ` / ${item.versionName}` : ''}`"
+              :value="item.ID"
+            />
           </el-select>
         </el-form-item>
-        <el-form-item label="是否支持"><el-switch v-model="relationForm.isSupported" /></el-form-item>
-        <el-form-item label="测试结果">
-          <el-select v-model="relationForm.testResult" style="width: 100%">
-            <el-option v-for="item in relationTestResultOptions" :key="item.value" :label="item.label" :value="item.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="测试人"><el-input v-model="relationForm.tester" /></el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="relationDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitRelation">确定</el-button>
+        <el-button @click="bindDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitBindExisting">确定</el-button>
       </template>
     </el-dialog>
 
@@ -318,8 +335,12 @@
             <el-option v-for="item in firmwareStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="操作人"><el-input v-model="statusForm.operator" /></el-form-item>
-        <el-form-item label="说明"><el-input v-model="statusForm.content" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="操作人">
+          <el-input v-model="statusForm.operator" />
+        </el-form-item>
+        <el-form-item label="说明">
+          <el-input v-model="statusForm.content" type="textarea" :rows="3" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="statusDialogVisible = false">取消</el-button>
@@ -334,9 +355,15 @@
             <el-option v-for="item in relationTestResultOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="测试人"><el-input v-model="testForm.tester" /></el-form-item>
-        <el-form-item label="操作人"><el-input v-model="testForm.operator" /></el-form-item>
-        <el-form-item label="说明"><el-input v-model="testForm.content" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="测试人">
+          <el-input v-model="testForm.tester" />
+        </el-form-item>
+        <el-form-item label="操作人">
+          <el-input v-model="testForm.operator" />
+        </el-form-item>
+        <el-form-item label="说明">
+          <el-input v-model="testForm.content" type="textarea" :rows="3" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="testDialogVisible = false">取消</el-button>
@@ -344,7 +371,7 @@
       </template>
     </el-dialog>
 
-    <el-drawer v-model="logDrawerVisible" title="固件日志" size="720px">
+    <el-drawer v-model="logDrawerVisible" :title="logDrawerTitle" size="720px">
       <el-table :data="logTableData">
         <el-table-column label="时间" width="180">
           <template #default="scope">{{ formatDate(scope.row.operateAt || scope.row.CreatedAt) }}</template>
@@ -372,15 +399,12 @@ import {
   findDeviceModel,
   getDeviceModelList,
   createFirmwareVersion,
-  deleteFirmwareVersion,
   updateFirmwareVersion,
   findFirmwareVersion,
   getFirmwareVersionList,
   changeFirmwareVersionStatus,
   createModelFirmwareRel,
   deleteModelFirmwareRel,
-  updateModelFirmwareRel,
-  findModelFirmwareRel,
   getModelFirmwareRelList,
   setModelFirmwareRecommended,
   setModelFirmwareTestResult,
@@ -396,36 +420,36 @@ import { useUserStore } from '@/pinia/modules/user'
 defineOptions({ name: 'DeviceFirmwareCenter' })
 
 const userStore = useUserStore()
-const activeTab = ref('category')
+
 const categoryOptions = ref([])
 const modelOptions = ref([])
 const firmwareOptions = ref([])
 const tagOptions = ref([])
+
 const categorySearch = ref({})
 const modelSearch = ref({})
-const firmwareSearch = ref({})
-const relationSearch = ref({})
+const firmwareContext = ref({ categoryId: '', modelId: '' })
+
 const categoryTableData = ref([])
 const modelTableData = ref([])
-const firmwareTableData = ref([])
 const relationTableData = ref([])
 const logTableData = ref([])
-const logDrawerVisible = ref(false)
-const currentFirmwareId = ref('')
 
 const categoryDialogVisible = ref(false)
 const modelDialogVisible = ref(false)
 const firmwareDialogVisible = ref(false)
-const relationDialogVisible = ref(false)
+const bindDialogVisible = ref(false)
 const statusDialogVisible = ref(false)
 const testDialogVisible = ref(false)
-const firmwareUploading = ref(false)
-const firmwareUploadName = ref('')
+const logDrawerVisible = ref(false)
 
 const categoryDialogType = ref('create')
 const modelDialogType = ref('create')
 const firmwareDialogType = ref('create')
-const relationDialogType = ref('create')
+
+const firmwareUploading = ref(false)
+const firmwareUploadName = ref('')
+const logDrawerTitle = ref('固件日志')
 
 const firmwareStatusOptions = [
   { label: '草稿', value: 'draft' },
@@ -444,43 +468,131 @@ const relationTestResultOptions = [
 
 const categoryForm = ref({ name: '', code: '', sort: 0, status: 1, remark: '' })
 const modelForm = ref({ categoryId: '', modelCode: '', modelName: '', seriesName: '', generation: '', status: 1, remark: '' })
-const firmwareForm = ref({ versionCode: '', versionName: '', packageUrl: '', packageName: '', checksum: '', status: 'draft', releaseNote: '', testSummary: '', uploadedBy: '', tagIds: [] })
-const relationForm = ref({ modelId: '', firmwareId: '', isSupported: true, isRecommended: false, testResult: 'pending', tester: '', remark: '' })
+const firmwareForm = ref({
+  versionCode: '',
+  versionName: '',
+  packageUrl: '',
+  packageName: '',
+  checksum: '',
+  status: 'draft',
+  releaseNote: '',
+  testSummary: '',
+  uploadedBy: '',
+  tagIds: []
+})
+const bindForm = ref({ firmwareId: '' })
 const statusForm = ref({ id: '', status: 'draft', operator: '', content: '' })
 const testForm = ref({ id: '', testResult: 'pending', tester: '', operator: '', content: '' })
+
 const firmwareUploadAction = `${getBaseUrl()}/fileUploadAndDownload/upload`
 const firmwareUploadHeaders = computed(() => ({
   'x-token': userStore.token,
   'x-user-id': userStore.userInfo?.ID || ''
 }))
 
-const firmwareStatusLabel = (status) => firmwareStatusOptions.find((item) => item.value === status)?.label || status
-const firmwareStatusTag = (status) => status === 'stable' || status === 'tested_pass' ? 'success' : status === 'testing' ? 'warning' : status === 'deprecated' ? 'danger' : 'info'
-const relationTestLabel = (status) => relationTestResultOptions.find((item) => item.value === status)?.label || status
-const relationTestTag = (status) => status === 'passed' ? 'success' : status === 'testing' ? 'warning' : status === 'failed' ? 'danger' : 'info'
 const defaultUploadedBy = () => userStore.userInfo?.nickName || userStore.userInfo?.userName || '系统用户'
 const buildCategoryCode = () => `device-category-${Date.now()}`
 const buildModelCode = () => `device-model-${Date.now()}`
-const currentFirmwareLabel = computed(() => {
-  const current = firmwareOptions.value.find((item) => item.ID === relationSearch.value.firmwareId || item.ID === currentFirmwareId.value)
-  if (!current) {
+
+const currentModel = computed(() => modelOptions.value.find((item) => item.ID === firmwareContext.value.modelId))
+const currentCategoryName = computed(() => categoryOptions.value.find((item) => item.ID === firmwareContext.value.categoryId)?.name || '')
+const selectedModelCategoryName = computed(() => {
+  if (!modelForm.value.categoryId) {
     return ''
   }
-  return `${current.versionCode}${current.versionName ? ` / ${current.versionName}` : ''}`
+  return categoryOptions.value.find((item) => item.ID === modelForm.value.categoryId)?.name || ''
+})
+const recommendedRelation = computed(() => relationTableData.value.find((item) => item.isRecommended))
+const recommendedFirmwareLabel = computed(() => {
+  if (!recommendedRelation.value) {
+    return ''
+  }
+  const firmware = resolveFirmware(recommendedRelation.value)
+  if (!firmware.versionCode) {
+    return '-'
+  }
+  return `${firmware.versionCode}${firmware.versionName ? ` / ${firmware.versionName}` : ''}`
+})
+const selectedModelFirmwareIds = computed(() => relationTableData.value.map((item) => item.firmwareId))
+const availableBindFirmwareOptions = computed(() => firmwareOptions.value.filter((item) => !selectedModelFirmwareIds.value.includes(item.ID)))
+const deviceTreeData = computed(() => categoryTableData.value
+  .map((category, categoryIndex) => ({
+    ...category,
+    nodeType: 'category',
+    rowKey: `category-${category.ID}`,
+    displayOrder: `${categoryIndex + 1}`,
+    children: modelTableData.value
+      .filter((model) => model.categoryId === category.ID)
+      .map((model, modelIndex) => ({
+        ...model,
+        nodeType: 'model',
+        rowKey: `model-${model.ID}`,
+        displayOrder: `${modelIndex + 1}`
+      }))
+  }))
+  .filter((category) => !modelSearch.value.modelName || category.children.length > 0))
+const firmwareDialogTitle = computed(() => {
+  if (firmwareDialogType.value === 'update') {
+    return '编辑固件版本'
+  }
+  return currentModel.value ? `为 ${currentModel.value.modelName} 上传新固件` : '新增固件版本'
 })
 
-const resetCategorySearch = () => { categorySearch.value = {}; loadCategories() }
-const resetModelSearch = () => { modelSearch.value = {}; loadModels() }
-const resetFirmwareSearch = () => { firmwareSearch.value = {}; loadFirmwares() }
-const resetRelationSearch = () => {
-  currentFirmwareId.value = ''
-  relationSearch.value = {}
-  loadRelations()
+const firmwareStatusLabel = (status) => firmwareStatusOptions.find((item) => item.value === status)?.label || status || '-'
+const firmwareStatusTag = (status) => {
+  if (status === 'stable' || status === 'tested_pass') {
+    return 'success'
+  }
+  if (status === 'testing') {
+    return 'warning'
+  }
+  if (status === 'deprecated') {
+    return 'danger'
+  }
+  return 'info'
 }
-const clearFirmwareRelationFilter = () => {
-  currentFirmwareId.value = ''
-  relationSearch.value = { ...relationSearch.value, firmwareId: '' }
-  loadRelations()
+const relationTestLabel = (status) => relationTestResultOptions.find((item) => item.value === status)?.label || status || '-'
+const relationTestTag = (status) => {
+  if (status === 'passed') {
+    return 'success'
+  }
+  if (status === 'testing') {
+    return 'warning'
+  }
+  if (status === 'failed') {
+    return 'danger'
+  }
+  return 'info'
+}
+
+const resolveFirmware = (relation) => {
+  if (!relation) {
+    return {}
+  }
+  return firmwareOptions.value.find((item) => item.ID === relation.firmwareId) || relation.firmware || {}
+}
+
+const loadDeviceTree = async () => {
+  await Promise.all([loadCategories(), loadModels()])
+}
+
+const resetDeviceTreeSearch = async () => {
+  categorySearch.value = {}
+  modelSearch.value = {}
+  await loadDeviceTree()
+}
+
+const resetFirmwareContext = () => {
+  firmwareContext.value = { categoryId: '', modelId: '' }
+  relationTableData.value = []
+}
+
+const clearCurrentModel = () => {
+  resetFirmwareContext()
+}
+
+const getDeviceTreeRowClassName = ({ row }) => {
+  return row.nodeType === 'category' ? 'device-tree-category-row' : 'device-tree-model-row'
 }
 
 const loadCategories = async () => {
@@ -496,19 +608,29 @@ const loadModels = async () => {
   if (res.code === 0) {
     modelTableData.value = res.data.list || []
     modelOptions.value = res.data.list || []
+    if (firmwareContext.value.modelId) {
+      const stillExists = (res.data.list || []).some((item) => item.ID === firmwareContext.value.modelId)
+      if (!stillExists) {
+        firmwareContext.value.modelId = ''
+        relationTableData.value = []
+      }
+    }
   }
 }
 
-const loadFirmwares = async () => {
-  const res = await getFirmwareVersionList({ page: 1, pageSize: 999, ...firmwareSearch.value })
+const loadFirmwareOptions = async () => {
+  const res = await getFirmwareVersionList({ page: 1, pageSize: 999 })
   if (res.code === 0) {
-    firmwareTableData.value = res.data.list || []
     firmwareOptions.value = res.data.list || []
   }
 }
 
-const loadRelations = async () => {
-  const res = await getModelFirmwareRelList({ page: 1, pageSize: 999, ...relationSearch.value })
+const loadRelationsForCurrentModel = async () => {
+  if (!firmwareContext.value.modelId) {
+    relationTableData.value = []
+    return
+  }
+  const res = await getModelFirmwareRelList({ page: 1, pageSize: 999, modelId: firmwareContext.value.modelId })
   if (res.code === 0) {
     relationTableData.value = res.data.list || []
   }
@@ -521,11 +643,21 @@ const loadTags = async () => {
   }
 }
 
+const enterFirmwareCenter = async (row) => {
+  firmwareContext.value = {
+    categoryId: row.categoryId,
+    modelId: row.ID
+  }
+  await loadRelationsForCurrentModel()
+}
+
 const openCategoryDialog = async (row) => {
   categoryDialogType.value = row?.ID ? 'update' : 'create'
   if (row?.ID) {
     const res = await findDeviceCategory({ ID: row.ID })
-    if (res.code === 0) categoryForm.value = { ...res.data }
+    if (res.code === 0) {
+      categoryForm.value = { ...res.data }
+    }
   } else {
     categoryForm.value = { name: '', code: '', sort: 0, status: 1, remark: '' }
   }
@@ -537,11 +669,13 @@ const submitCategory = async () => {
     ...categoryForm.value,
     code: categoryForm.value.code || buildCategoryCode()
   }
-  const res = categoryDialogType.value === 'create' ? await createDeviceCategory(payload) : await updateDeviceCategory(payload)
+  const res = categoryDialogType.value === 'create'
+    ? await createDeviceCategory(payload)
+    : await updateDeviceCategory(payload)
   if (res.code === 0) {
     ElMessage.success(categoryDialogType.value === 'create' ? '创建成功' : '更新成功')
     categoryDialogVisible.value = false
-    loadCategories()
+    await loadCategories()
   }
 }
 
@@ -550,18 +684,28 @@ const deleteCategoryRow = (row) => {
     const res = await deleteDeviceCategory({ ID: row.ID })
     if (res.code === 0) {
       ElMessage.success('删除成功')
-      loadCategories()
+      await loadCategories()
     }
   })
 }
 
-const openModelDialog = async (row) => {
+const openModelDialog = async (row, parentCategory) => {
   modelDialogType.value = row?.ID ? 'update' : 'create'
   if (row?.ID) {
     const res = await findDeviceModel({ ID: row.ID })
-    if (res.code === 0) modelForm.value = { ...res.data }
+    if (res.code === 0) {
+      modelForm.value = { ...res.data }
+    }
   } else {
-    modelForm.value = { categoryId: '', modelCode: '', modelName: '', seriesName: '', generation: '', status: 1, remark: '' }
+    modelForm.value = {
+      categoryId: parentCategory?.ID || '',
+      modelCode: '',
+      modelName: '',
+      seriesName: '',
+      generation: '',
+      status: 1,
+      remark: ''
+    }
   }
   modelDialogVisible.value = true
 }
@@ -571,11 +715,13 @@ const submitModel = async () => {
     ...modelForm.value,
     modelCode: modelForm.value.modelCode || buildModelCode()
   }
-  const res = modelDialogType.value === 'create' ? await createDeviceModel(payload) : await updateDeviceModel(payload)
+  const res = modelDialogType.value === 'create'
+    ? await createDeviceModel(payload)
+    : await updateDeviceModel(payload)
   if (res.code === 0) {
     ElMessage.success(modelDialogType.value === 'create' ? '创建成功' : '更新成功')
     modelDialogVisible.value = false
-    loadModels()
+    await loadModels()
   }
 }
 
@@ -584,7 +730,10 @@ const deleteModelRow = (row) => {
     const res = await deleteDeviceModel({ ID: row.ID })
     if (res.code === 0) {
       ElMessage.success('删除成功')
-      loadModels()
+      await loadModels()
+      if (firmwareContext.value.modelId === row.ID) {
+        resetFirmwareContext()
+      }
     }
   })
 }
@@ -620,11 +769,16 @@ const handleFirmwareUploadError = () => {
 }
 
 const openFirmwareDialog = async (row) => {
-  firmwareDialogType.value = row?.ID ? 'update' : 'create'
+  if (!row && !currentModel.value) {
+    ElMessage.warning('请先选择设备型号，再上传固件')
+    return
+  }
+  firmwareDialogType.value = row ? 'update' : 'create'
   firmwareUploadName.value = ''
   firmwareUploading.value = false
-  if (row?.ID) {
-    const res = await findFirmwareVersion({ ID: row.ID })
+  if (row) {
+    const firmware = resolveFirmware(row)
+    const res = await findFirmwareVersion({ ID: firmware.ID })
     if (res.code === 0) {
       firmwareForm.value = {
         ...res.data,
@@ -633,31 +787,107 @@ const openFirmwareDialog = async (row) => {
       firmwareUploadName.value = res.data.packageName || ''
     }
   } else {
-    firmwareForm.value = { versionCode: '', versionName: '', packageUrl: '', packageName: '', checksum: '', status: 'draft', releaseNote: '', testSummary: '', uploadedBy: defaultUploadedBy(), tagIds: [] }
+    firmwareForm.value = {
+      versionCode: '',
+      versionName: '',
+      packageUrl: '',
+      packageName: '',
+      checksum: '',
+      status: 'draft',
+      releaseNote: '',
+      testSummary: '',
+      uploadedBy: defaultUploadedBy(),
+      tagIds: []
+    }
   }
   firmwareDialogVisible.value = true
 }
 
 const submitFirmware = async () => {
-  const payload = { ...firmwareForm.value, uploadedAt: new Date() }
-  const res = firmwareDialogType.value === 'create' ? await createFirmwareVersion(payload) : await updateFirmwareVersion(payload)
-  if (res.code !== 0) return
+  const payload = {
+    ...firmwareForm.value,
+    uploadedAt: new Date()
+  }
+  const res = firmwareDialogType.value === 'create'
+    ? await createFirmwareVersion(payload)
+    : await updateFirmwareVersion(payload)
+  if (res.code !== 0) {
+    return
+  }
+
   let firmwareId = firmwareForm.value.ID
   if (!firmwareId) {
     const listRes = await getFirmwareVersionList({ page: 1, pageSize: 1, versionCode: firmwareForm.value.versionCode })
     firmwareId = listRes.data?.list?.[0]?.ID
   }
+
   if (firmwareId) {
     await setFirmwareTags({ firmwareId, tagIds: firmwareForm.value.tagIds || [] })
   }
-  ElMessage.success(firmwareDialogType.value === 'create' ? '创建成功' : '更新成功')
+
+  if (firmwareDialogType.value === 'create' && firmwareId && currentModel.value) {
+    const bindRes = await createModelFirmwareRel({
+      modelId: currentModel.value.ID,
+      firmwareId,
+      isSupported: true,
+      isRecommended: false,
+      testResult: 'pending',
+      tester: '',
+      remark: ''
+    })
+    if (bindRes.code !== 0) {
+      return
+    }
+  }
+
+  ElMessage.success(firmwareDialogType.value === 'create' ? '上传并关联成功' : '更新成功')
   firmwareDialogVisible.value = false
   firmwareUploadName.value = ''
-  loadFirmwares()
+  await Promise.all([loadFirmwareOptions(), loadRelationsForCurrentModel()])
+}
+
+const openBindExistingDialog = () => {
+  if (!currentModel.value) {
+    ElMessage.warning('请先选择设备型号')
+    return
+  }
+  if (!availableBindFirmwareOptions.value.length) {
+    ElMessage.info('当前没有可关联的已有固件')
+    return
+  }
+  bindForm.value = { firmwareId: '' }
+  bindDialogVisible.value = true
+}
+
+const submitBindExisting = async () => {
+  if (!bindForm.value.firmwareId || !currentModel.value) {
+    ElMessage.warning('请选择要关联的固件版本')
+    return
+  }
+  const res = await createModelFirmwareRel({
+    modelId: currentModel.value.ID,
+    firmwareId: bindForm.value.firmwareId,
+    isSupported: true,
+    isRecommended: false,
+    testResult: 'pending',
+    tester: '',
+    remark: ''
+  })
+  if (res.code === 0) {
+    ElMessage.success('关联成功')
+    bindDialogVisible.value = false
+    await loadRelationsForCurrentModel()
+  }
 }
 
 const openStatusDialog = (row) => {
-  statusForm.value = { id: row.ID, status: row.status, operator: '', content: '' }
+  const firmware = resolveFirmware(row)
+  statusForm.value = {
+    id: firmware.ID,
+    status: firmware.status || 'draft',
+    operator: defaultUploadedBy(),
+    content: ''
+  }
   statusDialogVisible.value = true
 }
 
@@ -666,122 +896,179 @@ const submitStatus = async () => {
   if (res.code === 0) {
     ElMessage.success('状态更新成功')
     statusDialogVisible.value = false
-    loadFirmwares()
+    await Promise.all([loadFirmwareOptions(), loadRelationsForCurrentModel()])
   }
 }
 
 const openLogDrawer = async (row) => {
-  const res = await getFirmwareVersionLogList({ page: 1, pageSize: 100, firmwareId: row.ID })
+  const firmware = resolveFirmware(row)
+  const res = await getFirmwareVersionLogList({ page: 1, pageSize: 100, firmwareId: firmware.ID })
   if (res.code === 0) {
+    logDrawerTitle.value = `固件日志 - ${firmware.versionCode || ''}`
     logTableData.value = res.data.list || []
     logDrawerVisible.value = true
   }
 }
 
-const deleteFirmwareRow = (row) => {
-  ElMessageBox.confirm(`确定删除固件 ${row.versionCode} 吗？`, '提示', { type: 'warning' }).then(async () => {
-    const res = await deleteFirmwareVersion({ ID: row.ID })
-    if (res.code === 0) {
-      ElMessage.success('删除成功')
-      if (currentFirmwareId.value === row.ID) {
-        clearFirmwareRelationFilter()
-      }
-      loadFirmwares()
-    }
-  })
-}
-
-const focusFirmwareRelations = (row) => {
-  activeTab.value = 'firmware'
-  currentFirmwareId.value = row.ID
-  relationSearch.value = {
-    ...relationSearch.value,
-    firmwareId: row.ID
-  }
-  loadRelations()
-}
-
-const openRelationDialog = async (row) => {
-  relationDialogType.value = row?.ID ? 'update' : 'create'
-  if (row?.ID) {
-    const res = await findModelFirmwareRel({ ID: row.ID })
-    if (res.code === 0) relationForm.value = { ...res.data }
-  } else {
-    relationForm.value = { modelId: '', firmwareId: relationSearch.value.firmwareId || currentFirmwareId.value || '', isSupported: true, isRecommended: false, testResult: 'pending', tester: '', remark: '' }
-  }
-  relationDialogVisible.value = true
-}
-
-const submitRelation = async () => {
-  const duplicatedRelation = relationTableData.value.find((item) => item.modelId === relationForm.value.modelId && item.firmwareId === relationForm.value.firmwareId && item.ID !== relationForm.value.ID)
-  if (duplicatedRelation) {
-    ElMessage.warning('该型号已经关联了这个固件版本，请直接编辑现有关系')
-    return
-  }
-  const res = relationDialogType.value === 'create' ? await createModelFirmwareRel(relationForm.value) : await updateModelFirmwareRel(relationForm.value)
-  if (res.code === 0) {
-    ElMessage.success(relationDialogType.value === 'create' ? '创建成功' : '更新成功')
-    relationDialogVisible.value = false
-    loadRelations()
-  }
-}
-
-const deleteRelationRow = (row) => {
-  ElMessageBox.confirm('确定删除这条关系吗？', '提示', { type: 'warning' }).then(async () => {
-    const res = await deleteModelFirmwareRel({ ID: row.ID })
-    if (res.code === 0) {
-      ElMessage.success('删除成功')
-      loadRelations()
-    }
-  })
-}
-
-const setRecommended = (row) => {
-  setModelFirmwareRecommended({ id: row.ID, content: '前端设置推荐版本' }).then((res) => {
-    if (res.code === 0) {
-      ElMessage.success('设置成功')
-      loadRelations()
-    }
-  })
-}
-
 const openTestDialog = (row) => {
-  testForm.value = { id: row.ID, testResult: row.testResult || 'pending', tester: row.tester || '', operator: '', content: '' }
+  testForm.value = {
+    id: row.ID,
+    testResult: row.testResult || 'pending',
+    tester: row.tester || '',
+    operator: defaultUploadedBy(),
+    content: ''
+  }
   testDialogVisible.value = true
 }
 
 const submitTestResult = async () => {
   const res = await setModelFirmwareTestResult(testForm.value)
   if (res.code === 0) {
-    ElMessage.success('更新成功')
+    ElMessage.success('测试结果已更新')
     testDialogVisible.value = false
-    loadRelations()
+    await loadRelationsForCurrentModel()
   }
 }
 
+const setRecommended = (row) => {
+  setModelFirmwareRecommended({
+    id: row.ID,
+    operator: defaultUploadedBy(),
+    content: '前端设置推荐版本'
+  }).then(async (res) => {
+    if (res.code === 0) {
+      ElMessage.success('设置成功')
+      await loadRelationsForCurrentModel()
+    }
+  })
+}
+
+const deleteRelationRow = (row) => {
+  const firmware = resolveFirmware(row)
+  ElMessageBox.confirm(`确定把 ${firmware.versionCode || '该固件'} 从当前型号中移除吗？`, '提示', { type: 'warning' }).then(async () => {
+    const res = await deleteModelFirmwareRel({ ID: row.ID })
+    if (res.code === 0) {
+      ElMessage.success('移除成功')
+      await loadRelationsForCurrentModel()
+    }
+  })
+}
+
+const downloadPackage = (row) => {
+  const firmware = resolveFirmware(row)
+  if (!firmware.packageUrl) {
+    ElMessage.warning('当前固件还没有安装包地址')
+    return
+  }
+  window.open(firmware.packageUrl, '_blank')
+}
+
 onMounted(async () => {
-  await Promise.all([loadCategories(), loadModels(), loadFirmwares(), loadRelations(), loadTags()])
+  await Promise.all([
+    loadDeviceTree(),
+    loadFirmwareOptions(),
+    loadTags()
+  ])
 })
 </script>
 
 <style scoped>
-.relation-header {
+.section-head {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-  color: #606266;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
 }
 
-.relation-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
+.section-head--compact {
+  margin-bottom: 20px;
 }
 
-.relation-current {
+.section-title {
+  color: #303133;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.section-subtitle {
+  margin-top: 6px;
+  color: #909399;
   font-size: 13px;
+}
+
+.tree-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tree-seq-col {
+  color: #909399;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.tree-name {
+  color: #303133;
+  font-weight: 500;
+}
+
+:deep(.device-tree-category-row .el-table__cell) {
+  background: #f7fbff;
+}
+
+:deep(.device-tree-category-row .tree-name) {
+  font-weight: 600;
+}
+
+:deep(.el-table__placeholder) {
+  display: inline-block;
+  width: 20px;
+}
+
+:deep(.el-table__indent) {
+  width: 0 !important;
+}
+
+:deep(.el-table__expand-icon) {
+  color: #606266;
+  font-size: 14px;
+}
+
+.context-tip {
+  color: #909399;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.firmware-context-card {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.context-item {
+  padding: 14px 16px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f5f9ff 100%);
+}
+
+.context-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #909399;
+  font-size: 12px;
+}
+
+.context-value {
+  color: #303133;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .tag-wrap {
@@ -800,5 +1087,11 @@ onMounted(async () => {
 .upload-tip {
   color: #909399;
   font-size: 13px;
+}
+
+.empty-panel {
+  padding: 48px 0;
+  background: #fff;
+  border-radius: 4px;
 }
 </style>
