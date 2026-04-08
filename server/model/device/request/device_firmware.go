@@ -93,6 +93,12 @@ type VoidFirmwareVersionRequest struct {
 	Content    string `json:"content"`               // 日志内容
 }
 
+type DeleteFirmwarePackageRequest struct {
+	ID       uint   `json:"id" binding:"required"` // 固件版本ID
+	Operator string `json:"operator"`              // 操作人
+	Content  string `json:"content"`               // 日志内容
+}
+
 type SetModelFirmwareTestResultRequest struct {
 	ID         uint       `json:"id" binding:"required"`         // 型号固件关系ID
 	TestResult string     `json:"testResult" binding:"required"` // 测试结果

@@ -404,13 +404,16 @@
                 >上传固件包</el-button
               >
             </el-upload>
-            <span class="upload-tip">
-              {{
-                firmwareUploading
-                  ? '正在上传到 MinIO...'
-                  : firmwareUploadName ||
-                    '支持 update.bin_G3X... 这类自定义命名文件'
-              }}
+            <el-button
+              v-if="firmwareForm.packageUrl"
+              type="danger"
+              plain
+              :disabled="!firmwareForm.packageUrl"
+              @click="deleteFirmwarePackage"
+              >删除固件包</el-button
+            >
+            <span class="upload-file-name">
+              已选文件：{{ firmwareUploadName || firmwareForm.packageName || '未选择' }}
             </span>
           </div>
         </el-form-item>
@@ -506,9 +509,6 @@
         <el-table-column label="动作" min-width="180">
           <template #default="scope">{{ firmwareLogActionLabel(scope.row) }}</template>
         </el-table-column>
-        <el-table-column label="原状态" width="120">
-          <template #default="scope">{{ firmwareStatusLabel(scope.row.fromStatus) }}</template>
-        </el-table-column>
         <el-table-column label="目标状态" width="120">
           <template #default="scope">{{ firmwareStatusLabel(scope.row.toStatus) }}</template>
         </el-table-column>
@@ -550,6 +550,8 @@
     setModelFirmwareRecommended,
     getFirmwareVersionLogList
   } from '@/api/deviceFirmware'
+  import { deleteFirmwarePackage as deleteFirmwarePackageApi } from '@/api/deviceFirmware'
+  import { deleteFile } from '@/api/fileUploadAndDownload'
   import { formatDate, getBaseUrl } from '@/utils/format'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { computed, onMounted, ref } from 'vue'
@@ -610,6 +612,7 @@
     versionName: '',
     packageUrl: '',
     packageName: '',
+    packageFileId: undefined,
     checksum: '',
     status: 'pending_test',
     publishStatus: 'unpublished',
@@ -744,6 +747,7 @@
       mark_stable: '标记稳定版本',
       unmark_stable: '取消稳定版本',
       void_release: '作废发布版本',
+      delete_package: '删除固件包',
       set_recommended: modelName ? `设为 ${modelName} 当前发布` : '设为当前发布'
     }[log?.action] || log?.action || '-')
   }
@@ -1011,6 +1015,7 @@
     }
     firmwareForm.value.packageUrl = file.url
     firmwareForm.value.packageName = file.name || firmwareUploadName.value
+    firmwareForm.value.packageFileId = file.ID || file.id || undefined
     if (!firmwareForm.value.uploadedBy) {
       firmwareForm.value.uploadedBy = defaultUploadedBy()
     }
@@ -1020,6 +1025,43 @@
   const handleFirmwareUploadError = () => {
     firmwareUploading.value = false
     ElMessage.error('固件包上传失败')
+  }
+
+  const deleteFirmwarePackage = async () => {
+    if (!firmwareForm.value.packageUrl) {
+      ElMessage.warning('当前没有可删除的安装包')
+      return
+    }
+    try {
+      await ElMessageBox.confirm(
+        '确定删除当前固件包吗？该操作会同时删除 MinIO 里的文件。',
+        '提示',
+        { type: 'warning' }
+      )
+    } catch (error) {
+      return
+    }
+    if (firmwareDialogType.value === 'create' && !firmwareForm.value.packageFileId) {
+      ElMessage.warning('未找到可删除的安装包记录')
+      return
+    }
+    const res = firmwareDialogType.value === 'update' && firmwareForm.value.ID
+      ? await deleteFirmwarePackageApi({
+          id: firmwareForm.value.ID,
+          operator: defaultUploadedBy(),
+          content: '删除安装包'
+        })
+      : await deleteFile({
+          ID: firmwareForm.value.packageFileId
+        })
+    if (res.code !== 0) {
+      return
+    }
+    firmwareForm.value.packageUrl = ''
+    firmwareForm.value.packageName = ''
+    firmwareForm.value.packageFileId = undefined
+    firmwareUploadName.value = ''
+    ElMessage.success('固件包已删除')
   }
 
   const openFirmwareDialog = async (row, parentModel) => {
@@ -1056,6 +1098,7 @@
         versionName: '',
         packageUrl: '',
         packageName: '',
+        packageFileId: undefined,
         checksum: '',
         status: 'pending_test',
         publishStatus: 'unpublished',
@@ -1354,6 +1397,11 @@
     align-items: center;
     gap: 12px;
     flex-wrap: wrap;
+  }
+
+  .upload-file-name {
+    color: #909399;
+    font-size: 13px;
   }
 
   .upload-tip {

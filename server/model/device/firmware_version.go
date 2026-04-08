@@ -13,6 +13,7 @@ type FirmwareVersion struct {
 	VersionName   string                  `json:"versionName" form:"versionName" gorm:"column:version_name;comment:版本名称;size:150;not null"`                                                         // 版本名称
 	PackageURL    string                  `json:"packageUrl" form:"packageUrl" gorm:"column:package_url;comment:安装包地址;size:500"`                                                                    // 安装包地址
 	PackageName   string                  `json:"packageName" form:"packageName" gorm:"column:package_name;comment:安装包名称;size:255"`                                                                 // 安装包名称
+	PackageFileID uint                    `json:"packageFileId" form:"packageFileId" gorm:"column:package_file_id;comment:安装包文件ID;default:0"`                                                       // 安装包文件ID
 	Checksum      string                  `json:"checksum" form:"checksum" gorm:"column:checksum;comment:校验值;size:128"`                                                                             // 校验值
 	Status        string                  `json:"status" form:"status" gorm:"column:status;comment:开发状态:pending_test/testing/tested_pass/test_failed/pending_release;size:32;default:pending_test"` // 开发状态
 	PublishStatus string                  `json:"publishStatus" form:"publishStatus" gorm:"column:publish_status;comment:发布状态:unpublished/published/voided;size:32;default:unpublished"`            // 发布状态

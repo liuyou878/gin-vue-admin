@@ -18,3 +18,6 @@ ALTER TABLE alpha_firmware_versions
 
 ALTER TABLE alpha_firmware_versions
   ADD COLUMN void_reason TEXT NULL COMMENT '作废原因' AFTER voided_at;
+
+ALTER TABLE alpha_firmware_versions
+  ADD COLUMN package_file_id BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '安装包文件ID' AFTER package_name;

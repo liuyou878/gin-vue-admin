@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS `alpha_firmware_versions` (
   `version_name` varchar(150) NOT NULL COMMENT '版本名称',
   `package_url` varchar(500) DEFAULT NULL COMMENT '安装包地址',
   `package_name` varchar(255) DEFAULT NULL COMMENT '安装包名称',
+  `package_file_id` bigint unsigned NOT NULL DEFAULT 0 COMMENT '安装包文件ID',
   `checksum` varchar(128) DEFAULT NULL COMMENT '校验值',
   `status` varchar(32) NOT NULL DEFAULT 'draft' COMMENT '状态:draft/testing/tested_pass/stable/deprecated',
   `release_note` text COMMENT '版本说明',

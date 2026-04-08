@@ -112,9 +112,13 @@ func (e *FileUploadAndDownloadService) UploadFile(header *multipart.FileHeader, 
 		var existingFile example.ExaFileUploadAndDownload
 		err = global.GVA_DB.Where(&example.ExaFileUploadAndDownload{Key: key}).First(&existingFile).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return f, e.Upload(f)
+			if err = e.Upload(f); err != nil {
+				return file, err
+			}
+			err = global.GVA_DB.Where(&example.ExaFileUploadAndDownload{Key: key}).First(&existingFile).Error
+			return existingFile, err
 		}
-		return f, err
+		return existingFile, err
 	}
 	return f, nil
 }

@@ -24,8 +24,7 @@ func (s *ModelFirmwareRelService) CreateModelFirmwareRel(rel *deviceModel.ModelF
 		if err := ensureDeviceModelExists(tx, rel.ModelID); err != nil {
 			return err
 		}
-		firmwareStatus, err := getFirmwareStatusForLog(tx, rel.FirmwareID)
-		if err != nil {
+		if err := ensureFirmwareVersionExists(tx, rel.FirmwareID); err != nil {
 			return err
 		}
 		if err := cleanupOrRejectDuplicateModelFirmwareRel(tx, rel.ModelID, rel.FirmwareID, 0); err != nil {
@@ -34,8 +33,7 @@ func (s *ModelFirmwareRelService) CreateModelFirmwareRel(rel *deviceModel.ModelF
 		if err := tx.Create(rel).Error; err != nil {
 			return err
 		}
-		modelID := rel.ModelID
-		return createFirmwareVersionLog(tx, rel.FirmwareID, &modelID, "bind_model", "", firmwareStatus, rel.Tester, "绑定设备型号")
+		return nil
 	})
 }
 

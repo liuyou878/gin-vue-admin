@@ -8,6 +8,8 @@ import (
 	commonReq "github.com/flipped-aurora/gin-vue-admin/server/model/common/request"
 	deviceModel "github.com/flipped-aurora/gin-vue-admin/server/model/device"
 	deviceReq "github.com/flipped-aurora/gin-vue-admin/server/model/device/request"
+	exampleModel "github.com/flipped-aurora/gin-vue-admin/server/model/example"
+	"github.com/flipped-aurora/gin-vue-admin/server/utils/upload"
 	"gorm.io/gorm"
 )
 
@@ -91,6 +93,7 @@ func (s *FirmwareVersionService) UpdateFirmwareVersion(firmware deviceModel.Firm
 		}
 		packageChanged := current.PackageURL != firmware.PackageURL ||
 			current.PackageName != firmware.PackageName ||
+			current.PackageFileID != firmware.PackageFileID ||
 			current.Checksum != firmware.Checksum
 		if packageChanged && (current.PublishStatus == "published" || current.PublishStatus == "voided") {
 			return errors.New("已发布版本不能再更新安装包")
@@ -105,17 +108,18 @@ func (s *FirmwareVersionService) UpdateFirmwareVersion(firmware deviceModel.Firm
 		}
 
 		updates := map[string]interface{}{
-			"version_code": firmware.VersionCode,
-			"version_name": firmware.VersionName,
-			"package_url":  firmware.PackageURL,
-			"package_name": firmware.PackageName,
-			"checksum":     firmware.Checksum,
-			"status":       nextStatus,
-			"release_note": firmware.ReleaseNote,
-			"test_summary": firmware.TestSummary,
-			"uploaded_by":  firmware.UploadedBy,
-			"uploaded_at":  firmware.UploadedAt,
-			"remark":       firmware.Remark,
+			"version_code":    firmware.VersionCode,
+			"version_name":    firmware.VersionName,
+			"package_url":     firmware.PackageURL,
+			"package_name":    firmware.PackageName,
+			"package_file_id": firmware.PackageFileID,
+			"checksum":        firmware.Checksum,
+			"status":          nextStatus,
+			"release_note":    firmware.ReleaseNote,
+			"test_summary":    firmware.TestSummary,
+			"uploaded_by":     firmware.UploadedBy,
+			"uploaded_at":     firmware.UploadedAt,
+			"remark":          firmware.Remark,
 		}
 		if err := tx.Model(&deviceModel.FirmwareVersion{}).Where("id = ?", firmware.ID).Updates(updates).Error; err != nil {
 			return err
@@ -334,6 +338,47 @@ func (s *FirmwareVersionService) VoidFirmwareVersion(req deviceReq.VoidFirmwareV
 	})
 }
 
+// DeleteFirmwarePackage 删除固件包
+func (s *FirmwareVersionService) DeleteFirmwarePackage(req deviceReq.DeleteFirmwarePackageRequest) error {
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var firmware deviceModel.FirmwareVersion
+		if err := tx.Where("id = ?", req.ID).First(&firmware).Error; err != nil {
+			return err
+		}
+		if firmware.PublishStatus == "published" || firmware.PublishStatus == "voided" {
+			return errors.New("已发布或已作废版本不能删除安装包")
+		}
+		fileRecord, err := resolveFirmwarePackageFile(tx, firmware)
+		if err != nil {
+			return err
+		}
+		if fileRecord.ID == 0 {
+			return errors.New("未找到可删除的安装包")
+		}
+		if err := upload.NewOss().DeleteFile(fileRecord.Key); err != nil {
+			return err
+		}
+		updates := map[string]interface{}{
+			"package_url":     "",
+			"package_name":    "",
+			"package_file_id": 0,
+			"checksum":        "",
+		}
+		if err := tx.Model(&deviceModel.FirmwareVersion{}).Where("id = ?", req.ID).Updates(updates).Error; err != nil {
+			return err
+		}
+		operator := req.Operator
+		if operator == "" {
+			operator = firmware.UploadedBy
+		}
+		content := req.Content
+		if content == "" {
+			content = "删除安装包"
+		}
+		return createFirmwareVersionLog(tx, firmware.ID, nil, "delete_package", firmware.Status, firmware.Status, operator, content)
+	})
+}
+
 func convertStatusToAction(fromStatus, toStatus string) string {
 	switch toStatus {
 	case "pending_test":
@@ -422,4 +467,26 @@ func createFirmwareVersionLog(tx *gorm.DB, firmwareID uint, modelID *uint, actio
 		Content:    content,
 	}
 	return tx.Create(&log).Error
+}
+
+func resolveFirmwarePackageFile(tx *gorm.DB, firmware deviceModel.FirmwareVersion) (exampleModel.ExaFileUploadAndDownload, error) {
+	if firmware.PackageFileID > 0 {
+		var fileRecord exampleModel.ExaFileUploadAndDownload
+		if err := tx.Where("id = ?", firmware.PackageFileID).First(&fileRecord).Error; err == nil {
+			return fileRecord, nil
+		}
+	}
+	if firmware.PackageURL != "" {
+		var fileRecord exampleModel.ExaFileUploadAndDownload
+		if err := tx.Where("url = ?", firmware.PackageURL).First(&fileRecord).Error; err == nil {
+			return fileRecord, nil
+		}
+	}
+	if firmware.PackageName != "" {
+		var fileRecord exampleModel.ExaFileUploadAndDownload
+		if err := tx.Where("name = ?", firmware.PackageName).First(&fileRecord).Error; err == nil {
+			return fileRecord, nil
+		}
+	}
+	return exampleModel.ExaFileUploadAndDownload{}, errors.New("未找到安装包文件记录")
 }

@@ -176,6 +176,14 @@ export const voidFirmwareVersion = (data) => {
   })
 }
 
+export const deleteFirmwarePackage = (data) => {
+  return service({
+    url: '/firmwareVersion/deleteFirmwarePackage',
+    method: 'post',
+    data
+  })
+}
+
 export const createModelFirmwareRel = (data) => {
   return service({
     url: '/modelFirmware/createModelFirmwareRel',

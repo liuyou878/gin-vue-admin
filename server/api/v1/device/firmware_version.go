@@ -160,3 +160,18 @@ func (a *FirmwareVersionApi) VoidFirmwareVersion(c *gin.Context) {
 	}
 	response.OkWithMessage("作废成功", c)
 }
+
+// DeleteFirmwarePackage 删除固件包
+func (a *FirmwareVersionApi) DeleteFirmwarePackage(c *gin.Context) {
+	var req deviceReq.DeleteFirmwarePackageRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if err := firmwareVersionService.DeleteFirmwarePackage(req); err != nil {
+		global.GVA_LOG.Error("删除固件包失败!", zap.Error(err))
+		response.FailWithMessage("删除固件包失败:"+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("删除成功", c)
+}
