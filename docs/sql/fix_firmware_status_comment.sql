@@ -1,0 +1,1 @@
+ALTER TABLE alpha_firmware_versions MODIFY COLUMN status VARCHAR(32) NOT NULL DEFAULT 'pending_test' COMMENT '状态:pending_test/testing/tested_pass/stable/deprecated';

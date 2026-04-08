@@ -17,6 +17,9 @@ func (r *FirmwareVersionRouter) InitFirmwareVersionRouter(Router *gin.RouterGrou
 		firmwareVersionRouter.DELETE("deleteFirmwareVersionByIds", firmwareVersionApi.DeleteFirmwareVersionByIds) // 批量删除固件版本
 		firmwareVersionRouter.PUT("updateFirmwareVersion", firmwareVersionApi.UpdateFirmwareVersion)              // 更新固件版本
 		firmwareVersionRouter.POST("changeFirmwareVersionStatus", firmwareVersionApi.ChangeFirmwareVersionStatus) // 更新固件版本状态
+		firmwareVersionRouter.POST("publishFirmwareVersion", firmwareVersionApi.PublishFirmwareVersion)           // 发布固件版本
+		firmwareVersionRouter.POST("setFirmwareStable", firmwareVersionApi.SetFirmwareStable)                     // 设置稳定版本
+		firmwareVersionRouter.POST("voidFirmwareVersion", firmwareVersionApi.VoidFirmwareVersion)                 // 作废固件版本
 	}
 	{
 		firmwareVersionRouterWithoutRecord.GET("findFirmwareVersion", firmwareVersionApi.FindFirmwareVersion)       // 获取固件版本详情

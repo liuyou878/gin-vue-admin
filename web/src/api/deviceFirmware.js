@@ -152,6 +152,30 @@ export const changeFirmwareVersionStatus = (data) => {
   })
 }
 
+export const publishFirmwareVersion = (data) => {
+  return service({
+    url: '/firmwareVersion/publishFirmwareVersion',
+    method: 'post',
+    data
+  })
+}
+
+export const setFirmwareStable = (data) => {
+  return service({
+    url: '/firmwareVersion/setFirmwareStable',
+    method: 'post',
+    data
+  })
+}
+
+export const voidFirmwareVersion = (data) => {
+  return service({
+    url: '/firmwareVersion/voidFirmwareVersion',
+    method: 'post',
+    data
+  })
+}
+
 export const createModelFirmwareRel = (data) => {
   return service({
     url: '/modelFirmware/createModelFirmwareRel',

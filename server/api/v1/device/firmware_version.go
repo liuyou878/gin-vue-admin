@@ -115,3 +115,48 @@ func (a *FirmwareVersionApi) ChangeFirmwareVersionStatus(c *gin.Context) {
 	}
 	response.OkWithMessage("状态更新成功", c)
 }
+
+// PublishFirmwareVersion 发布固件版本
+func (a *FirmwareVersionApi) PublishFirmwareVersion(c *gin.Context) {
+	var req deviceReq.PublishFirmwareVersionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if err := firmwareVersionService.PublishFirmwareVersion(req); err != nil {
+		global.GVA_LOG.Error("发布固件版本失败!", zap.Error(err))
+		response.FailWithMessage("发布固件版本失败:"+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("发布成功", c)
+}
+
+// SetFirmwareStable 标记稳定版本
+func (a *FirmwareVersionApi) SetFirmwareStable(c *gin.Context) {
+	var req deviceReq.SetFirmwareStableRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if err := firmwareVersionService.SetFirmwareStable(req); err != nil {
+		global.GVA_LOG.Error("设置稳定版本失败!", zap.Error(err))
+		response.FailWithMessage("设置稳定版本失败:"+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("设置成功", c)
+}
+
+// VoidFirmwareVersion 作废固件版本
+func (a *FirmwareVersionApi) VoidFirmwareVersion(c *gin.Context) {
+	var req deviceReq.VoidFirmwareVersionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if err := firmwareVersionService.VoidFirmwareVersion(req); err != nil {
+		global.GVA_LOG.Error("作废固件版本失败!", zap.Error(err))
+		response.FailWithMessage("作废固件版本失败:"+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("作废成功", c)
+}

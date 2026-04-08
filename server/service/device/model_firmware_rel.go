@@ -24,7 +24,8 @@ func (s *ModelFirmwareRelService) CreateModelFirmwareRel(rel *deviceModel.ModelF
 		if err := ensureDeviceModelExists(tx, rel.ModelID); err != nil {
 			return err
 		}
-		if err := ensureFirmwareVersionExists(tx, rel.FirmwareID); err != nil {
+		firmwareStatus, err := getFirmwareStatusForLog(tx, rel.FirmwareID)
+		if err != nil {
 			return err
 		}
 		if err := cleanupOrRejectDuplicateModelFirmwareRel(tx, rel.ModelID, rel.FirmwareID, 0); err != nil {
@@ -34,18 +35,50 @@ func (s *ModelFirmwareRelService) CreateModelFirmwareRel(rel *deviceModel.ModelF
 			return err
 		}
 		modelID := rel.ModelID
-		return createFirmwareVersionLog(tx, rel.FirmwareID, &modelID, "bind_model", "", rel.TestResult, rel.Tester, "绑定设备型号")
+		return createFirmwareVersionLog(tx, rel.FirmwareID, &modelID, "bind_model", "", firmwareStatus, rel.Tester, "绑定设备型号")
 	})
 }
 
 // DeleteModelFirmwareRel 删除型号固件关系
 func (s *ModelFirmwareRelService) DeleteModelFirmwareRel(id string) error {
-	return global.GVA_DB.Unscoped().Delete(&deviceModel.ModelFirmwareRel{}, "id = ?", id).Error
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var rel deviceModel.ModelFirmwareRel
+		if err := tx.Where("id = ?", id).First(&rel).Error; err != nil {
+			return err
+		}
+		var firmware deviceModel.FirmwareVersion
+		if err := tx.Select("publish_status").Where("id = ?", rel.FirmwareID).First(&firmware).Error; err != nil {
+			return err
+		}
+		if firmware.PublishStatus == "published" || firmware.PublishStatus == "voided" {
+			return errors.New("已发布版本不能删除关联，只能保留历史或作废")
+		}
+		return tx.Unscoped().Delete(&deviceModel.ModelFirmwareRel{}, "id = ?", id).Error
+	})
 }
 
 // DeleteModelFirmwareRelByIds 批量删除型号固件关系
 func (s *ModelFirmwareRelService) DeleteModelFirmwareRelByIds(ids commonReq.IdsReq) error {
-	return global.GVA_DB.Unscoped().Delete(&[]deviceModel.ModelFirmwareRel{}, "id in ?", ids.Ids).Error
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var rels []deviceModel.ModelFirmwareRel
+		if err := tx.Where("id in ?", ids.Ids).Find(&rels).Error; err != nil {
+			return err
+		}
+		var firmwareIDs []uint
+		for _, rel := range rels {
+			firmwareIDs = append(firmwareIDs, rel.FirmwareID)
+		}
+		if len(firmwareIDs) > 0 {
+			var count int64
+			if err := tx.Model(&deviceModel.FirmwareVersion{}).Where("id in ? AND publish_status in ?", firmwareIDs, []string{"published", "voided"}).Count(&count).Error; err != nil {
+				return err
+			}
+			if count > 0 {
+				return errors.New("所选关联中存在已发布或已作废版本，不能删除")
+			}
+		}
+		return tx.Unscoped().Delete(&[]deviceModel.ModelFirmwareRel{}, "id in ?", ids.Ids).Error
+	})
 }
 
 // UpdateModelFirmwareRel 更新型号固件关系
@@ -117,6 +150,17 @@ func (s *ModelFirmwareRelService) SetModelFirmwareRecommended(req deviceReq.SetM
 		if err := tx.Where("id = ?", req.ID).First(&rel).Error; err != nil {
 			return err
 		}
+		var firmware deviceModel.FirmwareVersion
+		if err := tx.Select("status", "publish_status").Where("id = ?", rel.FirmwareID).First(&firmware).Error; err != nil {
+			return err
+		}
+		if firmware.PublishStatus != "published" {
+			return errors.New("只有已发布版本才能设为当前发布")
+		}
+		firmwareStatus, err := getFirmwareStatusForLog(tx, rel.FirmwareID)
+		if err != nil {
+			return err
+		}
 		if err := tx.Model(&deviceModel.ModelFirmwareRel{}).Where("model_id = ?", rel.ModelID).Update("is_recommended", false).Error; err != nil {
 			return err
 		}
@@ -128,7 +172,7 @@ func (s *ModelFirmwareRelService) SetModelFirmwareRecommended(req deviceReq.SetM
 		if content == "" {
 			content = "设置推荐版本"
 		}
-		return createFirmwareVersionLog(tx, rel.FirmwareID, &modelID, "set_recommended", "", "", req.Operator, content)
+		return createFirmwareVersionLog(tx, rel.FirmwareID, &modelID, "set_recommended", "", firmwareStatus, req.Operator, content)
 	})
 }
 
@@ -197,6 +241,17 @@ func ensureFirmwareVersionExists(tx *gorm.DB, firmwareID uint) error {
 		return errors.New("固件版本不存在")
 	}
 	return nil
+}
+
+func getFirmwareStatusForLog(tx *gorm.DB, firmwareID uint) (string, error) {
+	var firmware deviceModel.FirmwareVersion
+	if err := tx.Select("status").Where("id = ?", firmwareID).First(&firmware).Error; err != nil {
+		return "", err
+	}
+	if firmware.Status == "draft" {
+		return "pending_test", nil
+	}
+	return firmware.Status, nil
 }
 
 func cleanupOrRejectDuplicateModelFirmwareRel(tx *gorm.DB, modelID, firmwareID, excludeID uint) error {

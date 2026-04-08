@@ -277,6 +277,9 @@ func (i *initApi) InitializeData(ctx context.Context) (context.Context, error) {
 		{ApiGroup: "设备固件-固件版本", Method: "GET", Path: "/firmwareVersion/findFirmwareVersion", Description: "获取固件版本详情"},
 		{ApiGroup: "设备固件-固件版本", Method: "GET", Path: "/firmwareVersion/getFirmwareVersionList", Description: "获取固件版本列表"},
 		{ApiGroup: "设备固件-固件版本", Method: "POST", Path: "/firmwareVersion/changeFirmwareVersionStatus", Description: "更新固件版本状态"},
+		{ApiGroup: "设备固件-固件版本", Method: "POST", Path: "/firmwareVersion/publishFirmwareVersion", Description: "发布固件版本"},
+		{ApiGroup: "设备固件-固件版本", Method: "POST", Path: "/firmwareVersion/setFirmwareStable", Description: "设置稳定版本"},
+		{ApiGroup: "设备固件-固件版本", Method: "POST", Path: "/firmwareVersion/voidFirmwareVersion", Description: "作废固件版本"},
 
 		{ApiGroup: "设备固件-型号关系", Method: "POST", Path: "/modelFirmware/createModelFirmwareRel", Description: "创建型号固件关系"},
 		{ApiGroup: "设备固件-型号关系", Method: "DELETE", Path: "/modelFirmware/deleteModelFirmwareRel", Description: "删除型号固件关系"},

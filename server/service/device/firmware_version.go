@@ -12,16 +12,31 @@ import (
 )
 
 var validFirmwareStatuses = map[string]bool{
-	"draft":       true,
-	"testing":     true,
-	"tested_pass": true,
-	"stable":      true,
-	"deprecated":  true,
+	"pending_test":    true,
+	"testing":         true,
+	"tested_pass":     true,
+	"test_failed":     true,
+	"pending_release": true,
+}
+
+var validPublishStatuses = map[string]bool{
+	"unpublished": true,
+	"published":   true,
+	"voided":      true,
 }
 
 // CreateFirmwareVersion 创建固件版本
 func (s *FirmwareVersionService) CreateFirmwareVersion(firmware *deviceModel.FirmwareVersion) error {
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		if firmware.Status == "" || firmware.Status == "draft" {
+			firmware.Status = "pending_test"
+		}
+		if !validFirmwareStatuses[firmware.Status] {
+			return errors.New("开发状态不合法")
+		}
+		if firmware.PublishStatus == "" {
+			firmware.PublishStatus = "unpublished"
+		}
 		if err := tx.Create(firmware).Error; err != nil {
 			return err
 		}
@@ -31,6 +46,13 @@ func (s *FirmwareVersionService) CreateFirmwareVersion(firmware *deviceModel.Fir
 
 // DeleteFirmwareVersion 删除固件版本
 func (s *FirmwareVersionService) DeleteFirmwareVersion(id string) error {
+	var firmware deviceModel.FirmwareVersion
+	if err := global.GVA_DB.Select("id", "publish_status").Where("id = ?", id).First(&firmware).Error; err != nil {
+		return err
+	}
+	if firmware.PublishStatus == "published" || firmware.PublishStatus == "voided" {
+		return errors.New("已发布的版本不能删除，只能作废并保留历史")
+	}
 	var count int64
 	if err := global.GVA_DB.Model(&deviceModel.ModelFirmwareRel{}).Where("firmware_id = ?", id).Count(&count).Error; err != nil {
 		return err
@@ -43,6 +65,13 @@ func (s *FirmwareVersionService) DeleteFirmwareVersion(id string) error {
 
 // DeleteFirmwareVersionByIds 批量删除固件版本
 func (s *FirmwareVersionService) DeleteFirmwareVersionByIds(ids commonReq.IdsReq) error {
+	var publishedCount int64
+	if err := global.GVA_DB.Model(&deviceModel.FirmwareVersion{}).Where("id in ? AND publish_status in ?", ids.Ids, []string{"published", "voided"}).Count(&publishedCount).Error; err != nil {
+		return err
+	}
+	if publishedCount > 0 {
+		return errors.New("所选固件版本中存在已发布或已作废的数据，不能删除")
+	}
 	var count int64
 	if err := global.GVA_DB.Model(&deviceModel.ModelFirmwareRel{}).Where("firmware_id in ?", ids.Ids).Count(&count).Error; err != nil {
 		return err
@@ -55,22 +84,60 @@ func (s *FirmwareVersionService) DeleteFirmwareVersionByIds(ids commonReq.IdsReq
 
 // UpdateFirmwareVersion 更新固件版本
 func (s *FirmwareVersionService) UpdateFirmwareVersion(firmware deviceModel.FirmwareVersion) error {
-	updates := map[string]interface{}{
-		"version_code": firmware.VersionCode,
-		"version_name": firmware.VersionName,
-		"package_url":  firmware.PackageURL,
-		"package_name": firmware.PackageName,
-		"checksum":     firmware.Checksum,
-		"status":       firmware.Status,
-		"release_note": firmware.ReleaseNote,
-		"test_summary": firmware.TestSummary,
-		"is_latest":    firmware.IsLatest,
-		"is_stable":    firmware.IsStable,
-		"uploaded_by":  firmware.UploadedBy,
-		"uploaded_at":  firmware.UploadedAt,
-		"remark":       firmware.Remark,
-	}
-	return global.GVA_DB.Model(&deviceModel.FirmwareVersion{}).Where("id = ?", firmware.ID).Updates(updates).Error
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var current deviceModel.FirmwareVersion
+		if err := tx.Where("id = ?", firmware.ID).First(&current).Error; err != nil {
+			return err
+		}
+		packageChanged := current.PackageURL != firmware.PackageURL ||
+			current.PackageName != firmware.PackageName ||
+			current.Checksum != firmware.Checksum
+		if packageChanged && (current.PublishStatus == "published" || current.PublishStatus == "voided") {
+			return errors.New("已发布版本不能再更新安装包")
+		}
+		if packageChanged && !canReplaceFirmwarePackage(current.Status, current.PublishStatus) {
+			return errors.New("当前阶段不允许替换安装包")
+		}
+
+		nextStatus := normalizeFirmwareStatus(current.Status)
+		if packageChanged && current.Status == "test_failed" {
+			nextStatus = "pending_test"
+		}
+
+		updates := map[string]interface{}{
+			"version_code": firmware.VersionCode,
+			"version_name": firmware.VersionName,
+			"package_url":  firmware.PackageURL,
+			"package_name": firmware.PackageName,
+			"checksum":     firmware.Checksum,
+			"status":       nextStatus,
+			"release_note": firmware.ReleaseNote,
+			"test_summary": firmware.TestSummary,
+			"uploaded_by":  firmware.UploadedBy,
+			"uploaded_at":  firmware.UploadedAt,
+			"remark":       firmware.Remark,
+		}
+		if err := tx.Model(&deviceModel.FirmwareVersion{}).Where("id = ?", firmware.ID).Updates(updates).Error; err != nil {
+			return err
+		}
+		if packageChanged {
+			content := "更新固件包"
+			if current.Status == "test_failed" {
+				content = "已修复，重新上传固件包"
+			}
+			return createFirmwareVersionLog(
+				tx,
+				current.ID,
+				nil,
+				"fix_upload",
+				current.Status,
+				nextStatus,
+				firmware.UploadedBy,
+				content,
+			)
+		}
+		return nil
+	})
 }
 
 // GetFirmwareVersion 获取固件版本详情
@@ -89,7 +156,10 @@ func (s *FirmwareVersionService) GetFirmwareVersionInfoList(info deviceReq.Firmw
 		db = db.Where("version_name LIKE ?", "%"+info.VersionName+"%")
 	}
 	if info.Status != "" {
-		db = db.Where("status = ?", info.Status)
+		db = db.Where("status = ?", normalizeFirmwareStatus(info.Status))
+	}
+	if info.PublishStatus != "" {
+		db = db.Where("publish_status = ?", normalizePublishStatus(info.PublishStatus))
 	}
 	if info.IsLatest != nil {
 		db = db.Where("is_latest = ?", *info.IsLatest)
@@ -113,23 +183,29 @@ func (s *FirmwareVersionService) GetFirmwareVersionInfoList(info deviceReq.Firmw
 
 // ChangeFirmwareVersionStatus 更新固件版本状态
 func (s *FirmwareVersionService) ChangeFirmwareVersionStatus(req deviceReq.ChangeFirmwareVersionStatusRequest) error {
+	req.Status = normalizeFirmwareStatus(req.Status)
 	if !validFirmwareStatuses[req.Status] {
-		return errors.New("固件状态不合法")
+		return errors.New("开发状态不合法")
 	}
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		var firmware deviceModel.FirmwareVersion
 		if err := tx.Where("id = ?", req.ID).First(&firmware).Error; err != nil {
 			return err
 		}
+		if firmware.PublishStatus == "published" || firmware.PublishStatus == "voided" {
+			return errors.New("已进入发布域的版本不能再直接修改开发状态")
+		}
+		if !isAllowedFirmwareStatusTransition(firmware.Status, req.Status) {
+			return errors.New("当前开发状态不允许执行该操作")
+		}
 		fromStatus := firmware.Status
 		updates := map[string]interface{}{
-			"status":    req.Status,
-			"is_stable": req.Status == "stable",
+			"status": req.Status,
 		}
 		if err := tx.Model(&deviceModel.FirmwareVersion{}).Where("id = ?", req.ID).Updates(updates).Error; err != nil {
 			return err
 		}
-		action := convertStatusToAction(req.Status)
+		action := convertStatusToAction(fromStatus, req.Status)
 		operator := req.Operator
 		if operator == "" {
 			operator = firmware.UploadedBy
@@ -142,18 +218,194 @@ func (s *FirmwareVersionService) ChangeFirmwareVersionStatus(req deviceReq.Chang
 	})
 }
 
-func convertStatusToAction(status string) string {
-	switch status {
+// PublishFirmwareVersion 发布固件版本
+func (s *FirmwareVersionService) PublishFirmwareVersion(req deviceReq.PublishFirmwareVersionRequest) error {
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var firmware deviceModel.FirmwareVersion
+		if err := tx.Where("id = ?", req.ID).First(&firmware).Error; err != nil {
+			return err
+		}
+		if firmware.PublishStatus == "voided" {
+			return errors.New("已作废版本不能再次发布")
+		}
+		if firmware.PublishStatus == "published" {
+			return errors.New("该版本已经发布")
+		}
+		if firmware.Status != "pending_release" {
+			return errors.New("只有待发布版本才能执行发布")
+		}
+		now := time.Now()
+		if err := tx.Model(&deviceModel.FirmwareVersion{}).
+			Where("is_latest = ? AND publish_status = ?", true, "published").
+			Updates(map[string]interface{}{"is_latest": false}).Error; err != nil {
+			return err
+		}
+		operator := req.Operator
+		if operator == "" {
+			operator = firmware.UploadedBy
+		}
+		updates := map[string]interface{}{
+			"publish_status": "published",
+			"is_latest":      true,
+			"published_by":   operator,
+			"published_at":   &now,
+		}
+		if err := tx.Model(&deviceModel.FirmwareVersion{}).Where("id = ?", req.ID).Updates(updates).Error; err != nil {
+			return err
+		}
+		content := req.Content
+		if content == "" {
+			content = "发布版本"
+		}
+		return createFirmwareVersionLog(tx, firmware.ID, nil, "publish", firmware.Status, "published", operator, content)
+	})
+}
+
+// SetFirmwareStable 设置稳定版本标记
+func (s *FirmwareVersionService) SetFirmwareStable(req deviceReq.SetFirmwareStableRequest) error {
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var firmware deviceModel.FirmwareVersion
+		if err := tx.Where("id = ?", req.ID).First(&firmware).Error; err != nil {
+			return err
+		}
+		if firmware.PublishStatus != "published" {
+			return errors.New("只有已发布版本才能设置稳定版本")
+		}
+		if err := tx.Model(&deviceModel.FirmwareVersion{}).Where("id = ?", req.ID).Update("is_stable", req.Stable).Error; err != nil {
+			return err
+		}
+		operator := req.Operator
+		if operator == "" {
+			operator = firmware.PublishedBy
+		}
+		content := req.Content
+		action := "mark_stable"
+		if req.Stable {
+			if content == "" {
+				content = "标记为稳定版本"
+			}
+		} else {
+			action = "unmark_stable"
+			if content == "" {
+				content = "取消稳定版本标记"
+			}
+		}
+		return createFirmwareVersionLog(tx, firmware.ID, nil, action, firmware.PublishStatus, firmware.PublishStatus, operator, content)
+	})
+}
+
+// VoidFirmwareVersion 作废已发布固件版本
+func (s *FirmwareVersionService) VoidFirmwareVersion(req deviceReq.VoidFirmwareVersionRequest) error {
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var firmware deviceModel.FirmwareVersion
+		if err := tx.Where("id = ?", req.ID).First(&firmware).Error; err != nil {
+			return err
+		}
+		if firmware.PublishStatus != "published" {
+			return errors.New("只有已发布版本才能作废")
+		}
+		now := time.Now()
+		operator := req.Operator
+		if operator == "" {
+			operator = firmware.PublishedBy
+		}
+		updates := map[string]interface{}{
+			"publish_status": "voided",
+			"is_latest":      false,
+			"is_stable":      false,
+			"voided_by":      operator,
+			"voided_at":      &now,
+			"void_reason":    req.VoidReason,
+		}
+		if err := tx.Model(&deviceModel.FirmwareVersion{}).Where("id = ?", req.ID).Updates(updates).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&deviceModel.ModelFirmwareRel{}).Where("firmware_id = ?", req.ID).Update("is_recommended", false).Error; err != nil {
+			return err
+		}
+		content := req.Content
+		if content == "" {
+			content = req.VoidReason
+		}
+		if content == "" {
+			content = "作废已发布版本"
+		}
+		return createFirmwareVersionLog(tx, firmware.ID, nil, "void_release", firmware.PublishStatus, "voided", operator, content)
+	})
+}
+
+func convertStatusToAction(fromStatus, toStatus string) string {
+	switch toStatus {
+	case "pending_test":
+		if normalizeFirmwareStatus(fromStatus) == "test_failed" {
+			return "fix_upload"
+		}
+		return "upload"
 	case "testing":
+		if normalizeFirmwareStatus(fromStatus) == "pending_release" {
+			return "reject_release"
+		}
 		return "start_testing"
 	case "tested_pass":
 		return "test_pass"
-	case "stable":
-		return "set_stable"
-	case "deprecated":
-		return "deprecate"
+	case "test_failed":
+		return "test_fail"
+	case "pending_release":
+		return "submit_release"
 	default:
 		return "upload"
+	}
+}
+
+func canReplaceFirmwarePackage(status, publishStatus string) bool {
+	if normalizePublishStatus(publishStatus) != "unpublished" {
+		return false
+	}
+	switch normalizeFirmwareStatus(status) {
+	case "pending_test", "test_failed":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeFirmwareStatus(status string) string {
+	switch status {
+	case "", "draft":
+		return "pending_test"
+	case "failed":
+		return "test_failed"
+	default:
+		return status
+	}
+}
+
+func normalizePublishStatus(status string) string {
+	if status == "" {
+		return "unpublished"
+	}
+	return status
+}
+
+func isAllowedFirmwareStatusTransition(from, to string) bool {
+	from = normalizeFirmwareStatus(from)
+	to = normalizeFirmwareStatus(to)
+	if from == to {
+		return true
+	}
+	switch from {
+	case "pending_test":
+		return to == "testing"
+	case "testing":
+		return to == "tested_pass" || to == "test_failed"
+	case "tested_pass":
+		return to == "pending_release"
+	case "test_failed":
+		return to == "testing" || to == "pending_test"
+	case "pending_release":
+		return to == "testing"
+	default:
+		return false
 	}
 }
 

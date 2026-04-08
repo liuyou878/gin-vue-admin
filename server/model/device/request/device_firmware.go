@@ -25,6 +25,7 @@ type FirmwareVersionSearch struct {
 	VersionCode     string      `json:"versionCode" form:"versionCode"`           // 版本号
 	VersionName     string      `json:"versionName" form:"versionName"`           // 版本名称
 	Status          string      `json:"status" form:"status"`                     // 状态
+	PublishStatus   string      `json:"publishStatus" form:"publishStatus"`       // 发布状态
 	IsLatest        *bool       `json:"isLatest" form:"isLatest"`                 // 是否最新版本
 	IsStable        *bool       `json:"isStable" form:"isStable"`                 // 是否稳定版本
 	UploadedAtRange []time.Time `json:"uploadedAtRange" form:"uploadedAtRange[]"` // 上传时间范围
@@ -70,6 +71,26 @@ type SetModelFirmwareRecommendedRequest struct {
 	ID       uint   `json:"id" binding:"required"` // 型号固件关系ID
 	Operator string `json:"operator"`              // 操作人
 	Content  string `json:"content"`               // 日志内容
+}
+
+type PublishFirmwareVersionRequest struct {
+	ID       uint   `json:"id" binding:"required"` // 固件版本ID
+	Operator string `json:"operator"`              // 操作人
+	Content  string `json:"content"`               // 日志内容
+}
+
+type SetFirmwareStableRequest struct {
+	ID       uint   `json:"id" binding:"required"` // 固件版本ID
+	Stable   bool   `json:"stable"`                // 是否稳定版本
+	Operator string `json:"operator"`              // 操作人
+	Content  string `json:"content"`               // 日志内容
+}
+
+type VoidFirmwareVersionRequest struct {
+	ID         uint   `json:"id" binding:"required"` // 固件版本ID
+	Operator   string `json:"operator"`              // 操作人
+	VoidReason string `json:"voidReason"`            // 作废原因
+	Content    string `json:"content"`               // 日志内容
 }
 
 type SetModelFirmwareTestResultRequest struct {
