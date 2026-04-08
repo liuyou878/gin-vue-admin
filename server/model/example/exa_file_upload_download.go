@@ -11,6 +11,7 @@ type ExaFileUploadAndDownload struct {
 	Url     string `json:"url" form:"url" gorm:"column:url;comment:文件地址"`                                  // 文件地址
 	Tag     string `json:"tag" form:"tag" gorm:"column:tag;comment:文件标签"`                                  // 文件标签
 	Key     string `json:"key" form:"key" gorm:"column:key;comment:编号"`                                    // 编号
+	Size    int64  `json:"size" form:"size" gorm:"column:size;comment:文件大小;default:0"`                     // 文件大小
 }
 
 func (ExaFileUploadAndDownload) TableName() string {

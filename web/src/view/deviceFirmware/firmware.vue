@@ -85,9 +85,9 @@
       <div class="section-head">
         <div>
           <div class="section-title">固件流程管理</div>
-          <div class="section-subtitle">
-            独立管理开发版本与发布版本，新增固件时直接选择设备类别和型号。
-          </div>
+          <!-- <div class="section-subtitle">
+            按测试版和正式版分层管理，正式版对应已发布版本，测试版保留所有未发布流程。
+          </div> -->
         </div>
         <div class="gva-btn-list">
           <el-button type="primary" icon="plus" @click="openFirmwareDialog()"
@@ -96,7 +96,20 @@
         </div>
       </div>
 
-      <el-table :data="filteredRows" row-key="ID">
+      <div class="firmware-tabs">
+        <el-tabs v-model="activeTab">
+          <el-tab-pane
+            :label="`测试版 (${testRows.length})`"
+            name="test"
+          ></el-tab-pane>
+          <el-tab-pane
+            :label="`正式版 (${officialRows.length})`"
+            name="official"
+          ></el-tab-pane>
+        </el-tabs>
+      </div>
+
+      <el-table :data="displayRows" row-key="ID">
         <el-table-column label="设备类别" min-width="120">
           <template #default="scope">{{
             scope.row.model?.category?.name || '-'
@@ -120,15 +133,9 @@
         <el-table-column label="状态" min-width="300">
           <template #default="scope">
             <div class="tag-wrap">
-              <el-tag :type="devStatusTag(firmwareOf(scope.row).status)">{{
-                devStatusLabel(firmwareOf(scope.row).status)
+              <el-tag :type="firmwareStatusTag(firmwareOf(scope.row))">{{
+                firmwareStatusLabel(firmwareOf(scope.row))
               }}</el-tag>
-              <el-tag
-                :type="publishStatusTag(firmwareOf(scope.row).publishStatus)"
-                >{{
-                  publishStatusLabel(firmwareOf(scope.row).publishStatus)
-                }}</el-tag
-              >
               <el-tag
                 v-if="
                   firmwareOf(scope.row).publishStatus === 'published' &&
@@ -231,10 +238,9 @@
               >日志</el-button
             >
             <el-button
-              v-if="firmwareOf(scope.row).packageUrl"
               type="primary"
               link
-              @click="downloadPackage(scope.row)"
+              @click="openPackageDialog(scope.row)"
               >下载</el-button
             >
             <el-button
@@ -322,7 +328,9 @@
               >删除固件包</el-button
             >
             <span class="upload-file-name">
-              已选文件：{{ firmwareUploadName || firmwareForm.packageName || '未选择' }}
+              已选文件：{{
+                firmwareUploadName || firmwareForm.packageName || '未选择'
+              }}
             </span>
           </div>
         </el-form-item>
@@ -407,31 +415,77 @@
     </el-dialog>
 
     <el-drawer v-model="logDrawerVisible" :title="logDrawerTitle" size="720px">
-      <el-table :data="logRows">
-        <el-table-column label="时间" width="180"
-          ><template #default="scope">{{
-            formatDate(scope.row.operateAt || scope.row.CreatedAt)
-          }}</template></el-table-column
+      <el-empty v-if="!logTimelineRows.length" description="暂无日志" />
+      <el-timeline v-else class="firmware-timeline">
+        <el-timeline-item
+          v-for="item in logTimelineRows"
+          :key="item.ID"
+          :timestamp="formatDate(item.operateAt || item.CreatedAt)"
+          placement="top"
         >
-        <el-table-column label="动作" min-width="180"
-          ><template #default="scope">{{
-            logActionLabel(scope.row)
-          }}</template></el-table-column
-        >
-        <el-table-column label="目标状态" width="120"
-          ><template #default="scope">{{
-            devStatusLabel(scope.row.toStatus)
-          }}</template></el-table-column
-        >
-        <el-table-column label="操作人" prop="operator" width="120" />
-        <el-table-column
-          label="说明"
-          prop="content"
-          min-width="180"
-          show-overflow-tooltip
-        />
-      </el-table>
+          <div class="timeline-card">
+            <div class="timeline-card-head">
+              <div class="timeline-card-title">{{ logActionLabel(item) }}</div>
+              <el-tag size="small">{{ logStatusLabel(item) }}</el-tag>
+            </div>
+            <div class="timeline-card-meta">
+              <span>操作人：{{ item.operator || '-' }}</span>
+              <span>当前状态：{{ logStatusLabel(item) }}</span>
+            </div>
+            <div class="timeline-card-content">{{ item.content || '-' }}</div>
+            <div v-if="timelinePackageName(item)" class="timeline-card-footer">
+              <span>包名：{{ timelinePackageName(item) }}</span>
+            </div>
+          </div>
+        </el-timeline-item>
+      </el-timeline>
     </el-drawer>
+
+    <el-dialog
+      v-model="packageDialogVisible"
+      :title="packageDialogTitle"
+      width="820px"
+      @closed="closePackageDialog"
+    >
+      <el-empty
+        v-if="!packageRows.length"
+        description="暂无可下载安装包"
+      />
+      <el-table v-else :data="packageRows" row-key="ID">
+        <el-table-column label="上传日期" width="180">
+          <template #default="scope">{{
+            formatDate(scope.row.operateAt || scope.row.CreatedAt)
+          }}</template>
+        </el-table-column>
+        <el-table-column label="状态" width="120">
+          <template #default="scope">
+            <el-tag size="small">{{ logStatusLabel(scope.row) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="包名" min-width="220" show-overflow-tooltip>
+          <template #default="scope">{{ timelinePackageName(scope.row) || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="大小" width="120">
+          <template #default="scope">{{
+            formatPackageSize(timelinePackageSize(scope.row))
+          }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="120" fixed="right">
+          <template #default="scope">
+            <el-button
+              type="primary"
+              link
+              :disabled="!timelinePackageUrl(scope.row)"
+              @click="downloadPackageByRow(scope.row)"
+              >下载</el-button
+            >
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="packageDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -469,14 +523,18 @@
   const relationRows = ref([])
   const firmwareLogs = ref([])
   const logRows = ref([])
+  const packageRows = ref([])
   const firmwareDialogVisible = ref(false)
   const testResultDialogVisible = ref(false)
   const logDrawerVisible = ref(false)
+  const packageDialogVisible = ref(false)
   const firmwareDialogType = ref('create')
   const currentTestRow = ref(null)
+  const selectedPackageFirmware = ref(null)
   const firmwareUploading = ref(false)
   const firmwareUploadName = ref('')
   const logDrawerTitle = ref('固件日志')
+  const activeTab = ref('test')
   const failReasonOptions = ['有Bug', '少功能', '需优化']
   const devStatusOptions = [
     { label: '待测试', value: 'pending_test' },
@@ -573,6 +631,19 @@
       return haystack.includes(keyword)
     })
   )
+  const testRows = computed(() =>
+    filteredRows.value.filter(
+      (row) => firmwareOf(row)?.publishStatus !== 'published'
+    )
+  )
+  const officialRows = computed(() =>
+    filteredRows.value.filter(
+      (row) => firmwareOf(row)?.publishStatus === 'published'
+    )
+  )
+  const displayRows = computed(() =>
+    activeTab.value === 'official' ? officialRows.value : testRows.value
+  )
   const currentDialogModel = computed(() =>
     modelOptions.value.find((item) => item.ID === firmwareForm.value.modelId)
   )
@@ -597,6 +668,18 @@
       if (!current || nextTime >= currentTime) map[log.firmwareId] = log
     })
     return map
+  })
+  const logTimelineRows = computed(() =>
+    [...logRows.value].sort((a, b) => {
+      const bTime = new Date(b.operateAt || b.CreatedAt || 0).getTime()
+      const aTime = new Date(a.operateAt || a.CreatedAt || 0).getTime()
+      return bTime - aTime
+    })
+  )
+  const packageDialogTitle = computed(() => {
+    const firmware = selectedPackageFirmware.value
+    const name = firmware?.versionCode || firmware?.versionName || ''
+    return name ? `安装包列表 - ${name}` : '安装包列表'
   })
   const firmwareOf = (row) => {
     if (!row) return {}
@@ -626,15 +709,25 @@
       published: '已发布',
       voided: '已作废'
     }[status] || '-')
+  const firmwareStatusLabel = (firmware) => {
+    if (firmware?.publishStatus === 'published') return '已发布'
+    if (firmware?.publishStatus === 'voided') return '已作废'
+    return devStatusLabel(firmware?.status)
+  }
+  const firmwareStatusTag = (firmware) => {
+    if (firmware?.publishStatus === 'published') return 'success'
+    if (firmware?.publishStatus === 'voided') return 'danger'
+    return devStatusTag(firmware?.status)
+  }
+  const logStatusLabel = (log) => {
+    if (log?.toStatus === 'published') return '已发布'
+    if (log?.toStatus === 'voided') return '已作废'
+    return devStatusLabel(log?.toStatus || log?.fromStatus)
+  }
   const devStatusTag = (status) => {
     if (status === 'tested_pass') return 'success'
     if (status === 'testing' || status === 'pending_release') return 'warning'
     if (status === 'test_failed') return 'danger'
-    return 'info'
-  }
-  const publishStatusTag = (status) => {
-    if (status === 'published') return 'success'
-    if (status === 'voided') return 'danger'
     return 'info'
   }
   const isHistoryVersion = (firmware) =>
@@ -786,19 +879,23 @@
     } catch (error) {
       return
     }
-    if (firmwareDialogType.value === 'create' && !firmwareForm.value.packageFileId) {
+    if (
+      firmwareDialogType.value === 'create' &&
+      !firmwareForm.value.packageFileId
+    ) {
       ElMessage.warning('未找到可删除的安装包记录')
       return
     }
-    const res = firmwareDialogType.value === 'update' && firmwareForm.value.ID
-      ? await deleteFirmwarePackageApi({
-          id: firmwareForm.value.ID,
-          operator: defaultUploadedBy(),
-          content: '删除安装包'
-        })
-      : await deleteFile({
-          ID: firmwareForm.value.packageFileId
-        })
+    const res =
+      firmwareDialogType.value === 'update' && firmwareForm.value.ID
+        ? await deleteFirmwarePackageApi({
+            id: firmwareForm.value.ID,
+            operator: defaultUploadedBy(),
+            content: '删除安装包'
+          })
+        : await deleteFile({
+            ID: firmwareForm.value.packageFileId
+          })
     if (res.code !== 0) {
       return
     }
@@ -1015,7 +1112,7 @@
     const firmware = firmwareOf(row)
     const res = await getFirmwareVersionLogList({
       page: 1,
-      pageSize: 100,
+      pageSize: 999,
       firmwareId: firmware.ID
     })
     if (res.code === 0) {
@@ -1051,6 +1148,73 @@
       return
     }
     window.open(firmware.packageUrl, '_blank')
+  }
+  const timelineDownloadActions = new Set([
+    'upload',
+    'fix_upload',
+    'test_pass',
+    'submit_release',
+    'publish',
+    'mark_stable',
+    'unmark_stable',
+    'void_release',
+    'set_recommended'
+  ])
+  const timelineCanViewPackage = (log) =>
+    timelineDownloadActions.has(log?.action) && !!log?.packageUrl
+  const timelinePackageUrl = (log) => log?.packageUrl || ''
+  const timelinePackageName = (log) => log?.packageName || ''
+  const timelinePackageSize = (log) =>
+    Number(log?.packageSize || 0)
+  const formatPackageSize = (size) => {
+    if (!size) return '-'
+    if (size < 1024) return `${size} B`
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+    if (size < 1024 * 1024 * 1024)
+      return `${(size / (1024 * 1024)).toFixed(1)} MB`
+    return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`
+  }
+  const openPackageDialog = async (log) => {
+    const firmware = firmwareOf(log)
+    if (!firmware?.ID) {
+      ElMessage.warning('未找到可下载的固件记录')
+      return
+    }
+    selectedPackageFirmware.value = firmware
+    packageRows.value = []
+    await loadPackageRows(firmware.ID)
+    packageDialogVisible.value = true
+  }
+  const loadPackageRows = async (firmwareId) => {
+    const res = await getFirmwareVersionLogList({
+      page: 1,
+      pageSize: 999,
+      firmwareId
+    })
+    if (res.code !== 0) {
+      packageRows.value = []
+      return
+    }
+    packageRows.value = (res.data.list || [])
+      .filter((item) => timelineCanViewPackage(item))
+      .sort((a, b) => {
+        const bTime = new Date(b.operateAt || b.CreatedAt || 0).getTime()
+        const aTime = new Date(a.operateAt || a.CreatedAt || 0).getTime()
+        return bTime - aTime
+      })
+  }
+  const downloadPackageByRow = (row) => {
+    const url = timelinePackageUrl(row)
+    if (!url) {
+      ElMessage.warning('当前安装包没有可下载地址')
+      return
+    }
+    window.open(url, '_blank')
+  }
+  const closePackageDialog = () => {
+    packageDialogVisible.value = false
+    selectedPackageFirmware.value = null
+    packageRows.value = []
   }
 
   watch(
@@ -1107,6 +1271,10 @@
     font-size: 13px;
   }
 
+  .firmware-tabs {
+    margin-bottom: 12px;
+  }
+
   .tag-wrap {
     display: flex;
     gap: 6px;
@@ -1128,5 +1296,57 @@
   .upload-tip {
     color: #909399;
     font-size: 13px;
+  }
+
+  .firmware-timeline {
+    padding: 8px 8px 0 6px;
+  }
+
+  .timeline-card {
+    padding: 12px 14px;
+    border: 1px solid #ebeef5;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+
+  .timeline-card-head,
+  .timeline-card-meta,
+  .timeline-card-footer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .timeline-card-head {
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .timeline-card-title {
+    color: #303133;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .timeline-card-meta {
+    color: #909399;
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+
+  .timeline-card-content {
+    color: #606266;
+    font-size: 13px;
+    line-height: 1.6;
+    word-break: break-word;
+  }
+
+  .timeline-card-footer {
+    justify-content: space-between;
+    margin-top: 10px;
+    color: #909399;
+    font-size: 12px;
   }
 </style>

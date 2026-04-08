@@ -42,7 +42,7 @@ func (s *FirmwareVersionService) CreateFirmwareVersion(firmware *deviceModel.Fir
 		if err := tx.Create(firmware).Error; err != nil {
 			return err
 		}
-		return createFirmwareVersionLog(tx, firmware.ID, nil, "upload", "", firmware.Status, firmware.UploadedBy, "创建固件版本")
+		return createFirmwareVersionLog(tx, firmware.ID, nil, "upload", "", firmware.Status, firmware.UploadedBy, "创建固件版本", firmware)
 	})
 }
 
@@ -375,7 +375,7 @@ func (s *FirmwareVersionService) DeleteFirmwarePackage(req deviceReq.DeleteFirmw
 		if content == "" {
 			content = "删除安装包"
 		}
-		return createFirmwareVersionLog(tx, firmware.ID, nil, "delete_package", firmware.Status, firmware.Status, operator, content)
+		return createFirmwareVersionLog(tx, firmware.ID, nil, "delete_package", firmware.Status, firmware.Status, operator, content, &firmware)
 	})
 }
 
@@ -454,19 +454,41 @@ func isAllowedFirmwareStatusTransition(from, to string) bool {
 	}
 }
 
-func createFirmwareVersionLog(tx *gorm.DB, firmwareID uint, modelID *uint, action, fromStatus, toStatus, operator, content string) error {
+func createFirmwareVersionLog(tx *gorm.DB, firmwareID uint, modelID *uint, action, fromStatus, toStatus, operator, content string, snapshot ...*deviceModel.FirmwareVersion) error {
+	pkgURL, pkgName, pkgFileID, pkgSize, checksum := resolveFirmwareLogPackageSnapshot(tx, firmwareID, snapshot...)
 	now := time.Now()
 	log := deviceModel.FirmwareVersionLog{
-		FirmwareID: firmwareID,
-		ModelID:    modelID,
-		Action:     action,
-		FromStatus: fromStatus,
-		ToStatus:   toStatus,
-		Operator:   operator,
-		OperateAt:  &now,
-		Content:    content,
+		FirmwareID:    firmwareID,
+		ModelID:       modelID,
+		Action:        action,
+		FromStatus:    fromStatus,
+		ToStatus:      toStatus,
+		Operator:      operator,
+		OperateAt:     &now,
+		Content:       content,
+		PackageURL:    pkgURL,
+		PackageName:   pkgName,
+		PackageFileID: pkgFileID,
+		PackageSize:   pkgSize,
+		Checksum:      checksum,
 	}
 	return tx.Create(&log).Error
+}
+
+func resolveFirmwareLogPackageSnapshot(tx *gorm.DB, firmwareID uint, snapshot ...*deviceModel.FirmwareVersion) (string, string, uint, int64, string) {
+	if len(snapshot) > 0 && snapshot[0] != nil {
+		firmware := snapshot[0]
+		fileRecord, _ := resolveFirmwarePackageFile(tx, *firmware)
+		return firmware.PackageURL, firmware.PackageName, firmware.PackageFileID, fileRecord.Size, firmware.Checksum
+	}
+
+	var firmware deviceModel.FirmwareVersion
+	if err := tx.Select("package_url", "package_name", "package_file_id", "checksum").Where("id = ?", firmwareID).First(&firmware).Error; err == nil {
+		fileRecord, _ := resolveFirmwarePackageFile(tx, firmware)
+		return firmware.PackageURL, firmware.PackageName, firmware.PackageFileID, fileRecord.Size, firmware.Checksum
+	}
+
+	return "", "", 0, 0, ""
 }
 
 func resolveFirmwarePackageFile(tx *gorm.DB, firmware deviceModel.FirmwareVersion) (exampleModel.ExaFileUploadAndDownload, error) {

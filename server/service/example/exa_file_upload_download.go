@@ -106,6 +106,7 @@ func (e *FileUploadAndDownloadService) UploadFile(header *multipart.FileHeader, 
 		ClassId: classId,
 		Tag:     s[len(s)-1],
 		Key:     key,
+		Size:    header.Size,
 	}
 	if noSave == "0" {
 		// 检查是否已存在相同key的记录
