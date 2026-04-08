@@ -90,6 +90,9 @@
           </div> -->
         </div>
         <div class="gva-btn-list">
+          <el-button plain @click="openPublicFirmwareDownloadPage"
+            >公开下载页</el-button
+          >
           <el-button type="primary" icon="plus" @click="openFirmwareDialog()"
             >新增固件</el-button
           >
@@ -465,7 +468,7 @@
         <el-table-column label="包名" min-width="220" show-overflow-tooltip>
           <template #default="scope">{{ timelinePackageName(scope.row) || '-' }}</template>
         </el-table-column>
-        <el-table-column label="大小" width="120">
+        <el-table-column v-if="showPackageSizeColumn" label="大小" width="120">
           <template #default="scope">{{
             formatPackageSize(timelinePackageSize(scope.row))
           }}</template>
@@ -512,10 +515,12 @@
   import { formatDate, getBaseUrl } from '@/utils/format'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { computed, onMounted, ref, watch } from 'vue'
+  import { useRouter } from 'vue-router'
   import { useUserStore } from '@/pinia/modules/user'
 
   defineOptions({ name: 'DeviceFirmwareWorkflow' })
 
+  const router = useRouter()
   const userStore = useUserStore()
   const categoryOptions = ref([])
   const modelOptions = ref([])
@@ -1141,6 +1146,10 @@
       })
       .catch(() => {})
   }
+  const openPublicFirmwareDownloadPage = () => {
+    const { href } = router.resolve({ name: 'PublicFirmwareDownload' })
+    window.open(href, '_blank', 'noopener,noreferrer')
+  }
   const downloadPackage = (row) => {
     const firmware = firmwareOf(row)
     if (!firmware.packageUrl) {
@@ -1166,6 +1175,9 @@
   const timelinePackageName = (log) => log?.packageName || ''
   const timelinePackageSize = (log) =>
     Number(log?.packageSize || 0)
+  const showPackageSizeColumn = computed(() =>
+    packageRows.value.some((item) => timelinePackageSize(item) > 0)
+  )
   const formatPackageSize = (size) => {
     if (!size) return '-'
     if (size < 1024) return `${size} B`

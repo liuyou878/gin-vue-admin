@@ -25,6 +25,15 @@ const routes = [
     component: () => import('@/view/example/upload/scanUpload.vue')
   },
   {
+    path: '/publicFirmwareDownload',
+    name: 'PublicFirmwareDownload',
+    meta: {
+      title: '固件下载',
+      client: true
+    },
+    component: () => import('@/view/publicFirmwareDownload/index.vue')
+  },
+  {
     path: '/:catchAll(.*)',
     meta: {
       closeTab: true

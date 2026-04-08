@@ -106,6 +106,7 @@ func Routers() *gin.Engine {
 		deviceRouter.InitModelFirmwareRelRouter(PrivateGroup)               // 型号固件关系路由
 		deviceRouter.InitFirmwareTagRouter(PrivateGroup)                    // 固件标签路由
 		deviceRouter.InitFirmwareVersionLogRouter(PrivateGroup)             // 固件日志路由
+		deviceRouter.InitPublicFirmwareDownloadRouter(PublicGroup)          // 公开固件下载路由
 		exampleRouter.InitCustomerRouter(PrivateGroup)                      // 客户路由
 		exampleRouter.InitFileUploadAndDownloadRouter(PrivateGroup)         // 文件上传下载功能路由
 		exampleRouter.InitAttachmentCategoryRouterRouter(PrivateGroup)      // 文件上传下载分类

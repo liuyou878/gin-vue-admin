@@ -2,12 +2,14 @@ package device
 
 import (
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	commonReq "github.com/flipped-aurora/gin-vue-admin/server/model/common/request"
 	deviceModel "github.com/flipped-aurora/gin-vue-admin/server/model/device"
 	deviceReq "github.com/flipped-aurora/gin-vue-admin/server/model/device/request"
+	deviceResp "github.com/flipped-aurora/gin-vue-admin/server/model/device/response"
 	exampleModel "github.com/flipped-aurora/gin-vue-admin/server/model/example"
 	"github.com/flipped-aurora/gin-vue-admin/server/utils/upload"
 	"gorm.io/gorm"
@@ -511,4 +513,218 @@ func resolveFirmwarePackageFile(tx *gorm.DB, firmware deviceModel.FirmwareVersio
 		}
 	}
 	return exampleModel.ExaFileUploadAndDownload{}, errors.New("未找到安装包文件记录")
+}
+
+// GetPublicFirmwareDownloadPage 获取公开固件下载页数据
+func (s *FirmwareVersionService) GetPublicFirmwareDownloadPage(categoryID, modelID uint) (deviceResp.PublicFirmwareDownloadPageResponse, error) {
+	resp := deviceResp.PublicFirmwareDownloadPageResponse{}
+
+	categoryStatus := 1
+	categories, _, err := (&DeviceCategoryService{}).GetDeviceCategoryInfoList(deviceReq.DeviceCategorySearch{
+		Status: &categoryStatus,
+		PageInfo: commonReq.PageInfo{
+			Page:     1,
+			PageSize: 999,
+		},
+	})
+	if err != nil {
+		return resp, err
+	}
+	resp.Categories = categories
+	if len(categories) == 0 {
+		return resp, nil
+	}
+
+	selectedCategoryID := categoryID
+	if selectedCategoryID == 0 || !containsCategoryID(categories, selectedCategoryID) {
+		selectedCategoryID = categories[0].ID
+	}
+
+	modelStatus := 1
+	models, _, err := (&DeviceModelService{}).GetDeviceModelInfoList(deviceReq.DeviceModelSearch{
+		CategoryID: selectedCategoryID,
+		Status:     &modelStatus,
+		PageInfo: commonReq.PageInfo{
+			Page:     1,
+			PageSize: 999,
+		},
+	})
+	if err != nil {
+		return resp, err
+	}
+	resp.Models = models
+	resp.SelectedCategoryID = selectedCategoryID
+	if len(models) == 0 {
+		return resp, nil
+	}
+
+	selectedModelID := modelID
+	if selectedModelID == 0 || !containsModelID(models, selectedModelID) {
+		selectedModelID = models[0].ID
+	}
+	resp.SelectedModelID = selectedModelID
+
+	selectedModel := models[0]
+	for _, model := range models {
+		if model.ID == selectedModelID {
+			selectedModel = model
+			break
+		}
+	}
+
+	var rels []deviceModel.ModelFirmwareRel
+	if err := global.GVA_DB.Preload("Firmware").
+		Where("model_id = ?", selectedModelID).
+		Order("id desc").
+		Find(&rels).Error; err != nil {
+		return resp, err
+	}
+
+	items := make([]deviceResp.PublicFirmwareDownloadItem, 0, len(rels))
+	for _, rel := range rels {
+		if rel.Firmware.PublishStatus != "published" {
+			continue
+		}
+		pkgURL, pkgName, _, pkgSize, checksum := resolveFirmwareLogPackageSnapshot(global.GVA_DB, rel.FirmwareID, &rel.Firmware)
+		firmware := rel.Firmware
+		if pkgURL != "" {
+			firmware.PackageURL = pkgURL
+		}
+		if pkgName != "" {
+			firmware.PackageName = pkgName
+		}
+		if checksum != "" {
+			firmware.Checksum = checksum
+		}
+		items = append(items, deviceResp.PublicFirmwareDownloadItem{
+			RelationID:    rel.ID,
+			Category:      selectedModel.Category,
+			Model:         selectedModel,
+			Firmware:      firmware,
+			IsRecommended: rel.IsRecommended,
+			PackageSize:   pkgSize,
+		})
+	}
+
+	sort.SliceStable(items, func(i, j int) bool {
+		rankI := publicFirmwareItemRank(items[i])
+		rankJ := publicFirmwareItemRank(items[j])
+		if rankI != rankJ {
+			return rankI < rankJ
+		}
+		timeI := publicFirmwareItemTime(items[i])
+		timeJ := publicFirmwareItemTime(items[j])
+		if !timeI.Equal(timeJ) {
+			return timeI.After(timeJ)
+		}
+		return items[i].Firmware.ID > items[j].Firmware.ID
+	})
+
+	var current *deviceResp.PublicFirmwareDownloadItem
+	var stable *deviceResp.PublicFirmwareDownloadItem
+	var latest *deviceResp.PublicFirmwareDownloadItem
+
+	for i := range items {
+		item := items[i]
+		switch {
+		case current == nil && item.IsRecommended:
+			current = &items[i]
+		case stable == nil && item.Firmware.IsStable:
+			stable = &items[i]
+		case latest == nil && item.Firmware.IsLatest:
+			latest = &items[i]
+		}
+	}
+
+	if current == nil && stable != nil {
+		current = stable
+	}
+	if current == nil && latest != nil {
+		current = latest
+	}
+	if current == nil && len(items) > 0 {
+		current = &items[0]
+	}
+
+	selectedIDs := map[uint]struct{}{}
+	if current != nil {
+		selectedIDs[current.Firmware.ID] = struct{}{}
+	}
+	if stable != nil {
+		selectedIDs[stable.Firmware.ID] = struct{}{}
+	}
+	if latest != nil {
+		selectedIDs[latest.Firmware.ID] = struct{}{}
+	}
+
+	history := make([]deviceResp.PublicFirmwareDownloadItem, 0, len(items))
+	for _, item := range items {
+		if _, exists := selectedIDs[item.Firmware.ID]; exists {
+			continue
+		}
+		history = append(history, item)
+	}
+
+	resp.Current = current
+	resp.Stable = stable
+	resp.Latest = latest
+	resp.History = history
+	if current != nil {
+		resp.PrimaryType = publicFirmwarePrimaryType(*current)
+	}
+	return resp, nil
+}
+
+func containsCategoryID(categories []deviceModel.DeviceCategory, id uint) bool {
+	for _, category := range categories {
+		if category.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func containsModelID(models []deviceModel.DeviceModel, id uint) bool {
+	for _, model := range models {
+		if model.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func publicFirmwareItemRank(item deviceResp.PublicFirmwareDownloadItem) int {
+	switch {
+	case item.IsRecommended:
+		return 0
+	case item.Firmware.IsStable:
+		return 1
+	case item.Firmware.IsLatest:
+		return 2
+	default:
+		return 3
+	}
+}
+
+func publicFirmwareItemTime(item deviceResp.PublicFirmwareDownloadItem) time.Time {
+	if item.Firmware.PublishedAt != nil {
+		return *item.Firmware.PublishedAt
+	}
+	if item.Firmware.UploadedAt != nil {
+		return *item.Firmware.UploadedAt
+	}
+	return time.Time{}
+}
+
+func publicFirmwarePrimaryType(item deviceResp.PublicFirmwareDownloadItem) string {
+	switch {
+	case item.IsRecommended:
+		return "recommended"
+	case item.Firmware.IsStable:
+		return "stable"
+	case item.Firmware.IsLatest:
+		return "latest"
+	default:
+		return "published"
+	}
 }

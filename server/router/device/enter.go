@@ -9,6 +9,7 @@ type RouterGroup struct {
 	ModelFirmwareRelRouter
 	FirmwareTagRouter
 	FirmwareVersionLogRouter
+	PublicFirmwareDownloadRouter
 }
 
 var (
@@ -18,4 +19,5 @@ var (
 	modelFirmwareRelApi   = api.ApiGroupApp.DeviceApiGroup.ModelFirmwareRelApi
 	firmwareTagApi        = api.ApiGroupApp.DeviceApiGroup.FirmwareTagApi
 	firmwareVersionLogApi = api.ApiGroupApp.DeviceApiGroup.FirmwareVersionLogApi
+	publicFirmwareApi     = api.ApiGroupApp.DeviceApiGroup.PublicFirmwareDownloadApi
 )

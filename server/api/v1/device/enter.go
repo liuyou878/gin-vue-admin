@@ -9,6 +9,7 @@ type ApiGroup struct {
 	ModelFirmwareRelApi
 	FirmwareTagApi
 	FirmwareVersionLogApi
+	PublicFirmwareDownloadApi
 }
 
 var (

@@ -55,6 +55,11 @@ type FirmwareVersionLogSearch struct {
 	commonReq.PageInfo
 }
 
+type PublicFirmwareDownloadSearch struct {
+	CategoryID uint `json:"categoryId" form:"categoryId"` // 设备类别ID
+	ModelID    uint `json:"modelId" form:"modelId"`       // 设备型号ID
+}
+
 type SetFirmwareTagsRequest struct {
 	FirmwareID uint   `json:"firmwareId" binding:"required"` // 固件版本ID
 	TagIDs     []uint `json:"tagIds" binding:"required"`     // 标签ID列表
