@@ -29,12 +29,9 @@
             />
           </el-select>
           <el-select
-            v-model="selectedModelIds"
-            multiple
-            collapse-tags
-            collapse-tags-tooltip
+            v-model="selectedModelId"
             filterable
-            placeholder="选择设备型号（可多选）"
+            placeholder="选择设备型号"
             class="filter-select"
             @change="handleModelChange"
           >
@@ -49,105 +46,108 @@
         </div>
       </section>
 
-      <section v-if="loading" class="loading-panel">
-        <el-skeleton :rows="6" animated />
-      </section>
-
-      <template v-else>
-        <section v-if="!hasSelectedDeviceModels" class="empty-panel">
-          <el-empty description="请先选择设备和型号" />
+      <Transition name="panel-swap" mode="out-in">
+        <section v-if="loading" key="loading" class="loading-panel">
+          <el-skeleton :rows="6" animated />
         </section>
 
-        <section v-else-if="packageCards.length" class="version-list-panel">
-          <div class="panel-head version-list-head">
-            <div>
-              <div class="panel-kicker">上传包列表</div>
+        <div v-else key="content" class="content-stage">
+          <section v-if="!hasSelectedDeviceModels" class="empty-panel">
+            <el-empty description="请先选择设备和型号" />
+          </section>
+
+          <section v-else-if="packageCards.length" class="version-list-panel">
+            <div class="panel-head version-list-head">
+              <div>
+                <div class="panel-kicker">上传包列表</div>
+              </div>
+              <el-tag type="info">{{ packageCards.length }} 个上传包</el-tag>
             </div>
-            <el-tag type="info">{{ packageCards.length }} 个上传包</el-tag>
-          </div>
 
-          <div class="version-list">
-            <article
-              v-for="item in packageCards"
-              :key="item.logId"
-              class="download-card"
-            >
-              <div class="download-card-head">
-                <div class="download-card-title">
-                  <span class="version-code-text">
-                    {{ item.firmware?.versionCode || '-' }}
-                  </span>
-                  <span class="version-name version-name-inline">
-                    {{ item.firmware?.versionName || '-' }}
-                  </span>
-                  <span
-                    v-if="item.packageSize > 0"
-                    class="version-size version-size-inline"
-                  >
-                    {{ formatPackageSize(item.packageSize) }}
-                  </span>
-                  <el-tag v-if="item.action === 'upload'" type="success"
-                    >首次上传</el-tag
-                  >
-                  <el-tag v-else-if="item.action === 'fix_upload'" type="warning"
-                    >修复上传</el-tag
-                  >
-                  <el-tag v-else type="info">上传记录</el-tag>
-                </div>
-                <el-button
-                  type="primary"
-                  size="small"
-                  :disabled="!downloadable(item)"
-                  @click="downloadVersion(item)"
-                >
-                  下载
-                </el-button>
-              </div>
-
-              <div class="download-card-body">
-                <div class="download-card-meta">
-                  <div class="meta-item compact-meta">
-                    <span>设备类别</span>
-                    <strong>{{ item.category?.name || '-' }}</strong>
+            <div class="version-list">
+              <article
+                v-for="(item, index) in packageCards"
+                :key="item.logId"
+                class="download-card"
+                :style="{ '--card-index': index }"
+              >
+                <div class="download-card-head">
+                  <div class="download-card-title">
+                    <span class="version-code-text">
+                      {{ item.firmware?.versionCode || '-' }}
+                    </span>
+                    <span class="version-name version-name-inline">
+                      {{ item.firmware?.versionName || '-' }}
+                    </span>
+                    <span
+                      v-if="item.packageSize > 0"
+                      class="version-size version-size-inline"
+                    >
+                      {{ formatPackageSize(item.packageSize) }}
+                    </span>
+                    <el-tag v-if="item.action === 'upload'" type="success"
+                      >首次上传</el-tag
+                    >
+                    <el-tag v-else-if="item.action === 'fix_upload'" type="warning"
+                      >修复上传</el-tag
+                    >
+                    <el-tag v-else type="info">上传记录</el-tag>
                   </div>
-                  <div class="meta-item compact-meta">
-                    <span>设备型号</span>
-                    <strong>{{
-                      (item.modelNames && item.modelNames.length
-                        ? item.modelNames.join('、')
-                        : item.model?.modelName) || '-'
-                    }}</strong>
-                  </div>
-                  <div class="meta-item compact-meta">
-                    <span>上传时间</span>
-                    <strong>{{
-                      formatDate(item.operateAt || item.firmware?.uploadedAt)
-                    }}</strong>
-                  </div>
-                  <div
-                    class="meta-item compact-meta"
-                    v-if="item.firmware?.checksum"
+                  <el-button
+                    type="primary"
+                    size="small"
+                    :disabled="!downloadable(item)"
+                    @click="downloadVersion(item)"
                   >
-                    <span>校验值</span>
-                    <strong class="mono">{{ item.firmware.checksum }}</strong>
-                  </div>
+                    下载
+                  </el-button>
                 </div>
 
-                <div class="release-note">
-                  <div class="release-note-title">包说明</div>
-                  <div class="release-note-body">
-                    {{ item.firmware?.releaseNote || '暂无版本说明' }}
+                <div class="download-card-body">
+                  <div class="download-card-meta">
+                    <div class="meta-item compact-meta">
+                      <span>设备类别</span>
+                      <strong>{{ item.category?.name || '-' }}</strong>
+                    </div>
+                    <div class="meta-item compact-meta">
+                      <span>设备型号</span>
+                      <strong>{{
+                        (item.modelNames && item.modelNames.length
+                          ? item.modelNames.join('、')
+                          : item.model?.modelName) || '-'
+                      }}</strong>
+                    </div>
+                    <div class="meta-item compact-meta">
+                      <span>上传时间</span>
+                      <strong>{{
+                        formatDate(item.operateAt || item.firmware?.uploadedAt)
+                      }}</strong>
+                    </div>
+                    <div
+                      class="meta-item compact-meta"
+                      v-if="item.firmware?.checksum"
+                    >
+                      <span>校验值</span>
+                      <strong class="mono">{{ item.firmware.checksum }}</strong>
+                    </div>
+                  </div>
+
+                  <div class="release-note">
+                    <div class="release-note-title">包说明</div>
+                    <div class="release-note-body">
+                      {{ item.firmware?.releaseNote || '暂无版本说明' }}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </article>
-          </div>
-        </section>
+              </article>
+            </div>
+          </section>
 
-        <section v-else class="empty-panel">
-          <el-empty description="暂无可下载包" />
-        </section>
-      </template>
+          <section v-else class="empty-panel">
+            <el-empty description="暂无可下载包" />
+          </section>
+        </div>
+      </Transition>
     </div>
   </div>
 </template>
@@ -157,6 +157,7 @@
   import { useRoute, useRouter } from 'vue-router'
   import { ElMessage } from 'element-plus'
   import { formatDate } from '@/utils/format'
+  import { getUrl } from '@/utils/image'
   import { getPublicFirmwareDownloadPage } from '@/api/publicFirmware'
 
   defineOptions({
@@ -167,18 +168,20 @@
   const router = useRouter()
 
   const loading = ref(false)
+  const MIN_LOADING_DURATION = 240
+  let loadSequence = 0
   const pageData = ref({
     categories: [],
     models: [],
     packages: []
   })
   const selectedCategoryId = ref('')
-  const selectedModelIds = ref([])
+  const selectedModelId = ref('')
 
   const categories = computed(() => pageData.value.categories || [])
   const models = computed(() => pageData.value.models || [])
   const hasSelectedDeviceModels = computed(
-    () => !!selectedCategoryId.value && selectedModelIds.value.length > 0
+    () => !!selectedCategoryId.value && !!selectedModelId.value
   )
 
   const packageCards = computed(() =>
@@ -189,129 +192,198 @@
       return (b?.logId || 0) - (a?.logId || 0)
     })
   )
-  const normalizeModelIds = (value) => {
-    const list = Array.isArray(value) ? value : value ? [value] : []
-    return [...new Set(list.map((item) => Number(item)).filter(Boolean))]
-  }
-
-  const readQueryModelIds = (value) => {
+  const normalizeSelectId = (value) => {
     if (Array.isArray(value)) {
-      return value
-        .map((item) => Number(item))
-        .filter((item) => Number.isFinite(item) && item > 0)
+      return normalizeSelectId(value[0])
     }
     if (value === undefined || value === null || value === '') {
-      return []
+      return ''
     }
-    return String(value)
-      .split(',')
-      .map((item) => Number(item))
-      .filter((item) => Number.isFinite(item) && item > 0)
-  }
-
-  const mergePackageRows = (rows) => {
-    const merged = new Map()
-    rows.forEach((row) => {
-      const key = row?.logId || row?.firmware?.ID
-      if (!key) return
-      const existing = merged.get(key)
-      const modelName = row?.model?.modelName || ''
-      if (!existing) {
-        merged.set(key, {
-          ...row,
-          modelNames: modelName ? [modelName] : []
-        })
-        return
-      }
-      const modelNames = new Set(existing.modelNames || [])
-      if (modelName) {
-        modelNames.add(modelName)
-      }
-      existing.modelNames = [...modelNames]
-      merged.set(key, existing)
-    })
-    return [...merged.values()]
+    const id = Number(value)
+    return Number.isFinite(id) && id > 0 ? id : ''
   }
 
   const loadPage = async (params = {}) => {
+    const sequence = ++loadSequence
+    const startedAt = Date.now()
     loading.value = true
     try {
-      const categoryId = params.categoryId ?? selectedCategoryId.value ?? ''
-      const modelIds = normalizeModelIds(
-        params.modelIds ?? selectedModelIds.value ?? []
+      const categoryId = normalizeSelectId(
+        params.categoryId ?? selectedCategoryId.value ?? ''
+      )
+      const modelId = normalizeSelectId(
+        params.modelId ?? params.modelIds ?? selectedModelId.value ?? ''
       )
       const query = {
         categoryId,
-        modelId: modelIds[0] || ''
+        modelId
       }
       const res = await getPublicFirmwareDownloadPage(query)
+      if (sequence !== loadSequence) {
+        return
+      }
       const data = res?.data || {}
-      const modelIdList = modelIds.length ? modelIds : []
-      const extraRequests = modelIdList.slice(1).map((modelId) =>
-        getPublicFirmwareDownloadPage({ categoryId, modelId })
-      )
-      const packageResponses = extraRequests.length
-        ? [res, ...(await Promise.all(extraRequests))]
-        : [res]
-      const packageRows = mergePackageRows(
-        packageResponses.flatMap((item) => item?.data?.packages || [])
-      )
       pageData.value = {
         ...data,
-        packages: packageRows
+        packages: data.packages || []
       }
-      selectedCategoryId.value = data.selectedCategoryId || categoryId || ''
-      selectedModelIds.value = modelIdList
+      selectedCategoryId.value = normalizeSelectId(
+        data.selectedCategoryId || categoryId || ''
+      )
+      selectedModelId.value = normalizeSelectId(
+        data.selectedModelId || modelId || ''
+      )
 
       const nextQuery = {
         categoryId: selectedCategoryId.value || undefined,
-        modelIds: selectedModelIds.value.length
-          ? selectedModelIds.value
-          : undefined
+        modelId: selectedModelId.value || undefined
       }
       const currentQuery = {
         categoryId: route.query.categoryId || undefined,
-        modelIds: route.query.modelIds || route.query.modelId || undefined
+        modelId: route.query.modelId || route.query.modelIds || undefined
       }
       if (
         String(currentQuery.categoryId || '') !==
           String(nextQuery.categoryId || '') ||
-        JSON.stringify(currentQuery.modelIds || '') !==
-          JSON.stringify(nextQuery.modelIds || '')
+        String(currentQuery.modelId || '') !== String(nextQuery.modelId || '')
       ) {
         await router.replace({ name: route.name, query: nextQuery })
       }
     } catch (error) {
+      if (sequence !== loadSequence) {
+        return
+      }
       ElMessage.error(error?.message || '获取公开版本数据失败')
     } finally {
-      loading.value = false
+      if (sequence !== loadSequence) {
+        return
+      }
+      const elapsed = Date.now() - startedAt
+      if (elapsed < MIN_LOADING_DURATION) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, MIN_LOADING_DURATION - elapsed)
+        )
+      }
+      if (sequence === loadSequence) {
+        loading.value = false
+      }
     }
   }
 
   const handleCategoryChange = async () => {
-    selectedModelIds.value = []
+    selectedModelId.value = ''
     await loadPage({
       categoryId: selectedCategoryId.value,
-      modelIds: []
+      modelId: ''
     })
   }
 
   const handleModelChange = async () => {
     await loadPage({
       categoryId: selectedCategoryId.value,
-      modelIds: selectedModelIds.value
+      modelId: selectedModelId.value
     })
   }
 
   const downloadable = (item) => !!item?.firmware?.packageUrl
 
-  const downloadVersion = (item) => {
+  const extractFileNameFromDisposition = (disposition) => {
+    if (!disposition) return ''
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+    if (utf8Match?.[1]) {
+      try {
+        return decodeURIComponent(utf8Match[1])
+      } catch (error) {
+        return utf8Match[1]
+      }
+    }
+    const normalMatch = disposition.match(/filename="?([^";]+)"?/i)
+    return normalMatch?.[1] || ''
+  }
+
+  const downloadVersion = async (item) => {
     const url = item?.firmware?.packageUrl
     if (!url) {
       ElMessage.warning('当前上传包没有可下载的安装包')
       return
     }
-    window.open(url, '_blank')
+    const loadingMessage = ElMessage({
+      message: '下载中...',
+      type: 'info',
+      duration: 0,
+      showClose: false
+    })
+
+    try {
+      const response = await fetch(getUrl(url), {
+        credentials: 'include'
+      })
+      if (!response.ok) {
+        let errorMessage = '下载失败'
+        try {
+          const text = await response.text()
+          if (text) {
+            try {
+              const json = JSON.parse(text)
+              errorMessage = json?.msg || errorMessage
+            } catch (error) {
+              errorMessage = text
+            }
+          }
+        } catch (error) {
+          // ignore parse error
+        }
+        throw new Error(errorMessage)
+      }
+
+      const blob = await response.blob()
+      const contentType = String(
+        response.headers.get('content-type') || blob.type || ''
+      ).toLowerCase()
+      const disposition = String(response.headers.get('content-disposition') || '')
+      const isErrorBlob =
+        contentType.includes('application/json') ||
+        contentType.includes('text/plain')
+      if (!blob.size || isErrorBlob) {
+        let errorMessage = '下载失败'
+        try {
+          const text = await blob.text()
+          if (text) {
+            try {
+              const json = JSON.parse(text)
+              errorMessage = json?.msg || errorMessage
+            } catch (error) {
+              errorMessage = text
+            }
+          }
+        } catch (error) {
+          // ignore parse error
+        }
+        throw new Error(errorMessage)
+      }
+
+      const downloadName =
+        extractFileNameFromDisposition(disposition) ||
+        item?.firmware?.packageName ||
+        `${item?.firmware?.versionCode || item?.firmware?.versionName || 'firmware'}.bin`
+      const objectUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = downloadName
+      link.rel = 'noopener'
+      link.style.display = 'none'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(objectUrl)
+      }, 1000)
+      ElMessage.success('下载成功')
+    } catch (error) {
+      ElMessage.error(error?.message || '下载失败')
+    } finally {
+      loadingMessage?.close?.()
+    }
   }
 
   const formatPackageSize = (size) => {
@@ -327,8 +399,8 @@
 
   onMounted(async () => {
     const query = {
-      categoryId: route.query.categoryId || '',
-      modelIds: readQueryModelIds(route.query.modelIds || route.query.modelId)
+      categoryId: normalizeSelectId(route.query.categoryId || ''),
+      modelId: normalizeSelectId(route.query.modelId || route.query.modelIds)
     }
     await loadPage(query)
   })
@@ -422,6 +494,13 @@
     padding: 22px;
   }
 
+  .content-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 0;
+  }
+
   .panel-title-block {
     margin-bottom: 16px;
   }
@@ -472,6 +551,35 @@
 
   .version-list-head {
     align-items: center;
+  }
+
+  .panel-swap-enter-active,
+  .panel-swap-leave-active {
+    transition: opacity 0.24s ease, transform 0.24s ease;
+  }
+
+  .panel-swap-enter-from,
+  .panel-swap-leave-to {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  .panel-swap-enter-to,
+  .panel-swap-leave-from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @keyframes card-rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .version-title {
@@ -577,6 +685,8 @@
     border: 1px solid #e2e8f0;
     background: linear-gradient(180deg, #fcfdff 0%, #f8fbff 100%);
     box-shadow: none;
+    animation: card-rise 0.38s ease both;
+    animation-delay: calc(var(--card-index, 0) * 60ms);
   }
 
   .download-card.is-recommended {
