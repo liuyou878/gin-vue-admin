@@ -112,10 +112,12 @@ type DeleteFirmwarePackageRequest struct {
 }
 
 type SetModelFirmwareTestResultRequest struct {
-	ID         uint       `json:"id" binding:"required"`         // 型号固件关系ID
-	TestResult string     `json:"testResult" binding:"required"` // 测试结果
-	Tester     string     `json:"tester"`                        // 测试人
-	TestedAt   *time.Time `json:"testedAt"`                      // 测试时间
-	Operator   string     `json:"operator"`                      // 操作人
-	Content    string     `json:"content"`                       // 日志内容
+	ID           uint       `json:"id" binding:"required"`         // 型号固件关系ID
+	TestResult   string     `json:"testResult" binding:"required"` // 测试结果
+	Tester       string     `json:"tester"`                        // 测试人
+	TestedAt     *time.Time `json:"testedAt"`                      // 测试时间
+	Operator     string     `json:"operator"`                      // 操作人
+	Content      string     `json:"content"`                       // 日志内容
+	NotifyTo     string     `json:"notifyTo"`                      // 邮件通知收件人
+	EmailContent string     `json:"emailContent"`                  // 邮件附加内容
 }

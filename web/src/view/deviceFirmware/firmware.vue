@@ -440,7 +440,7 @@
     <el-dialog
       v-model="testResultDialogVisible"
       title="提交测试结果"
-      width="560px"
+      width="720px"
     >
       <el-form :model="testResultForm" label-width="90px">
         <el-form-item label="测试结果">
@@ -479,6 +479,20 @@
                 ? '请填写未通过原因或先贴腾讯文档链接'
                 : '可选，记录测试通过说明'
             "
+          />
+        </el-form-item>
+        <el-form-item label="通知邮箱">
+          <el-input
+            v-model="testResultForm.notifyTo"
+            placeholder="留空则使用系统默认收件人，支持多个邮箱用英文逗号分隔"
+          />
+        </el-form-item>
+        <el-form-item label="邮件附加">
+          <el-input
+            v-model="testResultForm.emailContent"
+            type="textarea"
+            :rows="4"
+            placeholder="会追加到固定邮件模板后面"
           />
         </el-form-item>
       </el-form>
@@ -575,6 +589,7 @@
     createModelFirmwareRel,
     deleteModelFirmwareRel,
     getModelFirmwareRelList,
+    setModelFirmwareTestResult,
     setModelFirmwareRecommended,
     getFirmwareVersionLogList,
     getDeviceCategoryList,
@@ -664,7 +679,9 @@
   const testResultForm = ref({
     result: 'tested_pass',
     reasonTypes: [],
-    description: ''
+    description: '',
+    notifyTo: '',
+    emailContent: ''
   })
   const firmwareUploadAction = `${getBaseUrl()}/fileUploadAndDownload/upload`
   const firmwareUploadHeaders = computed(() => ({
@@ -1230,7 +1247,9 @@
     testResultForm.value = {
       result: 'tested_pass',
       reasonTypes: [],
-      description: ''
+      description: '',
+      notifyTo: '',
+      emailContent: ''
     }
     testResultDialogVisible.value = true
   }
@@ -1255,12 +1274,17 @@
       (testResultForm.value.result === 'tested_pass'
         ? '测试通过'
         : '测试不通过')
-    const success = await changeStage(
-      currentTestRow.value,
-      testResultForm.value.result,
-      content
-    )
-    if (success) {
+    const res = await setModelFirmwareTestResult({
+      id: currentTestRow.value.ID,
+      testResult: testResultForm.value.result,
+      tester: defaultUploadedBy(),
+      operator: defaultUploadedBy(),
+      content,
+      notifyTo: testResultForm.value.notifyTo?.trim(),
+      emailContent: testResultForm.value.emailContent?.trim()
+    })
+    if (res.code === 0) {
+      await loadPage()
       testResultDialogVisible.value = false
       currentTestRow.value = null
     }
