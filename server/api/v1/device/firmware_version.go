@@ -146,7 +146,7 @@ func (a *FirmwareVersionApi) SetFirmwareStable(c *gin.Context) {
 	response.OkWithMessage("设置成功", c)
 }
 
-// VoidFirmwareVersion 作废固件版本
+// VoidFirmwareVersion 下架固件版本
 func (a *FirmwareVersionApi) VoidFirmwareVersion(c *gin.Context) {
 	var req deviceReq.VoidFirmwareVersionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -154,11 +154,26 @@ func (a *FirmwareVersionApi) VoidFirmwareVersion(c *gin.Context) {
 		return
 	}
 	if err := firmwareVersionService.VoidFirmwareVersion(req); err != nil {
-		global.GVA_LOG.Error("作废固件版本失败!", zap.Error(err))
-		response.FailWithMessage("作废固件版本失败:"+err.Error(), c)
+		global.GVA_LOG.Error("下架固件版本失败!", zap.Error(err))
+		response.FailWithMessage("下架固件版本失败:"+err.Error(), c)
 		return
 	}
-	response.OkWithMessage("作废成功", c)
+	response.OkWithMessage("下架成功", c)
+}
+
+// OnShelfFirmwareVersion 上架固件版本
+func (a *FirmwareVersionApi) OnShelfFirmwareVersion(c *gin.Context) {
+	var req deviceReq.OnShelfFirmwareVersionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if err := firmwareVersionService.OnShelfFirmwareVersion(req); err != nil {
+		global.GVA_LOG.Error("上架固件版本失败!", zap.Error(err))
+		response.FailWithMessage("上架固件版本失败:"+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("上架成功", c)
 }
 
 // DeleteFirmwarePackage 删除固件包

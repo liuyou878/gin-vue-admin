@@ -84,7 +84,7 @@
     <div class="gva-table-box">
       <div class="section-head">
         <div>
-          <div class="section-title">固件流程管理</div>
+          <div class="section-title">版本流程管理</div>
           <!-- <div class="section-subtitle">
             按测试版和正式版分层管理，正式版对应已发布版本，测试版保留所有未发布流程。
           </div> -->
@@ -108,6 +108,10 @@
           <el-tab-pane
             :label="`正式版 (${officialRows.length})`"
             name="official"
+          ></el-tab-pane>
+          <el-tab-pane
+            :label="`已下架 (${voidRows.length})`"
+            name="voided"
           ></el-tab-pane>
         </el-tabs>
       </div>
@@ -147,19 +151,11 @@
                 type="danger"
                 >最新版本</el-tag
               >
-              <el-tag
-                v-if="
-                  firmwareOf(scope.row).publishStatus === 'published' &&
-                  firmwareOf(scope.row).isStable
-                "
-                type="success"
-                >稳定版本</el-tag
-              >
               <el-tag v-if="isHistoryVersion(firmwareOf(scope.row))" type="info"
                 >历史版本</el-tag
               >
               <el-tag v-if="scope.row.isRecommended" type="warning"
-                >当前发布</el-tag
+                >当前推荐</el-tag
               >
             </div>
           </template>
@@ -170,14 +166,18 @@
         <el-table-column label="操作" min-width="300" fixed="right">
           <template #default="scope">
             <el-button
+              v-if="firmwareOf(scope.row).publishStatus !== 'voided'"
               type="primary"
               link
               @click="openFirmwareDialog(scope.row)"
-              >{{
-                firmwareOf(scope.row).status === 'test_failed'
-                  ? '上传修复包'
-                  : '编辑固件'
-              }}</el-button
+              >编辑信息</el-button
+            >
+            <el-button
+              v-if="canEditFirmwarePackage(firmwareOf(scope.row))"
+              type="primary"
+              link
+              @click="openPackageUpdateDialog(scope.row)"
+              >更新包</el-button
             >
             <el-button
               v-if="canStartTesting(firmwareOf(scope.row))"
@@ -194,11 +194,11 @@
               >测试结果</el-button
             >
             <el-button
-              v-if="canSubmitRelease(firmwareOf(scope.row))"
+              v-if="canDirectPublish(firmwareOf(scope.row))"
               type="primary"
               link
-              @click="changeStage(scope.row, 'pending_release', '提交发布')"
-              >提交发布</el-button
+              @click="publishRow(scope.row, true)"
+              >直接发布</el-button
             >
             <el-button
               v-if="canRejectRelease(firmwareOf(scope.row))"
@@ -215,35 +215,30 @@
               >发布</el-button
             >
             <el-button
-              v-if="canToggleStable(firmwareOf(scope.row))"
-              type="primary"
-              link
-              @click="toggleStable(scope.row)"
-              >{{
-                firmwareOf(scope.row).isStable ? '取消稳定' : '标记稳定'
-              }}</el-button
-            >
-            <el-button
               v-if="canSetCurrentRelease(firmwareOf(scope.row))"
               type="primary"
               link
               @click="setCurrentRelease(scope.row)"
-              >设为当前发布</el-button
+              >设为当前推荐</el-button
             >
             <el-button
               v-if="canVoid(firmwareOf(scope.row))"
               type="primary"
               link
               @click="voidRow(scope.row)"
-              >作废</el-button
+              >下架</el-button
+            >
+            <el-button
+              v-if="canOnShelf(firmwareOf(scope.row))"
+              type="primary"
+              link
+              @click="onShelfRow(scope.row)"
+              >上架</el-button
             >
             <el-button type="primary" link @click="openLogDrawer(scope.row)"
               >日志</el-button
             >
-            <el-button
-              type="primary"
-              link
-              @click="openPackageDialog(scope.row)"
+            <el-button type="primary" link @click="openPackageDialog(scope.row)"
               >下载</el-button
             >
             <el-button
@@ -263,8 +258,13 @@
       :title="firmwareDialogTitle"
       width="720px"
     >
-      <el-form :model="firmwareForm" label-width="100px">
-        <el-form-item label="设备类别">
+      <el-form
+        ref="firmwareFormRef"
+        :model="firmwareForm"
+        :rules="firmwareRules"
+        label-width="100px"
+      >
+        <el-form-item label="设备类别" prop="categoryId">
           <el-select
             v-model="firmwareForm.categoryId"
             filterable
@@ -281,7 +281,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="设备型号">
+        <el-form-item label="设备型号" prop="modelId">
           <el-select
             v-model="firmwareForm.modelId"
             filterable
@@ -298,13 +298,23 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="版本号"
-          ><el-input v-model="firmwareForm.versionCode"
+        <el-form-item label="版本号" prop="versionCode"
+          ><el-input
+            v-model="firmwareForm.versionCode"
+            :disabled="
+              firmwareDialogType === 'update' &&
+              firmwareForm.publishStatus === 'published'
+            "
         /></el-form-item>
-        <el-form-item label="版本名称"
-          ><el-input v-model="firmwareForm.versionName"
+        <el-form-item label="版本名称" prop="versionName"
+          ><el-input
+            v-model="firmwareForm.versionName"
+            :disabled="
+              firmwareDialogType === 'update' &&
+              firmwareForm.publishStatus === 'published'
+            "
         /></el-form-item>
-        <el-form-item label="固件包上传">
+        <el-form-item label="固件包上传" prop="packageUrl">
           <div class="upload-row">
             <el-upload
               :action="firmwareUploadAction"
@@ -323,7 +333,7 @@
               >
             </el-upload>
             <el-button
-              v-if="firmwareForm.packageUrl"
+              v-if="firmwareDialogType === 'create' && firmwareForm.packageUrl"
               type="danger"
               plain
               :disabled="!firmwareForm.packageUrl"
@@ -331,9 +341,7 @@
               >删除固件包</el-button
             >
             <span class="upload-file-name">
-              已选文件：{{
-                firmwareUploadName || firmwareForm.packageName || '未选择'
-              }}
+              {{ firmwareUploadName || firmwareForm.packageName || '未选择' }}
             </span>
           </div>
         </el-form-item>
@@ -350,10 +358,15 @@
             :model-value="publishStatusLabel(firmwareForm.publishStatus)"
             readonly
         /></el-form-item>
-        <el-form-item label="上传人"
-          ><el-input v-model="firmwareForm.uploadedBy"
-        /></el-form-item>
-        <el-form-item label="版本说明"
+        <!-- <el-form-item label="上传人"
+          ><el-input
+            v-model="firmwareForm.uploadedBy"
+            :disabled="
+              firmwareDialogType === 'update' &&
+              firmwareForm.publishStatus === 'published'
+            "
+        /></el-form-item> -->
+        <el-form-item label="版本说明" prop="releaseNote"
           ><el-input
             v-model="firmwareForm.releaseNote"
             type="textarea"
@@ -363,6 +376,64 @@
       <template #footer>
         <el-button @click="firmwareDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="submitFirmware">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="packageUpdateDialogVisible"
+      :title="packageUpdateDialogTitle"
+      width="520px"
+    >
+      <el-form
+        ref="packageUpdateFormRef"
+        class="package-update-form"
+        :model="packageUpdateForm"
+        :rules="packageUpdateRules"
+        label-width="90px"
+      >
+        <el-form-item label="上传包" prop="packageUrl">
+          <div class="upload-row">
+            <el-upload
+              :action="firmwareUploadAction"
+              :headers="firmwareUploadHeaders"
+              :show-file-list="false"
+              :disabled="packageUpdateUploading"
+              :before-upload="beforePackageUpdateUpload"
+              :on-success="handlePackageUpdateUploadSuccess"
+              :on-error="handlePackageUpdateUploadError"
+            >
+              <el-button
+                type="primary"
+                :loading="packageUpdateUploading"
+                :disabled="packageUpdateUploading"
+                >上传安装包</el-button
+              >
+            </el-upload>
+            <span class="upload-file-name">
+              {{
+                packageUpdateUploadName ||
+                packageUpdateForm.packageName ||
+                '未选择'
+              }}
+            </span>
+          </div>
+        </el-form-item>
+        <el-form-item label="版本说明" prop="releaseNote">
+          <el-input
+            v-model="packageUpdateForm.releaseNote"
+            type="textarea"
+            :rows="4"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="closePackageUpdateDialog">取消</el-button>
+        <el-button
+          type="primary"
+          :disabled="!packageUpdateForm.packageUrl"
+          @click="submitPackageUpdate"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
 
@@ -450,10 +521,7 @@
       width="820px"
       @closed="closePackageDialog"
     >
-      <el-empty
-        v-if="!packageRows.length"
-        description="暂无可下载安装包"
-      />
+      <el-empty v-if="!packageRows.length" description="暂无可下载安装包" />
       <el-table v-else :data="packageRows" row-key="ID">
         <el-table-column label="上传日期" width="180">
           <template #default="scope">{{
@@ -466,7 +534,9 @@
           </template>
         </el-table-column>
         <el-table-column label="包名" min-width="220" show-overflow-tooltip>
-          <template #default="scope">{{ timelinePackageName(scope.row) || '-' }}</template>
+          <template #default="scope">{{
+            timelinePackageName(scope.row) || '-'
+          }}</template>
         </el-table-column>
         <el-table-column v-if="showPackageSizeColumn" label="大小" width="120">
           <template #default="scope">{{
@@ -500,8 +570,8 @@
     getFirmwareVersionList,
     changeFirmwareVersionStatus,
     publishFirmwareVersion,
-    setFirmwareStable,
     voidFirmwareVersion,
+    onShelfFirmwareVersion,
     createModelFirmwareRel,
     deleteModelFirmwareRel,
     getModelFirmwareRelList,
@@ -510,7 +580,6 @@
     getDeviceCategoryList,
     getDeviceModelList
   } from '@/api/deviceFirmware'
-  import { deleteFirmwarePackage as deleteFirmwarePackageApi } from '@/api/deviceFirmware'
   import { deleteFile } from '@/api/fileUploadAndDownload'
   import { formatDate, getBaseUrl } from '@/utils/format'
   import { ElMessage, ElMessageBox } from 'element-plus'
@@ -533,11 +602,16 @@
   const testResultDialogVisible = ref(false)
   const logDrawerVisible = ref(false)
   const packageDialogVisible = ref(false)
+  const packageUpdateDialogVisible = ref(false)
   const firmwareDialogType = ref('create')
+  const firmwareFormRef = ref()
+  const packageUpdateFormRef = ref()
   const currentTestRow = ref(null)
   const selectedPackageFirmware = ref(null)
   const firmwareUploading = ref(false)
   const firmwareUploadName = ref('')
+  const packageUpdateUploading = ref(false)
+  const packageUpdateUploadName = ref('')
   const logDrawerTitle = ref('固件日志')
   const activeTab = ref('test')
   const failReasonOptions = ['有Bug', '少功能', '需优化']
@@ -545,13 +619,12 @@
     { label: '待测试', value: 'pending_test' },
     { label: '测试中', value: 'testing' },
     { label: '测试通过', value: 'tested_pass' },
-    { label: '测试不通过', value: 'test_failed' },
-    { label: '待发布', value: 'pending_release' }
+    { label: '测试不通过', value: 'test_failed' }
   ]
   const publishStatusOptions = [
     { label: '未发布', value: 'unpublished' },
     { label: '已发布', value: 'published' },
-    { label: '已作废', value: 'voided' }
+    { label: '已下架', value: 'voided' }
   ]
   const searchForm = ref({
     categoryId: '',
@@ -575,6 +648,19 @@
     releaseNote: '',
     uploadedBy: ''
   })
+  const packageUpdateForm = ref({
+    ID: undefined,
+    versionCode: '',
+    versionName: '',
+    packageUrl: '',
+    packageName: '',
+    packageFileId: undefined,
+    checksum: '',
+    status: 'pending_test',
+    publishStatus: 'unpublished',
+    releaseNote: '',
+    uploadedBy: ''
+  })
   const testResultForm = ref({
     result: 'tested_pass',
     reasonTypes: [],
@@ -587,6 +673,34 @@
   }))
   const defaultUploadedBy = () =>
     userStore.userInfo?.nickName || userStore.userInfo?.userName || '系统用户'
+  const requiredRule = (message) => ({
+    required: true,
+    message,
+    trigger: ['blur', 'change']
+  })
+  const firmwareRules = {
+    categoryId: [requiredRule('请选择设备类别')],
+    modelId: [requiredRule('请选择设备型号')],
+    versionCode: [requiredRule('请输入版本号')],
+    versionName: [requiredRule('请输入版本名称')],
+    packageUrl: [requiredRule('请先上传安装包')],
+    releaseNote: [requiredRule('请填写版本说明')]
+  }
+  const packageUpdateRules = {
+    packageUrl: [requiredRule('请先上传安装包')],
+    releaseNote: [requiredRule('请填写版本说明')]
+  }
+  const validateForm = async (formRef) => {
+    if (!formRef.value) {
+      return false
+    }
+    try {
+      await formRef.value.validate()
+      return true
+    } catch (error) {
+      return false
+    }
+  }
   const filteredSearchModels = computed(() =>
     !searchForm.value.categoryId
       ? modelOptions.value
@@ -638,7 +752,7 @@
   )
   const testRows = computed(() =>
     filteredRows.value.filter(
-      (row) => firmwareOf(row)?.publishStatus !== 'published'
+      (row) => !['published', 'voided'].includes(firmwareOf(row)?.publishStatus)
     )
   )
   const officialRows = computed(() =>
@@ -646,20 +760,32 @@
       (row) => firmwareOf(row)?.publishStatus === 'published'
     )
   )
+  const voidRows = computed(() =>
+    filteredRows.value.filter(
+      (row) => firmwareOf(row)?.publishStatus === 'voided'
+    )
+  )
   const displayRows = computed(() =>
-    activeTab.value === 'official' ? officialRows.value : testRows.value
+    activeTab.value === 'official'
+      ? officialRows.value
+      : activeTab.value === 'voided'
+      ? voidRows.value
+      : testRows.value
   )
   const currentDialogModel = computed(() =>
     modelOptions.value.find((item) => item.ID === firmwareForm.value.modelId)
   )
   const firmwareDialogTitle = computed(() => {
-    if (firmwareDialogType.value === 'update')
-      return firmwareForm.value.status === 'test_failed'
-        ? '上传修复包'
-        : '编辑固件'
+    if (firmwareDialogType.value === 'update') return '编辑信息'
     return currentDialogModel.value
       ? `为 ${currentDialogModel.value.modelName} 上传新固件`
       : '新增固件'
+  })
+  const packageUpdateDialogTitle = computed(() => {
+    const firmware = packageUpdateForm.value
+    return firmware.versionCode || firmware.versionName
+      ? `更新包 - ${firmware.versionCode || firmware.versionName}`
+      : '更新包'
   })
   const latestFailureLogMap = computed(() => {
     const map = {}
@@ -712,11 +838,11 @@
     ({
       unpublished: '未发布',
       published: '已发布',
-      voided: '已作废'
+      voided: '已下架'
     }[status] || '-')
   const firmwareStatusLabel = (firmware) => {
     if (firmware?.publishStatus === 'published') return '已发布'
-    if (firmware?.publishStatus === 'voided') return '已作废'
+    if (firmware?.publishStatus === 'voided') return '已下架'
     return devStatusLabel(firmware?.status)
   }
   const firmwareStatusTag = (firmware) => {
@@ -726,7 +852,7 @@
   }
   const logStatusLabel = (log) => {
     if (log?.toStatus === 'published') return '已发布'
-    if (log?.toStatus === 'voided') return '已作废'
+    if (log?.toStatus === 'voided') return '已下架'
     return devStatusLabel(log?.toStatus || log?.fromStatus)
   }
   const devStatusTag = (status) => {
@@ -743,19 +869,19 @@
     ['pending_test', 'test_failed'].includes(firmware?.status) &&
     !['published', 'voided'].includes(firmware?.publishStatus)
   const canSubmitTestResult = (firmware) => firmware?.status === 'testing'
-  const canSubmitRelease = (firmware) =>
+  const canDirectPublish = (firmware) =>
+    firmware?.publishStatus === 'unpublished' &&
+    !['published', 'voided'].includes(firmware?.publishStatus)
+  const canRejectRelease = (firmware) =>
     firmware?.status === 'tested_pass' &&
     firmware?.publishStatus === 'unpublished'
-  const canRejectRelease = (firmware) =>
-    firmware?.status === 'pending_release' &&
-    firmware?.publishStatus === 'unpublished'
   const canPublish = (firmware) =>
-    firmware?.status === 'pending_release' &&
+    firmware?.status === 'tested_pass' &&
     firmware?.publishStatus === 'unpublished'
-  const canToggleStable = (firmware) => firmware?.publishStatus === 'published'
   const canSetCurrentRelease = (firmware) =>
     firmware?.publishStatus === 'published'
   const canVoid = (firmware) => firmware?.publishStatus === 'published'
+  const canOnShelf = (firmware) => firmware?.publishStatus === 'voided'
   const canDeleteRelation = (firmware) =>
     !['published', 'voided'].includes(firmware?.publishStatus)
   const canEditFirmwarePackage = (firmware) =>
@@ -792,13 +918,14 @@
         submit_release: '提交发布',
         reject_release: '驳回到测试中',
         publish: '发布版本',
-        mark_stable: '标记稳定版本',
-        unmark_stable: '取消稳定版本',
-        void_release: '作废发布版本',
+        mark_stable: '版本状态变更',
+        unmark_stable: '版本状态变更',
+        void_release: '下架发布版本',
+        on_shelf_release: '上架发布版本',
         delete_package: '删除固件包',
         set_recommended: modelName
-          ? `设为 ${modelName} 当前发布`
-          : '设为当前发布'
+          ? `设为 ${modelName} 推荐版本`
+          : '设为当前推荐'
       }[log?.action] ||
       log?.action ||
       '-'
@@ -870,9 +997,42 @@
     firmwareUploading.value = false
     ElMessage.error('固件包上传失败')
   }
+  const beforePackageUpdateUpload = (file) => {
+    if (!file?.name) {
+      ElMessage.error('未读取到文件名，请重新选择文件')
+      return false
+    }
+    packageUpdateUploading.value = true
+    packageUpdateUploadName.value = file.name
+    return true
+  }
+  const handlePackageUpdateUploadSuccess = (res) => {
+    packageUpdateUploading.value = false
+    const file = res?.data?.file
+    if (!file?.url) {
+      ElMessage.error('上传成功，但未返回文件地址')
+      return
+    }
+    packageUpdateForm.value.packageUrl = file.url
+    packageUpdateForm.value.packageName =
+      file.name || packageUpdateUploadName.value
+    packageUpdateForm.value.packageFileId = file.ID || file.id || undefined
+    if (!packageUpdateForm.value.uploadedBy) {
+      packageUpdateForm.value.uploadedBy = defaultUploadedBy()
+    }
+    ElMessage.success('安装包上传成功，已自动回填地址')
+  }
+  const handlePackageUpdateUploadError = () => {
+    packageUpdateUploading.value = false
+    ElMessage.error('安装包上传失败')
+  }
   const deleteFirmwarePackage = async () => {
     if (!firmwareForm.value.packageUrl) {
       ElMessage.warning('当前没有可删除的安装包')
+      return
+    }
+    if (firmwareDialogType.value !== 'create') {
+      ElMessage.warning('已创建版本不能删除安装包，只能重新上传替换')
       return
     }
     try {
@@ -891,16 +1051,9 @@
       ElMessage.warning('未找到可删除的安装包记录')
       return
     }
-    const res =
-      firmwareDialogType.value === 'update' && firmwareForm.value.ID
-        ? await deleteFirmwarePackageApi({
-            id: firmwareForm.value.ID,
-            operator: defaultUploadedBy(),
-            content: '删除安装包'
-          })
-        : await deleteFile({
-            ID: firmwareForm.value.packageFileId
-          })
+    const res = await deleteFile({
+      ID: firmwareForm.value.packageFileId
+    })
     if (res.code !== 0) {
       return
     }
@@ -909,6 +1062,64 @@
     firmwareForm.value.packageFileId = undefined
     firmwareUploadName.value = ''
     ElMessage.success('固件包已删除')
+  }
+  const openPackageUpdateDialog = async (row) => {
+    const firmware = firmwareOf(row)
+    const res = await findFirmwareVersion({ ID: firmware.ID })
+    if (res.code === 0) {
+      packageUpdateForm.value = {
+        ID: res.data.ID,
+        versionCode: res.data.versionCode || '',
+        versionName: res.data.versionName || '',
+        packageUrl: '',
+        packageName: '',
+        packageFileId: undefined,
+        checksum: '',
+        status: res.data.status || 'pending_test',
+        publishStatus: res.data.publishStatus || 'unpublished',
+        releaseNote: res.data.releaseNote || ''
+      }
+      packageUpdateUploadName.value = ''
+      packageUpdateDialogVisible.value = true
+    }
+  }
+  const submitPackageUpdate = async () => {
+    if (!packageUpdateForm.value.packageUrl) {
+      ElMessage.warning('请先上传安装包')
+      return
+    }
+    if (!(await validateForm(packageUpdateFormRef))) {
+      return
+    }
+    const payload = {
+      ...packageUpdateForm.value,
+      uploadedAt: new Date()
+    }
+    const res = await updateFirmwareVersion(payload)
+    if (res.code !== 0) {
+      return
+    }
+    ElMessage.success('安装包更新成功')
+    closePackageUpdateDialog()
+    await loadDeviceTree()
+  }
+  const closePackageUpdateDialog = () => {
+    packageUpdateDialogVisible.value = false
+    packageUpdateUploading.value = false
+    packageUpdateUploadName.value = ''
+    packageUpdateForm.value = {
+      ID: undefined,
+      versionCode: '',
+      versionName: '',
+      packageUrl: '',
+      packageName: '',
+      packageFileId: undefined,
+      checksum: '',
+      status: 'pending_test',
+      publishStatus: 'unpublished',
+      releaseNote: '',
+      uploadedBy: ''
+    }
   }
   const openFirmwareDialog = async (row) => {
     firmwareDialogType.value = row?.ID ? 'update' : 'create'
@@ -950,8 +1161,7 @@
       ElMessage.warning('请先选择设备类别和设备型号')
       return
     }
-    if (!firmwareForm.value.versionCode) {
-      ElMessage.warning('请填写版本号')
+    if (!(await validateForm(firmwareFormRef))) {
       return
     }
     const isFixUpload =
@@ -1055,29 +1265,35 @@
       currentTestRow.value = null
     }
   }
-  const publishRow = async (row) => {
+  const publishRow = async (row, direct = false) => {
     const firmware = firmwareOf(row)
+    try {
+      await ElMessageBox.confirm(
+        direct
+          ? `确定直接发布 ${
+              firmware.versionCode || firmware.versionName || '该版本'
+            } 吗？`
+          : `确定发布 ${
+              firmware.versionCode || firmware.versionName || '该版本'
+            } 吗？`,
+        direct ? '直接发布' : '发布',
+        {
+          type: 'warning',
+          confirmButtonText: '确定',
+          cancelButtonText: '取消'
+        }
+      )
+    } catch (error) {
+      return
+    }
     const res = await publishFirmwareVersion({
       id: firmware.ID,
+      direct,
       operator: defaultUploadedBy(),
-      content: '发布进入发布版本'
+      content: direct ? '上传后直接发布' : '发布进入发布版本'
     })
     if (res.code === 0) {
-      ElMessage.success('发布成功，已进入发布版本')
-      await loadPage()
-    }
-  }
-  const toggleStable = async (row) => {
-    const firmware = firmwareOf(row)
-    const stable = !firmware.isStable
-    const res = await setFirmwareStable({
-      id: firmware.ID,
-      stable,
-      operator: defaultUploadedBy(),
-      content: stable ? '手动标记为稳定版本' : '取消稳定版本标记'
-    })
-    if (res.code === 0) {
-      ElMessage.success(stable ? '已标记为稳定版本' : '已取消稳定版本')
+      ElMessage.success(direct ? '已直接发布' : '发布成功，已进入发布版本')
       await loadPage()
     }
   }
@@ -1085,33 +1301,60 @@
     const res = await setModelFirmwareRecommended({
       id: row.ID,
       operator: defaultUploadedBy(),
-      content: '设为当前发布版'
+      content: '设为当前推荐'
     })
     if (res.code === 0) {
-      ElMessage.success('已设为当前发布版')
+      ElMessage.success('已设为当前推荐')
       await loadPage()
     }
   }
   const voidRow = (row) => {
     const firmware = firmwareOf(row)
-    ElMessageBox.prompt('请输入作废原因', '作废版本', {
+    ElMessageBox.prompt('请输入下架原因', '下架版本', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
-      inputPlaceholder: '作废原因'
+      inputPlaceholder: '下架原因'
     })
       .then(async ({ value }) => {
         const res = await voidFirmwareVersion({
           id: firmware.ID,
           operator: defaultUploadedBy(),
           voidReason: value,
-          content: value || '作废已发布版本'
+          content: value || '下架已发布版本'
         })
         if (res.code === 0) {
-          ElMessage.success('版本已作废')
+          ElMessage.success('版本已下架')
           await loadPage()
         }
       })
       .catch(() => {})
+  }
+  const onShelfRow = async (row) => {
+    const firmware = firmwareOf(row)
+    try {
+      await ElMessageBox.confirm(
+        `确定上架 ${
+          firmware.versionCode || firmware.versionName || '该版本'
+        } 吗？`,
+        '上架版本',
+        {
+          type: 'warning',
+          confirmButtonText: '确定',
+          cancelButtonText: '取消'
+        }
+      )
+    } catch (error) {
+      return
+    }
+    const res = await onShelfFirmwareVersion({
+      id: firmware.ID,
+      operator: defaultUploadedBy(),
+      content: '上架已下架版本'
+    })
+    if (res.code === 0) {
+      ElMessage.success('版本已上架')
+      await loadPage()
+    }
   }
   const openLogDrawer = async (row) => {
     const firmware = firmwareOf(row)
@@ -1158,23 +1401,12 @@
     }
     window.open(firmware.packageUrl, '_blank')
   }
-  const timelineDownloadActions = new Set([
-    'upload',
-    'fix_upload',
-    'test_pass',
-    'submit_release',
-    'publish',
-    'mark_stable',
-    'unmark_stable',
-    'void_release',
-    'set_recommended'
-  ])
+  const packageHistoryActions = new Set(['upload', 'fix_upload'])
   const timelineCanViewPackage = (log) =>
-    timelineDownloadActions.has(log?.action) && !!log?.packageUrl
+    packageHistoryActions.has(log?.action) && !!log?.packageUrl
   const timelinePackageUrl = (log) => log?.packageUrl || ''
   const timelinePackageName = (log) => log?.packageName || ''
-  const timelinePackageSize = (log) =>
-    Number(log?.packageSize || 0)
+  const timelinePackageSize = (log) => Number(log?.packageSize || 0)
   const showPackageSizeColumn = computed(() =>
     packageRows.value.some((item) => timelinePackageSize(item) > 0)
   )

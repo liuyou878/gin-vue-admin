@@ -90,7 +90,7 @@ func (i *initMenu) InitializeData(ctx context.Context) (next context.Context, er
 		{MenuLevel: 1, Hidden: false, ParentId: menuNameMap["superAdmin"], Path: "loginLog", Name: "loginLog", Component: "view/systemTools/loginLog/index.vue", Sort: 10, Meta: Meta{Title: "登录日志", Icon: "monitor"}},
 		{MenuLevel: 1, Hidden: false, ParentId: menuNameMap["superAdmin"], Path: "sysVersion", Name: "sysVersion", Component: "view/systemTools/version/version.vue", Sort: 11, Meta: Meta{Title: "版本管理", Icon: "server"}},
 		{MenuLevel: 1, Hidden: false, ParentId: menuNameMap["superAdmin"], Path: "deviceFirmware", Name: "deviceFirmware", Component: "view/deviceFirmware/index.vue", Sort: 12, Meta: Meta{Title: "设备管理", Icon: "cpu", KeepAlive: true}},
-		{MenuLevel: 1, Hidden: false, ParentId: menuNameMap["superAdmin"], Path: "deviceFirmwareWorkflow", Name: "deviceFirmwareWorkflow", Component: "view/deviceFirmware/firmware.vue", Sort: 13, Meta: Meta{Title: "固件流程管理", Icon: "files", KeepAlive: true}},
+		{MenuLevel: 1, Hidden: false, ParentId: menuNameMap["superAdmin"], Path: "deviceFirmwareWorkflow", Name: "deviceFirmwareWorkflow", Component: "view/deviceFirmware/firmware.vue", Sort: 13, Meta: Meta{Title: "版本流程管理", Icon: "files", KeepAlive: true}},
 		{MenuLevel: 1, Hidden: false, ParentId: menuNameMap["superAdmin"], Path: "sysError", Name: "sysError", Component: "view/systemTools/sysError/sysError.vue", Sort: 14, Meta: Meta{Title: "错误日志", Icon: "warn"}},
 
 		// example子菜单
@@ -139,3 +139,4 @@ func (i *initMenu) DataInserted(ctx context.Context) bool {
 	}
 	return true
 }
+

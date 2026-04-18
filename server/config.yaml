@@ -67,10 +67,10 @@ db-list:
 disk-list:
     - mount-point: /
 email:
-    to: xxx@qq.com
-    from: xxx@163.com
-    host: smtp.163.com
-    secret: xxx
+    to: 1452970202@qq.com
+    from: liuyou878@gmail.com
+    host: smtp.gmail.com
+    secret: fhip hcbj aqum nick
     nickname: test
     port: 465
     is-ssl: true

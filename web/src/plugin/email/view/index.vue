@@ -30,7 +30,7 @@
 
 <script setup>
   import WarningBar from '@/components/warningBar/warningBar.vue'
-  import { emailTest } from '@/plugin/email/api/email.js'
+  import { emailTest, sendEmail as sendEmailApi } from '@/plugin/email/api/email.js'
   import { ElMessage } from 'element-plus'
   import { reactive, ref } from 'vue'
 
@@ -52,7 +52,15 @@
   }
 
   const sendEmail = async () => {
-    const res = await emailTest()
+    if (!form.to || !form.subject || !form.body) {
+      ElMessage.warning('请先填写目标邮箱、邮件标题和邮件内容')
+      return
+    }
+    const res = await sendEmailApi({
+      to: form.to,
+      subject: form.subject,
+      body: form.body
+    })
     if (res.code === 0) {
       ElMessage.success('发送成功,请查收')
     }

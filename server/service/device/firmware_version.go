@@ -55,7 +55,7 @@ func (s *FirmwareVersionService) DeleteFirmwareVersion(id string) error {
 		return err
 	}
 	if firmware.PublishStatus == "published" || firmware.PublishStatus == "voided" {
-		return errors.New("已发布的版本不能删除，只能作废并保留历史")
+		return errors.New("已发布的版本不能删除，只能下架并保留历史")
 	}
 	var count int64
 	if err := global.GVA_DB.Model(&deviceModel.ModelFirmwareRel{}).Where("firmware_id = ?", id).Count(&count).Error; err != nil {
@@ -74,7 +74,7 @@ func (s *FirmwareVersionService) DeleteFirmwareVersionByIds(ids commonReq.IdsReq
 		return err
 	}
 	if publishedCount > 0 {
-		return errors.New("所选固件版本中存在已发布或已作废的数据，不能删除")
+		return errors.New("所选固件版本中存在已发布或已下架的数据，不能删除")
 	}
 	var count int64
 	if err := global.GVA_DB.Model(&deviceModel.ModelFirmwareRel{}).Where("firmware_id in ?", ids.Ids).Count(&count).Error; err != nil {
@@ -232,13 +232,17 @@ func (s *FirmwareVersionService) PublishFirmwareVersion(req deviceReq.PublishFir
 			return err
 		}
 		if firmware.PublishStatus == "voided" {
-			return errors.New("已作废版本不能再次发布")
+			return errors.New("已下架版本不能再次发布")
 		}
 		if firmware.PublishStatus == "published" {
 			return errors.New("该版本已经发布")
 		}
-		if firmware.Status != "pending_release" {
-			return errors.New("只有待发布版本才能执行发布")
+		if !req.Direct {
+			switch normalizeFirmwareStatus(firmware.Status) {
+			case "tested_pass", "pending_release":
+			default:
+				return errors.New("测试通过后才能发布，或使用直接发布")
+			}
 		}
 		now := time.Now()
 		if err := tx.Model(&deviceModel.FirmwareVersion{}).
@@ -261,7 +265,11 @@ func (s *FirmwareVersionService) PublishFirmwareVersion(req deviceReq.PublishFir
 		}
 		content := req.Content
 		if content == "" {
-			content = "发布版本"
+			if req.Direct {
+				content = "直接发布版本"
+			} else {
+				content = "发布版本"
+			}
 		}
 		return createFirmwareVersionLog(tx, firmware.ID, nil, "publish", firmware.Status, "published", operator, content)
 	})
@@ -300,7 +308,7 @@ func (s *FirmwareVersionService) SetFirmwareStable(req deviceReq.SetFirmwareStab
 	})
 }
 
-// VoidFirmwareVersion 作废已发布固件版本
+// VoidFirmwareVersion 下架已发布固件版本
 func (s *FirmwareVersionService) VoidFirmwareVersion(req deviceReq.VoidFirmwareVersionRequest) error {
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		var firmware deviceModel.FirmwareVersion
@@ -308,7 +316,7 @@ func (s *FirmwareVersionService) VoidFirmwareVersion(req deviceReq.VoidFirmwareV
 			return err
 		}
 		if firmware.PublishStatus != "published" {
-			return errors.New("只有已发布版本才能作废")
+			return errors.New("只有已发布版本才能下架")
 		}
 		now := time.Now()
 		operator := req.Operator
@@ -334,9 +342,49 @@ func (s *FirmwareVersionService) VoidFirmwareVersion(req deviceReq.VoidFirmwareV
 			content = req.VoidReason
 		}
 		if content == "" {
-			content = "作废已发布版本"
+			content = "下架已发布版本"
 		}
 		return createFirmwareVersionLog(tx, firmware.ID, nil, "void_release", firmware.PublishStatus, "voided", operator, content)
+	})
+}
+
+// OnShelfFirmwareVersion 上架已下架固件版本
+func (s *FirmwareVersionService) OnShelfFirmwareVersion(req deviceReq.OnShelfFirmwareVersionRequest) error {
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var firmware deviceModel.FirmwareVersion
+		if err := tx.Where("id = ?", req.ID).First(&firmware).Error; err != nil {
+			return err
+		}
+		if firmware.PublishStatus != "voided" {
+			return errors.New("只有已下架版本才能上架")
+		}
+		now := time.Now()
+		if err := tx.Model(&deviceModel.FirmwareVersion{}).
+			Where("is_latest = ? AND publish_status = ?", true, "published").
+			Updates(map[string]interface{}{"is_latest": false}).Error; err != nil {
+			return err
+		}
+		operator := req.Operator
+		if operator == "" {
+			operator = firmware.PublishedBy
+		}
+		updates := map[string]interface{}{
+			"publish_status": "published",
+			"is_latest":      true,
+			"published_by":   operator,
+			"published_at":   &now,
+			"voided_by":      "",
+			"voided_at":      nil,
+			"void_reason":    "",
+		}
+		if err := tx.Model(&deviceModel.FirmwareVersion{}).Where("id = ?", req.ID).Updates(updates).Error; err != nil {
+			return err
+		}
+		content := req.Content
+		if content == "" {
+			content = "上架已下架版本"
+		}
+		return createFirmwareVersionLog(tx, firmware.ID, nil, "on_shelf_release", "voided", "published", operator, content)
 	})
 }
 
@@ -347,8 +395,8 @@ func (s *FirmwareVersionService) DeleteFirmwarePackage(req deviceReq.DeleteFirmw
 		if err := tx.Where("id = ?", req.ID).First(&firmware).Error; err != nil {
 			return err
 		}
-		if firmware.PublishStatus == "published" || firmware.PublishStatus == "voided" {
-			return errors.New("已发布或已作废版本不能删除安装包")
+		if firmware.ID > 0 {
+			return errors.New("已创建版本不能删除安装包，只能重新上传替换")
 		}
 		fileRecord, err := resolveFirmwarePackageFile(tx, firmware)
 		if err != nil {
@@ -389,7 +437,8 @@ func convertStatusToAction(fromStatus, toStatus string) string {
 		}
 		return "upload"
 	case "testing":
-		if normalizeFirmwareStatus(fromStatus) == "pending_release" {
+		if normalizeFirmwareStatus(fromStatus) == "pending_release" ||
+			normalizeFirmwareStatus(fromStatus) == "tested_pass" {
 			return "reject_release"
 		}
 		return "start_testing"
@@ -446,7 +495,7 @@ func isAllowedFirmwareStatusTransition(from, to string) bool {
 	case "testing":
 		return to == "tested_pass" || to == "test_failed"
 	case "tested_pass":
-		return to == "pending_release"
+		return to == "testing"
 	case "test_failed":
 		return to == "testing" || to == "pending_test"
 	case "pending_release":
@@ -509,6 +558,28 @@ func resolveFirmwarePackageFile(tx *gorm.DB, firmware deviceModel.FirmwareVersio
 	if firmware.PackageName != "" {
 		var fileRecord exampleModel.ExaFileUploadAndDownload
 		if err := tx.Where("name = ?", firmware.PackageName).First(&fileRecord).Error; err == nil {
+			return fileRecord, nil
+		}
+	}
+	return exampleModel.ExaFileUploadAndDownload{}, errors.New("未找到安装包文件记录")
+}
+
+func resolveFirmwareLogPackageFile(tx *gorm.DB, log deviceModel.FirmwareVersionLog) (exampleModel.ExaFileUploadAndDownload, error) {
+	if log.PackageFileID > 0 {
+		var fileRecord exampleModel.ExaFileUploadAndDownload
+		if err := tx.Where("id = ?", log.PackageFileID).First(&fileRecord).Error; err == nil {
+			return fileRecord, nil
+		}
+	}
+	if log.PackageURL != "" {
+		var fileRecord exampleModel.ExaFileUploadAndDownload
+		if err := tx.Where("url = ?", log.PackageURL).First(&fileRecord).Error; err == nil {
+			return fileRecord, nil
+		}
+	}
+	if log.PackageName != "" {
+		var fileRecord exampleModel.ExaFileUploadAndDownload
+		if err := tx.Where("name = ?", log.PackageName).First(&fileRecord).Error; err == nil {
 			return fileRecord, nil
 		}
 	}
@@ -581,10 +652,12 @@ func (s *FirmwareVersionService) GetPublicFirmwareDownloadPage(categoryID, model
 	}
 
 	items := make([]deviceResp.PublicFirmwareDownloadItem, 0, len(rels))
+	relationMap := map[uint]deviceModel.ModelFirmwareRel{}
 	for _, rel := range rels {
 		if rel.Firmware.PublishStatus != "published" {
 			continue
 		}
+		relationMap[rel.FirmwareID] = rel
 		pkgURL, pkgName, _, pkgSize, checksum := resolveFirmwareLogPackageSnapshot(global.GVA_DB, rel.FirmwareID, &rel.Firmware)
 		firmware := rel.Firmware
 		if pkgURL != "" {
@@ -669,10 +742,62 @@ func (s *FirmwareVersionService) GetPublicFirmwareDownloadPage(categoryID, model
 	resp.Stable = stable
 	resp.Latest = latest
 	resp.History = history
+	resp.Packages = buildPublicFirmwareDownloadPackageItems(global.GVA_DB, selectedModel, relationMap, items)
 	if current != nil {
 		resp.PrimaryType = publicFirmwarePrimaryType(*current)
 	}
 	return resp, nil
+}
+
+func buildPublicFirmwareDownloadPackageItems(tx *gorm.DB, model deviceModel.DeviceModel, relationMap map[uint]deviceModel.ModelFirmwareRel, publishedItems []deviceResp.PublicFirmwareDownloadItem) []deviceResp.PublicFirmwareDownloadPackageItem {
+	firmwareIDs := make([]uint, 0, len(publishedItems))
+	for _, item := range publishedItems {
+		if item.Firmware.ID == 0 {
+			continue
+		}
+		firmwareIDs = append(firmwareIDs, item.Firmware.ID)
+	}
+	if len(firmwareIDs) == 0 {
+		return nil
+	}
+
+	var logs []deviceModel.FirmwareVersionLog
+	if err := tx.Preload("Firmware").
+		Where("firmware_id IN ? AND action IN ? AND package_url <> ''", firmwareIDs, []string{"upload", "fix_upload"}).
+		Order("operate_at desc, id desc").
+		Find(&logs).Error; err != nil {
+		return nil
+	}
+
+	items := make([]deviceResp.PublicFirmwareDownloadPackageItem, 0, len(logs))
+	for _, log := range logs {
+		if _, err := resolveFirmwareLogPackageFile(tx, log); err != nil {
+			continue
+		}
+		firmware := log.Firmware
+		firmware.PackageURL = log.PackageURL
+		firmware.PackageName = log.PackageName
+		firmware.PackageFileID = log.PackageFileID
+		firmware.Checksum = log.Checksum
+		rel, ok := relationMap[log.FirmwareID]
+		item := deviceResp.PublicFirmwareDownloadPackageItem{
+			LogID:         log.ID,
+			RelationID:    0,
+			Category:      model.Category,
+			Model:         model,
+			Firmware:      firmware,
+			Action:        log.Action,
+			OperateAt:     log.OperateAt,
+			IsRecommended: ok && rel.IsRecommended,
+			PackageSize:   log.PackageSize,
+		}
+		if ok {
+			item.RelationID = rel.ID
+		}
+		items = append(items, item)
+	}
+
+	return items
 }
 
 func containsCategoryID(categories []deviceModel.DeviceCategory, id uint) bool {

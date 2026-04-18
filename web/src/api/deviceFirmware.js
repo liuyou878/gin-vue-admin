@@ -176,6 +176,14 @@ export const voidFirmwareVersion = (data) => {
   })
 }
 
+export const onShelfFirmwareVersion = (data) => {
+  return service({
+    url: '/firmwareVersion/onShelfFirmwareVersion',
+    method: 'post',
+    data
+  })
+}
+
 export const deleteFirmwarePackage = (data) => {
   return service({
     url: '/firmwareVersion/deleteFirmwarePackage',

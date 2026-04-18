@@ -28,7 +28,7 @@ const routes = [
     path: '/publicFirmwareDownload',
     name: 'PublicFirmwareDownload',
     meta: {
-      title: '固件下载',
+      title: '版本下载',
       client: true
     },
     component: () => import('@/view/publicFirmwareDownload/index.vue')
@@ -48,3 +48,4 @@ const router = createRouter({
 })
 
 export default router
+

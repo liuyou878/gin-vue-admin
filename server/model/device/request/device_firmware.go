@@ -80,6 +80,7 @@ type SetModelFirmwareRecommendedRequest struct {
 
 type PublishFirmwareVersionRequest struct {
 	ID       uint   `json:"id" binding:"required"` // 固件版本ID
+	Direct   bool   `json:"direct"`                // 是否直接发布
 	Operator string `json:"operator"`              // 操作人
 	Content  string `json:"content"`               // 日志内容
 }
@@ -96,6 +97,12 @@ type VoidFirmwareVersionRequest struct {
 	Operator   string `json:"operator"`              // 操作人
 	VoidReason string `json:"voidReason"`            // 作废原因
 	Content    string `json:"content"`               // 日志内容
+}
+
+type OnShelfFirmwareVersionRequest struct {
+	ID       uint   `json:"id" binding:"required"` // 固件版本ID
+	Operator string `json:"operator"`              // 操作人
+	Content  string `json:"content"`               // 日志内容
 }
 
 type DeleteFirmwarePackageRequest struct {
