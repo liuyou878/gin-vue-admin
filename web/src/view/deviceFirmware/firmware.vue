@@ -1128,7 +1128,7 @@
       passed: '已通过',
       test_failed: '测试不通过',
       failed: '测试不通过',
-      pending_release: '待发布'
+      pending_release: '测试通过'
     }[status] ||
     status ||
     '-')
