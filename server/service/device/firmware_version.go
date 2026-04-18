@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -33,9 +34,45 @@ var validPublishStatuses = map[string]bool{
 	"voided":      true,
 }
 
+var firmwareVersionCodePattern = regexp.MustCompile(`^\d+(\.\d+){2}$`)
+
+func validateFirmwareVersionCode(versionCode string) error {
+	versionCode = strings.TrimSpace(versionCode)
+	if versionCode == "" {
+		return errors.New("请填写版本号")
+	}
+	if !firmwareVersionCodePattern.MatchString(versionCode) {
+		return errors.New("版本号格式需为数字点分格式，例如 1.0.0")
+	}
+	return nil
+}
+
+func uniqueUintIDs(ids []uint) []uint {
+	if len(ids) == 0 {
+		return nil
+	}
+	seen := make(map[uint]struct{}, len(ids))
+	result := make([]uint, 0, len(ids))
+	for _, id := range ids {
+		if id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+	return result
+}
+
 // CreateFirmwareVersion 创建固件版本
 func (s *FirmwareVersionService) CreateFirmwareVersion(firmware *deviceModel.FirmwareVersion) error {
-	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+	if err := validateFirmwareVersionCode(firmware.VersionCode); err != nil {
+		return err
+	}
+	var mailPayload *firmwareActionMailPayload
+	txErr := global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		if firmware.Status == "" || firmware.Status == "draft" {
 			firmware.Status = "pending_test"
 		}
@@ -48,8 +85,46 @@ func (s *FirmwareVersionService) CreateFirmwareVersion(firmware *deviceModel.Fir
 		if err := tx.Create(firmware).Error; err != nil {
 			return err
 		}
-		return createFirmwareVersionLog(tx, firmware.ID, nil, "upload", "", firmware.Status, firmware.UploadedBy, "创建固件版本", firmware)
+		if err := createFirmwareVersionLog(tx, firmware.ID, nil, "upload", "", firmware.Status, firmware.UploadedBy, "创建固件版本", firmware); err != nil {
+			return err
+		}
+		modelIDs := uniqueUintIDs(firmware.ModelIDs)
+		if len(modelIDs) == 0 {
+			return errors.New("请选择设备型号")
+		}
+		for _, modelID := range modelIDs {
+			if err := ensureDeviceModelExists(tx, modelID); err != nil {
+				return err
+			}
+			if err := cleanupOrRejectDuplicateModelFirmwareRel(tx, modelID, firmware.ID, 0); err != nil {
+				return err
+			}
+			if err := tx.Create(&deviceModel.ModelFirmwareRel{
+				ModelID:       modelID,
+				FirmwareID:    firmware.ID,
+				IsSupported:   true,
+				IsRecommended: false,
+			}).Error; err != nil {
+				return err
+			}
+		}
+		mailPayload = buildFirmwareActionMailPayload(tx, firmware.ID, firmwareActionMailOptions{
+			Action:   "upload",
+			Status:   firmware.Status,
+			Operator: firmware.UploadedBy,
+			Content:  firmware.ReleaseNote,
+		})
+		return nil
 	})
+	if txErr != nil {
+		return txErr
+	}
+	if mailPayload != nil {
+		if sendErr := sendFirmwareActionEmail(mailPayload, firmware.NotifyTo); sendErr != nil {
+			return fmt.Errorf("固件已新增，但邮件发送失败: %w", sendErr)
+		}
+	}
+	return nil
 }
 
 // DeleteFirmwareVersion 删除固件版本
@@ -92,7 +167,11 @@ func (s *FirmwareVersionService) DeleteFirmwareVersionByIds(ids commonReq.IdsReq
 
 // UpdateFirmwareVersion 更新固件版本
 func (s *FirmwareVersionService) UpdateFirmwareVersion(firmware deviceModel.FirmwareVersion) error {
-	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+	if err := validateFirmwareVersionCode(firmware.VersionCode); err != nil {
+		return err
+	}
+	var mailPayload *firmwareActionMailPayload
+	txErr := global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		var current deviceModel.FirmwareVersion
 		if err := tx.Where("id = ?", firmware.ID).First(&current).Error; err != nil {
 			return err
@@ -131,11 +210,11 @@ func (s *FirmwareVersionService) UpdateFirmwareVersion(firmware deviceModel.Firm
 			return err
 		}
 		if packageChanged {
-			content := "更新固件包"
-			if current.Status == "test_failed" {
-				content = "已修复，重新上传固件包"
+			content := strings.TrimSpace(firmware.OperationContent)
+			if content == "" {
+				content = "测试包更新"
 			}
-			return createFirmwareVersionLog(
+			if err := createFirmwareVersionLog(
 				tx,
 				current.ID,
 				nil,
@@ -144,10 +223,27 @@ func (s *FirmwareVersionService) UpdateFirmwareVersion(firmware deviceModel.Firm
 				nextStatus,
 				firmware.UploadedBy,
 				content,
-			)
+			); err != nil {
+				return err
+			}
+			mailPayload = buildFirmwareActionMailPayload(tx, current.ID, firmwareActionMailOptions{
+				Action:   "fix_upload",
+				Status:   nextStatus,
+				Operator: firmware.UploadedBy,
+				Content:  content,
+			})
 		}
 		return nil
 	})
+	if txErr != nil {
+		return txErr
+	}
+	if mailPayload != nil {
+		if sendErr := sendFirmwareActionEmail(mailPayload, firmware.NotifyTo); sendErr != nil {
+			return fmt.Errorf("更新包已完成，但邮件发送失败: %w", sendErr)
+		}
+	}
+	return nil
 }
 
 // GetFirmwareVersion 获取固件版本详情
@@ -261,12 +357,10 @@ func (s *FirmwareVersionService) PublishFirmwareVersion(req deviceReq.PublishFir
 		if firmware.PublishStatus == "published" {
 			return errors.New("该版本已经发布")
 		}
-		if !req.Direct {
-			switch normalizeFirmwareStatus(firmware.Status) {
-			case "tested_pass", "pending_release":
-			default:
-				return errors.New("测试通过后才能发布，或使用直接发布")
-			}
+		switch normalizeFirmwareStatus(firmware.Status) {
+		case "tested_pass", "pending_release":
+		default:
+			return errors.New("测试通过后才能发布")
 		}
 		now := time.Now()
 		if err := tx.Model(&deviceModel.FirmwareVersion{}).
@@ -284,16 +378,17 @@ func (s *FirmwareVersionService) PublishFirmwareVersion(req deviceReq.PublishFir
 			"published_by":   operator,
 			"published_at":   &now,
 		}
+		releaseNote := strings.TrimSpace(req.ReleaseNote)
+		if releaseNote == "" {
+			return errors.New("请填写版本说明")
+		}
+		updates["release_note"] = releaseNote
 		if err := tx.Model(&deviceModel.FirmwareVersion{}).Where("id = ?", req.ID).Updates(updates).Error; err != nil {
 			return err
 		}
 		content := req.Content
 		if content == "" {
-			if req.Direct {
-				content = "直接发布版本"
-			} else {
-				content = "发布版本"
-			}
+			content = "发布版本"
 		}
 		if err := createFirmwareVersionLog(tx, firmware.ID, nil, "publish", firmware.Status, "published", operator, content); err != nil {
 			return err
@@ -303,7 +398,6 @@ func (s *FirmwareVersionService) PublishFirmwareVersion(req deviceReq.PublishFir
 			Status:   "published",
 			Operator: operator,
 			Content:  content,
-			Direct:   req.Direct,
 		})
 		return nil
 	})
@@ -520,7 +614,6 @@ type firmwareActionMailOptions struct {
 	Status   string
 	Operator string
 	Content  string
-	Direct   bool
 }
 
 func buildFirmwareActionMailPayload(tx *gorm.DB, firmwareID uint, opts firmwareActionMailOptions) *firmwareActionMailPayload {
@@ -568,7 +661,7 @@ func buildFirmwareActionMailPayload(tx *gorm.DB, firmwareID uint, opts firmwareA
 	if len(categoryNames) > 0 {
 		categoryLabel = strings.Join(categoryNames, "、")
 	}
-	actionLabel := firmwareActionLabel(opts.Action, opts.Direct)
+	actionLabel := firmwareActionLabel(opts.Action)
 	statusLabel := firmwareActionStatusLabel(opts.Status)
 	subject := fmt.Sprintf("固件流程通知 - %s - %s - %s", modelLabel, versionLabel, actionLabel)
 
@@ -618,10 +711,7 @@ func sendFirmwareActionEmail(payload *firmwareActionMailPayload, notifyTo string
 	}
 	recipient := normalizeFirmwareActionRecipients(notifyTo)
 	if recipient == "" {
-		recipient = normalizeFirmwareActionRecipients(global.GVA_CONFIG.Email.To)
-	}
-	if recipient == "" {
-		return errors.New("未配置通知邮箱")
+		return nil
 	}
 	return emailUtils.Email(recipient, payload.Subject, payload.Body)
 }
@@ -639,18 +729,17 @@ func normalizeFirmwareActionRecipients(raw string) string {
 	return strings.Join(recipients, ",")
 }
 
-func firmwareActionLabel(action string, direct bool) string {
+func firmwareActionLabel(action string) string {
 	switch action {
 	case "upload":
 		return "新增固件"
+	case "fix_upload":
+		return "更新固件包"
 	case "start_testing":
 		return "开始测试"
 	case "reject_release":
 		return "驳回到测试中"
 	case "publish":
-		if direct {
-			return "直接发布"
-		}
 		return "发布版本"
 	case "void_release":
 		return "下架版本"

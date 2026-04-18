@@ -80,11 +80,11 @@ type SetModelFirmwareRecommendedRequest struct {
 }
 
 type PublishFirmwareVersionRequest struct {
-	ID       uint   `json:"id" binding:"required"` // 固件版本ID
-	Direct   bool   `json:"direct"`                // 是否直接发布
-	Operator string `json:"operator"`              // 操作人
-	Content  string `json:"content"`               // 日志内容
-	NotifyTo string `json:"notifyTo"`              // 邮件通知收件人
+	ID          uint   `json:"id" binding:"required"` // 固件版本ID
+	Operator    string `json:"operator"`              // 操作人
+	Content     string `json:"content"`               // 日志内容
+	ReleaseNote string `json:"releaseNote"`           // 版本说明
+	NotifyTo    string `json:"notifyTo"`              // 邮件通知收件人
 }
 
 type SetFirmwareStableRequest struct {

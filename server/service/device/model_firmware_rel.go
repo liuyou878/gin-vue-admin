@@ -238,7 +238,11 @@ func (s *ModelFirmwareRelService) SetModelFirmwareTestResult(req deviceReq.SetMo
 		if err := tx.Model(&deviceModel.ModelFirmwareRel{}).Where("id = ?", rel.ID).Updates(updates).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&deviceModel.FirmwareVersion{}).Where("id = ?", rel.FirmwareID).Update("status", result).Error; err != nil {
+		firmwareStatus := result
+		if result == "tested_pass" {
+			firmwareStatus = "pending_release"
+		}
+		if err := tx.Model(&deviceModel.FirmwareVersion{}).Where("id = ?", rel.FirmwareID).Update("status", firmwareStatus).Error; err != nil {
 			return err
 		}
 		modelID := rel.ModelID
@@ -246,7 +250,7 @@ func (s *ModelFirmwareRelService) SetModelFirmwareTestResult(req deviceReq.SetMo
 		if content == "" {
 			content = "更新型号固件测试结果"
 		}
-		if err := createFirmwareVersionLog(tx, rel.FirmwareID, &modelID, convertTestResultToAction(result), normalizeModelTestResult(rel.TestResult), result, req.Operator, content); err != nil {
+		if err := createFirmwareVersionLog(tx, rel.FirmwareID, &modelID, convertTestResultToAction(result), normalizeModelTestResult(rel.TestResult), firmwareStatus, req.Operator, content); err != nil {
 			return err
 		}
 		mailPayload = buildModelFirmwareTestResultMailPayload(rel, result, currentTester, *testedAt, req.Operator, content)
@@ -411,10 +415,7 @@ func buildModelFirmwareTestResultMailBody(
 func sendModelFirmwareTestResultEmail(payload *modelFirmwareTestResultMailPayload, notifyTo string) error {
 	recipient := normalizeEmailRecipients(notifyTo)
 	if recipient == "" {
-		recipient = normalizeEmailRecipients(global.GVA_CONFIG.Email.To)
-	}
-	if recipient == "" {
-		return errors.New("未配置通知邮箱")
+		return nil
 	}
 	return emailUtils.Email(recipient, payload.Subject, payload.Body)
 }
