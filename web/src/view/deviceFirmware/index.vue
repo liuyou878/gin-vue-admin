@@ -595,7 +595,7 @@
             :rows="4"
             :placeholder="
               testResultForm.result === 'test_failed'
-                ? '请填写未通过原因或先贴腾讯文档链接'
+                ? '请填写未通过原因'
                 : '可选，记录测试通过说明'
             "
           />

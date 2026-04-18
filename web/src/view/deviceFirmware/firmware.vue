@@ -183,7 +183,7 @@
               v-if="canStartTesting(firmwareOf(scope.row))"
               type="primary"
               link
-              @click="changeStage(scope.row, 'testing', '开始测试')"
+              @click="openActionNotifyDialog(scope.row, 'startTest')"
               >开始测试</el-button
             >
             <el-button
@@ -197,21 +197,21 @@
               v-if="canDirectPublish(firmwareOf(scope.row))"
               type="primary"
               link
-              @click="publishRow(scope.row, true)"
+              @click="openActionNotifyDialog(scope.row, 'publish', true)"
               >直接发布</el-button
             >
             <el-button
               v-if="canRejectRelease(firmwareOf(scope.row))"
               type="primary"
               link
-              @click="changeStage(scope.row, 'testing', '驳回到测试中')"
+              @click="openActionNotifyDialog(scope.row, 'rejectRelease')"
               >驳回</el-button
             >
             <el-button
               v-if="canPublish(firmwareOf(scope.row))"
               type="primary"
               link
-              @click="publishRow(scope.row)"
+              @click="openActionNotifyDialog(scope.row, 'publish')"
               >发布</el-button
             >
             <el-button
@@ -225,14 +225,14 @@
               v-if="canVoid(firmwareOf(scope.row))"
               type="primary"
               link
-              @click="voidRow(scope.row)"
+              @click="openActionNotifyDialog(scope.row, 'voidRelease')"
               >下架</el-button
             >
             <el-button
               v-if="canOnShelf(firmwareOf(scope.row))"
               type="primary"
               link
-              @click="onShelfRow(scope.row)"
+              @click="openActionNotifyDialog(scope.row, 'onShelfRelease')"
               >上架</el-button
             >
             <el-button type="primary" link @click="openLogDrawer(scope.row)"
@@ -372,6 +372,40 @@
             type="textarea"
             :rows="3"
         /></el-form-item>
+        <template v-if="firmwareDialogType === 'create'">
+          <el-form-item label="通知用户">
+            <el-select
+              v-model="firmwareForm.notifyUserIds"
+              multiple
+              filterable
+              clearable
+              collapse-tags
+              collapse-tags-tooltip
+              style="width: 100%"
+              placeholder="可多选系统用户，自动读取用户邮箱"
+              :loading="notifyUserLoading"
+            >
+              <el-option
+                v-for="item in notifyUserOptions"
+                :key="item.ID"
+                :label="item.optionLabel"
+                :value="item.ID"
+              >
+                <div class="notify-user-option">
+                  <span>{{ item.name }}</span>
+                  <span class="notify-user-email">{{ item.email }}</span>
+                </div>
+              </el-option>
+            </el-select>
+            <!-- <div class="notify-user-tip">新增固件通知会直接使用上面的版本说明</div> -->
+          </el-form-item>
+          <el-form-item label="补充邮箱">
+            <el-input
+              v-model="firmwareForm.notifyTo"
+              placeholder="可手动补充其他收件人，支持多个邮箱用英文逗号分隔"
+            />
+          </el-form-item>
+        </template>
       </el-form>
       <template #footer>
         <el-button @click="firmwareDialogVisible = false">取消</el-button>
@@ -476,29 +510,100 @@
             :rows="4"
             :placeholder="
               testResultForm.result === 'test_failed'
-                ? '请填写未通过原因或先贴腾讯文档链接'
+                ? '请填写未通过原因'
                 : '可选，记录测试通过说明'
             "
           />
         </el-form-item>
-        <el-form-item label="通知邮箱">
+        <el-form-item label="通知用户">
+          <el-select
+            v-model="testResultForm.notifyUserIds"
+            multiple
+            filterable
+            clearable
+            collapse-tags
+            collapse-tags-tooltip
+            style="width: 100%"
+            placeholder="可多选系统用户，自动读取用户邮箱"
+            :loading="notifyUserLoading"
+          >
+            <el-option
+              v-for="item in notifyUserOptions"
+              :key="item.ID"
+              :label="item.optionLabel"
+              :value="item.ID"
+            >
+              <div class="notify-user-option">
+                <span>{{ item.name }}</span>
+                <span class="notify-user-email">{{ item.email }}</span>
+              </div>
+            </el-option>
+          </el-select>
+          <div class="notify-user-tip">只展示已填写邮箱的系统用户</div>
+        </el-form-item>
+        <el-form-item label="补充邮箱">
           <el-input
             v-model="testResultForm.notifyTo"
-            placeholder="留空则使用系统默认收件人，支持多个邮箱用英文逗号分隔"
-          />
-        </el-form-item>
-        <el-form-item label="邮件附加">
-          <el-input
-            v-model="testResultForm.emailContent"
-            type="textarea"
-            :rows="4"
-            placeholder="会追加到固定邮件模板后面"
+            placeholder="可手动补充其他收件人，支持多个邮箱用英文逗号分隔"
           />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="testResultDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="submitTestResult">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="actionNotifyDialogVisible"
+      :title="actionNotifyDialogTitle"
+      width="720px"
+    >
+      <el-form :model="actionNotifyForm" label-width="90px">
+        <el-form-item label="说明">
+          <el-input
+            v-model="actionNotifyForm.description"
+            type="textarea"
+            :rows="4"
+            :placeholder="actionNotifyDescriptionPlaceholder"
+          />
+        </el-form-item>
+        <el-form-item label="通知用户">
+          <el-select
+            v-model="actionNotifyForm.notifyUserIds"
+            multiple
+            filterable
+            clearable
+            collapse-tags
+            collapse-tags-tooltip
+            style="width: 100%"
+            placeholder="可多选系统用户，自动读取用户邮箱"
+            :loading="notifyUserLoading"
+          >
+            <el-option
+              v-for="item in notifyUserOptions"
+              :key="item.ID"
+              :label="item.optionLabel"
+              :value="item.ID"
+            >
+              <div class="notify-user-option">
+                <span>{{ item.name }}</span>
+                <span class="notify-user-email">{{ item.email }}</span>
+              </div>
+            </el-option>
+          </el-select>
+          <div class="notify-user-tip">只展示已填写邮箱的系统用户</div>
+        </el-form-item>
+        <el-form-item label="补充邮箱">
+          <el-input
+            v-model="actionNotifyForm.notifyTo"
+            placeholder="可手动补充其他收件人，支持多个邮箱用英文逗号分隔"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="closeActionNotifyDialog">取消</el-button>
+        <el-button type="primary" @click="submitActionNotify">确定</el-button>
       </template>
     </el-dialog>
 
@@ -596,6 +701,7 @@
     getDeviceModelList
   } from '@/api/deviceFirmware'
   import { deleteFile } from '@/api/fileUploadAndDownload'
+  import { getUserList } from '@/api/user'
   import { formatDate, getBaseUrl } from '@/utils/format'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { computed, onMounted, ref, watch } from 'vue'
@@ -615,6 +721,7 @@
   const packageRows = ref([])
   const firmwareDialogVisible = ref(false)
   const testResultDialogVisible = ref(false)
+  const actionNotifyDialogVisible = ref(false)
   const logDrawerVisible = ref(false)
   const packageDialogVisible = ref(false)
   const packageUpdateDialogVisible = ref(false)
@@ -622,6 +729,9 @@
   const firmwareFormRef = ref()
   const packageUpdateFormRef = ref()
   const currentTestRow = ref(null)
+  const currentActionRow = ref(null)
+  const currentActionType = ref('startTest')
+  const currentActionDirect = ref(false)
   const selectedPackageFirmware = ref(null)
   const firmwareUploading = ref(false)
   const firmwareUploadName = ref('')
@@ -629,7 +739,9 @@
   const packageUpdateUploadName = ref('')
   const logDrawerTitle = ref('固件日志')
   const activeTab = ref('test')
+  const notifyUserLoading = ref(false)
   const failReasonOptions = ['有Bug', '少功能', '需优化']
+  const notifyUserOptions = ref([])
   const devStatusOptions = [
     { label: '待测试', value: 'pending_test' },
     { label: '测试中', value: 'testing' },
@@ -661,7 +773,9 @@
     status: 'pending_test',
     publishStatus: 'unpublished',
     releaseNote: '',
-    uploadedBy: ''
+    uploadedBy: '',
+    notifyUserIds: [],
+    notifyTo: ''
   })
   const packageUpdateForm = ref({
     ID: undefined,
@@ -680,8 +794,13 @@
     result: 'tested_pass',
     reasonTypes: [],
     description: '',
-    notifyTo: '',
-    emailContent: ''
+    notifyUserIds: [],
+    notifyTo: ''
+  })
+  const actionNotifyForm = ref({
+    description: '',
+    notifyUserIds: [],
+    notifyTo: ''
   })
   const firmwareUploadAction = `${getBaseUrl()}/fileUploadAndDownload/upload`
   const firmwareUploadHeaders = computed(() => ({
@@ -732,6 +851,44 @@
           (item) => item.categoryId === firmwareForm.value.categoryId
         )
   )
+  const notifyUserMap = computed(() =>
+    notifyUserOptions.value.reduce((map, item) => {
+      map[item.ID] = item
+      return map
+    }, {})
+  )
+  const actionNotifyDialogTitle = computed(() => {
+    if (currentActionType.value === 'publish') {
+      return currentActionDirect.value ? '直接发布通知' : '发布通知'
+    }
+    if (currentActionType.value === 'rejectRelease') {
+      return '驳回通知'
+    }
+    if (currentActionType.value === 'voidRelease') {
+      return '下架通知'
+    }
+    if (currentActionType.value === 'onShelfRelease') {
+      return '上架通知'
+    }
+    return '开始测试通知'
+  })
+  const actionNotifyDescriptionPlaceholder = computed(() => {
+    if (currentActionType.value === 'publish') {
+      return currentActionDirect.value
+        ? '可选，填写直接发布说明'
+        : '可选，填写发布说明'
+    }
+    if (currentActionType.value === 'rejectRelease') {
+      return '可选，填写驳回说明'
+    }
+    if (currentActionType.value === 'voidRelease') {
+      return '可选，填写下架原因或说明'
+    }
+    if (currentActionType.value === 'onShelfRelease') {
+      return '可选，填写上架说明'
+    }
+    return '可选，填写开始测试说明'
+  })
   const filteredRows = computed(() =>
     relationRows.value.filter((row) => {
       const firmware = firmwareOf(row)
@@ -905,6 +1062,57 @@
     !firmware?.ID ||
     (firmware?.publishStatus === 'unpublished' &&
       ['pending_test', 'test_failed'].includes(firmware?.status))
+  const normalizeEmails = (value) => {
+    const emailSet = new Set()
+    ;(value || '')
+      .split(/[\s,;，；]+/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .forEach((item) => emailSet.add(item))
+    return [...emailSet]
+  }
+  const getNotifyEmailsFromUsers = (userIds = []) =>
+    userIds.map((id) => notifyUserMap.value[id]?.email?.trim()).filter(Boolean)
+  const buildNotifyRecipients = (form) => {
+    const emailSet = new Set([
+      ...getNotifyEmailsFromUsers(form?.notifyUserIds || []),
+      ...normalizeEmails(form?.notifyTo)
+    ])
+    return [...emailSet].join(',')
+  }
+  const loadNotifyUserOptions = async () => {
+    notifyUserLoading.value = true
+    try {
+      const res = await getUserList({
+        page: 1,
+        pageSize: 999,
+        orderKey: 'nick_name'
+      })
+      if (res.code !== 0) {
+        notifyUserOptions.value = []
+        return
+      }
+      notifyUserOptions.value = (res.data.list || [])
+        .filter((item) => item.email?.trim())
+        .filter((item) => item.enable === 1)
+        .map((item) => {
+          const name =
+            item.nickName?.trim() ||
+            item.userName?.trim() ||
+            item.username ||
+            '-'
+          const email = item.email.trim()
+          return {
+            ID: item.ID,
+            name,
+            email,
+            optionLabel: `${name} <${email}>`
+          }
+        })
+    } finally {
+      notifyUserLoading.value = false
+    }
+  }
   const rowNote = (row) => {
     const firmware = firmwareOf(row)
     if (firmware.status === 'test_failed') {
@@ -1150,6 +1358,8 @@
           categoryId: row.model?.categoryId || row.model?.category?.ID || '',
           modelId: row.modelId,
           publishStatus: 'unpublished',
+          notifyUserIds: [],
+          notifyTo: '',
           ...res.data
         }
         firmwareUploadName.value = res.data.packageName || ''
@@ -1168,7 +1378,9 @@
         status: 'pending_test',
         publishStatus: 'unpublished',
         releaseNote: '',
-        uploadedBy: defaultUploadedBy()
+        uploadedBy: defaultUploadedBy(),
+        notifyUserIds: [],
+        notifyTo: ''
       }
     }
     firmwareDialogVisible.value = true
@@ -1205,6 +1417,7 @@
     }
 
     if (firmwareDialogType.value === 'create' && firmwareId) {
+      const notifyTo = buildNotifyRecipients(firmwareForm.value)
       const bindRes = await createModelFirmwareRel({
         modelId: firmwareForm.value.modelId,
         firmwareId,
@@ -1212,7 +1425,8 @@
         isRecommended: false,
         testResult: '',
         tester: '',
-        remark: ''
+        remark: '',
+        notifyTo
       })
       if (bindRes.code !== 0) return
     }
@@ -1227,31 +1441,49 @@
     firmwareDialogVisible.value = false
     await loadPage()
   }
-  const changeStage = async (row, status, content) => {
-    const firmware = firmwareOf(row)
-    const res = await changeFirmwareVersionStatus({
-      id: firmware.ID,
-      status,
-      operator: defaultUploadedBy(),
-      content
-    })
-    if (res.code === 0) {
-      ElMessage.success('状态更新成功')
-      await loadPage()
-      return true
-    }
-    return false
-  }
   const openTestResultDialog = (row) => {
     currentTestRow.value = row
     testResultForm.value = {
       result: 'tested_pass',
       reasonTypes: [],
       description: '',
-      notifyTo: '',
-      emailContent: ''
+      notifyUserIds: [],
+      notifyTo: ''
     }
     testResultDialogVisible.value = true
+  }
+  const openActionNotifyDialog = (row, actionType, direct = false) => {
+    currentActionRow.value = row
+    currentActionType.value = actionType
+    currentActionDirect.value = direct
+    actionNotifyForm.value = {
+      description:
+        actionType === 'publish'
+          ? direct
+            ? '上传后直接发布'
+            : '发布进入发布版本'
+          : actionType === 'rejectRelease'
+          ? '驳回到测试中'
+          : actionType === 'voidRelease'
+          ? '下架已发布版本'
+          : actionType === 'onShelfRelease'
+          ? '上架已下架版本'
+          : '开始测试',
+      notifyUserIds: [],
+      notifyTo: ''
+    }
+    actionNotifyDialogVisible.value = true
+  }
+  const closeActionNotifyDialog = () => {
+    actionNotifyDialogVisible.value = false
+    currentActionRow.value = null
+    currentActionType.value = 'startTest'
+    currentActionDirect.value = false
+    actionNotifyForm.value = {
+      description: '',
+      notifyUserIds: [],
+      notifyTo: ''
+    }
   }
   const submitTestResult = async () => {
     if (!currentTestRow.value) return
@@ -1274,14 +1506,14 @@
       (testResultForm.value.result === 'tested_pass'
         ? '测试通过'
         : '测试不通过')
+    const notifyTo = buildNotifyRecipients(testResultForm.value)
     const res = await setModelFirmwareTestResult({
       id: currentTestRow.value.ID,
       testResult: testResultForm.value.result,
       tester: defaultUploadedBy(),
       operator: defaultUploadedBy(),
       content,
-      notifyTo: testResultForm.value.notifyTo?.trim(),
-      emailContent: testResultForm.value.emailContent?.trim()
+      notifyTo
     })
     if (res.code === 0) {
       await loadPage()
@@ -1289,36 +1521,66 @@
       currentTestRow.value = null
     }
   }
-  const publishRow = async (row, direct = false) => {
-    const firmware = firmwareOf(row)
-    try {
-      await ElMessageBox.confirm(
-        direct
-          ? `确定直接发布 ${
-              firmware.versionCode || firmware.versionName || '该版本'
-            } 吗？`
-          : `确定发布 ${
-              firmware.versionCode || firmware.versionName || '该版本'
-            } 吗？`,
-        direct ? '直接发布' : '发布',
-        {
-          type: 'warning',
-          confirmButtonText: '确定',
-          cancelButtonText: '取消'
-        }
-      )
-    } catch (error) {
-      return
+  const submitActionNotify = async () => {
+    if (!currentActionRow.value) return
+    const firmware = firmwareOf(currentActionRow.value)
+    const notifyTo = buildNotifyRecipients(actionNotifyForm.value)
+    const content = actionNotifyForm.value.description?.trim()
+    let res
+    if (currentActionType.value === 'publish') {
+      res = await publishFirmwareVersion({
+        id: firmware.ID,
+        direct: currentActionDirect.value,
+        operator: defaultUploadedBy(),
+        content:
+          content ||
+          (currentActionDirect.value ? '上传后直接发布' : '发布进入发布版本'),
+        notifyTo
+      })
+    } else if (currentActionType.value === 'voidRelease') {
+      res = await voidFirmwareVersion({
+        id: firmware.ID,
+        operator: defaultUploadedBy(),
+        voidReason: content || '',
+        content: content || '下架已发布版本',
+        notifyTo
+      })
+    } else if (currentActionType.value === 'onShelfRelease') {
+      res = await onShelfFirmwareVersion({
+        id: firmware.ID,
+        operator: defaultUploadedBy(),
+        content: content || '上架已下架版本',
+        notifyTo
+      })
+    } else {
+      res = await changeFirmwareVersionStatus({
+        id: firmware.ID,
+        status: 'testing',
+        operator: defaultUploadedBy(),
+        content:
+          content ||
+          (currentActionType.value === 'rejectRelease'
+            ? '驳回到测试中'
+            : '开始测试'),
+        notifyTo
+      })
     }
-    const res = await publishFirmwareVersion({
-      id: firmware.ID,
-      direct,
-      operator: defaultUploadedBy(),
-      content: direct ? '上传后直接发布' : '发布进入发布版本'
-    })
     if (res.code === 0) {
-      ElMessage.success(direct ? '已直接发布' : '发布成功，已进入发布版本')
+      ElMessage.success(
+        currentActionType.value === 'publish'
+          ? currentActionDirect.value
+            ? '已直接发布'
+            : '发布成功，已进入发布版本'
+          : currentActionType.value === 'voidRelease'
+          ? '版本已下架'
+          : currentActionType.value === 'onShelfRelease'
+          ? '版本已上架'
+          : currentActionType.value === 'rejectRelease'
+          ? '已驳回到测试中'
+          : '状态更新成功'
+      )
       await loadPage()
+      closeActionNotifyDialog()
     }
   }
   const setCurrentRelease = async (row) => {
@@ -1329,54 +1591,6 @@
     })
     if (res.code === 0) {
       ElMessage.success('已设为当前推荐')
-      await loadPage()
-    }
-  }
-  const voidRow = (row) => {
-    const firmware = firmwareOf(row)
-    ElMessageBox.prompt('请输入下架原因', '下架版本', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      inputPlaceholder: '下架原因'
-    })
-      .then(async ({ value }) => {
-        const res = await voidFirmwareVersion({
-          id: firmware.ID,
-          operator: defaultUploadedBy(),
-          voidReason: value,
-          content: value || '下架已发布版本'
-        })
-        if (res.code === 0) {
-          ElMessage.success('版本已下架')
-          await loadPage()
-        }
-      })
-      .catch(() => {})
-  }
-  const onShelfRow = async (row) => {
-    const firmware = firmwareOf(row)
-    try {
-      await ElMessageBox.confirm(
-        `确定上架 ${
-          firmware.versionCode || firmware.versionName || '该版本'
-        } 吗？`,
-        '上架版本',
-        {
-          type: 'warning',
-          confirmButtonText: '确定',
-          cancelButtonText: '取消'
-        }
-      )
-    } catch (error) {
-      return
-    }
-    const res = await onShelfFirmwareVersion({
-      id: firmware.ID,
-      operator: defaultUploadedBy(),
-      content: '上架已下架版本'
-    })
-    if (res.code === 0) {
-      ElMessage.success('版本已上架')
       await loadPage()
     }
   }
@@ -1513,7 +1727,7 @@
   )
 
   onMounted(async () => {
-    await loadPage()
+    await Promise.all([loadPage(), loadNotifyUserOptions()])
   })
 </script>
 
@@ -1564,6 +1778,24 @@
   .upload-tip {
     color: #909399;
     font-size: 13px;
+  }
+
+  .notify-user-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .notify-user-email,
+  .notify-user-tip {
+    color: #909399;
+    font-size: 12px;
+  }
+
+  .notify-user-tip {
+    margin-top: 6px;
+    line-height: 1.4;
   }
 
   .firmware-timeline {

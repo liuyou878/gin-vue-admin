@@ -28,7 +28,8 @@ var validModelTestResults = map[string]bool{
 
 // CreateModelFirmwareRel 创建型号固件关系
 func (s *ModelFirmwareRelService) CreateModelFirmwareRel(rel *deviceModel.ModelFirmwareRel) error {
-	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+	var mailPayload *firmwareActionMailPayload
+	txErr := global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		if err := ensureDeviceModelExists(tx, rel.ModelID); err != nil {
 			return err
 		}
@@ -41,8 +42,27 @@ func (s *ModelFirmwareRelService) CreateModelFirmwareRel(rel *deviceModel.ModelF
 		if err := tx.Create(rel).Error; err != nil {
 			return err
 		}
+		var firmware deviceModel.FirmwareVersion
+		if err := tx.Where("id = ?", rel.FirmwareID).First(&firmware).Error; err != nil {
+			return err
+		}
+		mailPayload = buildFirmwareActionMailPayload(tx, rel.FirmwareID, firmwareActionMailOptions{
+			Action:   "upload",
+			Status:   firmware.Status,
+			Operator: firmware.UploadedBy,
+			Content:  firmware.ReleaseNote,
+		})
 		return nil
 	})
+	if txErr != nil {
+		return txErr
+	}
+	if mailPayload != nil {
+		if sendErr := sendFirmwareActionEmail(mailPayload, rel.NotifyTo); sendErr != nil {
+			return fmt.Errorf("固件已新增，但邮件发送失败: %w", sendErr)
+		}
+	}
+	return nil
 }
 
 // DeleteModelFirmwareRel 删除型号固件关系
@@ -229,7 +249,7 @@ func (s *ModelFirmwareRelService) SetModelFirmwareTestResult(req deviceReq.SetMo
 		if err := createFirmwareVersionLog(tx, rel.FirmwareID, &modelID, convertTestResultToAction(result), normalizeModelTestResult(rel.TestResult), result, req.Operator, content); err != nil {
 			return err
 		}
-		mailPayload = buildModelFirmwareTestResultMailPayload(rel, result, currentTester, *testedAt, req.Operator, content, req.EmailContent)
+		mailPayload = buildModelFirmwareTestResultMailPayload(rel, result, currentTester, *testedAt, req.Operator, content)
 		return nil
 	})
 	if txErr != nil {
@@ -291,7 +311,6 @@ func buildModelFirmwareTestResultMailPayload(
 	testedAt time.Time,
 	operator string,
 	content string,
-	emailExtraContent string,
 ) *modelFirmwareTestResultMailPayload {
 	firmware := rel.Firmware
 	model := rel.Model
@@ -327,7 +346,6 @@ func buildModelFirmwareTestResultMailPayload(
 		testedAt,
 		operator,
 		content,
-		emailExtraContent,
 	)
 	return &modelFirmwareTestResultMailPayload{
 		Subject: subject,
@@ -343,7 +361,6 @@ func buildModelFirmwareTestResultMailBody(
 	testedAt time.Time,
 	operator string,
 	content string,
-	emailExtraContent string,
 ) string {
 	categoryName := ""
 	if model.Category.ID > 0 {
@@ -384,13 +401,6 @@ func buildModelFirmwareTestResultMailBody(
 	writeRow("操作人", escapeText(operator))
 	writeRow("测试说明", escapeText(content))
 	builder.WriteString(`</table>`)
-	if strings.TrimSpace(emailExtraContent) != "" {
-		builder.WriteString(`<div style="margin-top: 18px; padding: 16px; border: 1px dashed #d1d5db; border-radius: 8px; background: #fafafa;">`)
-		builder.WriteString(`<div style="font-weight: 600; margin-bottom: 8px;">自定义附加内容</div>`)
-		builder.WriteString(`<div>`)
-		builder.WriteString(escapeText(emailExtraContent))
-		builder.WriteString(`</div></div>`)
-	}
 	builder.WriteString(`<div style="margin-top: 16px; color: #6b7280; font-size: 12px;">`)
 	builder.WriteString(`该邮件由固件流程管理自动发送`)
 	builder.WriteString(`</div>`)

@@ -11,6 +11,7 @@ type ModelFirmwareRel struct {
 	global.GVA_MODEL
 	ModelID       uint            `json:"modelId" form:"modelId" gorm:"column:model_id;comment:型号ID;not null"`                                                       // 型号ID
 	FirmwareID    uint            `json:"firmwareId" form:"firmwareId" gorm:"column:firmware_id;comment:固件版本ID;not null"`                                            // 固件版本ID
+	NotifyTo      string          `json:"notifyTo" form:"notifyTo" gorm:"-"`                                                                                         // 邮件通知收件人
 	IsSupported   bool            `json:"isSupported" form:"isSupported" gorm:"column:is_supported;comment:是否支持;default:true"`                                       // 是否支持
 	IsRecommended bool            `json:"isRecommended" form:"isRecommended" gorm:"column:is_recommended;comment:是否推荐版本;default:false"`                              // 是否推荐版本
 	TestResult    string          `json:"testResult" form:"testResult" gorm:"column:test_result;comment:测试结果:pending/testing/passed/failed;size:32;default:pending"` // 测试结果
