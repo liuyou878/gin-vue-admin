@@ -85,13 +85,14 @@
                     >
                       {{ formatPackageSize(item.packageSize) }}
                     </span>
-                    <el-tag v-if="item.action === 'upload'" type="success"
-                      >首次上传</el-tag
+                    <el-tag v-if="item.isRecommended" type="success">推荐版</el-tag>
+                    <el-tag v-if="item.firmware?.isLatest" type="danger">最新版</el-tag>
+                    <el-tag
+                      v-if="!item.isRecommended && !item.firmware?.isLatest"
+                      type="info"
                     >
-                    <el-tag v-else-if="item.action === 'fix_upload'" type="warning"
-                      >修复上传</el-tag
-                    >
-                    <el-tag v-else type="info">上传记录</el-tag>
+                      历史版本
+                    </el-tag>
                   </div>
                   <el-button
                     type="primary"
@@ -186,6 +187,11 @@
 
   const packageCards = computed(() =>
     [...(pageData.value.packages || [])].sort((a, b) => {
+      const recommendedA = !!a?.isRecommended
+      const recommendedB = !!b?.isRecommended
+      if (recommendedA !== recommendedB) {
+        return recommendedA ? -1 : 1
+      }
       const timeA = new Date(a?.operateAt || a?.firmware?.uploadedAt || 0).getTime()
       const timeB = new Date(b?.operateAt || b?.firmware?.uploadedAt || 0).getTime()
       if (timeA !== timeB) return timeB - timeA

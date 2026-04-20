@@ -1091,46 +1091,33 @@ func (s *FirmwareVersionService) GetPublicFirmwareDownloadPage(categoryID, model
 }
 
 func buildPublicFirmwareDownloadPackageItems(tx *gorm.DB, model deviceModel.DeviceModel, relationMap map[uint]deviceModel.ModelFirmwareRel, publishedItems []deviceResp.PublicFirmwareDownloadItem) []deviceResp.PublicFirmwareDownloadPackageItem {
-	firmwareIDs := make([]uint, 0, len(publishedItems))
-	for _, item := range publishedItems {
-		if item.Firmware.ID == 0 {
+	items := make([]deviceResp.PublicFirmwareDownloadPackageItem, 0, len(publishedItems))
+	for _, published := range publishedItems {
+		firmware := published.Firmware
+		if firmware.ID == 0 || firmware.PublishStatus != "published" {
 			continue
 		}
-		firmwareIDs = append(firmwareIDs, item.Firmware.ID)
-	}
-	if len(firmwareIDs) == 0 {
-		return nil
-	}
-
-	var logs []deviceModel.FirmwareVersionLog
-	if err := tx.Preload("Firmware").
-		Where("firmware_id IN ? AND action IN ? AND package_url <> ''", firmwareIDs, []string{"upload", "fix_upload"}).
-		Order("operate_at desc, id desc").
-		Find(&logs).Error; err != nil {
-		return nil
-	}
-
-	items := make([]deviceResp.PublicFirmwareDownloadPackageItem, 0, len(logs))
-	for _, log := range logs {
-		if _, err := resolveFirmwareLogPackageFile(tx, log); err != nil {
+		if firmware.PackageURL == "" && firmware.PackageName == "" && firmware.PackageFileID == 0 {
 			continue
 		}
-		firmware := log.Firmware
-		firmware.PackageURL = log.PackageURL
-		firmware.PackageName = log.PackageName
-		firmware.PackageFileID = log.PackageFileID
-		firmware.Checksum = log.Checksum
-		rel, ok := relationMap[log.FirmwareID]
+		fileRecord, err := resolveFirmwarePackageFile(tx, firmware)
+		if err != nil {
+			continue
+		}
+		rel, ok := relationMap[firmware.ID]
 		item := deviceResp.PublicFirmwareDownloadPackageItem{
-			LogID:         log.ID,
+			LogID:         firmware.ID,
 			RelationID:    0,
 			Category:      model.Category,
 			Model:         model,
 			Firmware:      firmware,
-			Action:        log.Action,
-			OperateAt:     log.OperateAt,
+			Action:        "official",
+			OperateAt:     firmware.PublishedAt,
 			IsRecommended: ok && rel.IsRecommended,
-			PackageSize:   log.PackageSize,
+			PackageSize:   fileRecord.Size,
+		}
+		if item.OperateAt == nil {
+			item.OperateAt = firmware.UploadedAt
 		}
 		if ok {
 			item.RelationID = rel.ID
