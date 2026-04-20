@@ -66,11 +66,7 @@
                 {{
                   scope.row.nodeType === 'category'
                     ? scope.row.name
-                    : scope.row.nodeType === 'model'
-                    ? scope.row.modelName
-                    : resolveFirmware(scope.row).versionCode ||
-                      resolveFirmware(scope.row).versionName ||
-                      '未命名固件'
+                    : scope.row.modelName || '-'
                 }}
               </span>
               <el-tag
@@ -79,63 +75,13 @@
                 size="small"
                 >类别</el-tag
               >
-              <el-tag
-                v-else-if="scope.row.nodeType === 'model'"
-                type="success"
-                size="small"
-                >型号</el-tag
-              >
-              <el-tag v-else type="warning" size="small">固件</el-tag>
-              <el-tag
-                v-if="
-                  scope.row.nodeType === 'firmware' && scope.row.isRecommended
-                "
-                type="danger"
-                size="small"
-              >
-                当前推荐
-              </el-tag>
+              <el-tag v-else type="success" size="small">型号</el-tag>
             </div>
           </template>
         </el-table-column>
         <el-table-column label="状态" min-width="260">
           <template #default="scope">
-            <div v-if="scope.row.nodeType === 'firmware'" class="tag-wrap">
-              <el-tag
-                :type="firmwareStatusTag(resolveFirmware(scope.row).status)"
-              >
-                {{ firmwareStatusLabel(resolveFirmware(scope.row).status) }}
-              </el-tag>
-              <el-tag
-                :type="
-                  firmwarePublishStatusTag(
-                    resolveFirmware(scope.row).publishStatus
-                  )
-                "
-              >
-                {{
-                  firmwarePublishStatusLabel(
-                    resolveFirmware(scope.row).publishStatus
-                  )
-                }}
-              </el-tag>
-              <el-tag
-                v-if="
-                  resolveFirmware(scope.row).publishStatus === 'published' &&
-                  resolveFirmware(scope.row).isLatest
-                "
-                type="danger"
-              >
-                最新版本
-              </el-tag>
-              <el-tag
-                v-if="isHistoryVersion(resolveFirmware(scope.row))"
-                type="info"
-              >
-                历史版本
-              </el-tag>
-            </div>
-            <el-tag v-else :type="scope.row.status === 1 ? 'success' : 'info'">
+            <el-tag :type="scope.row.status === 1 ? 'success' : 'info'">
               {{ scope.row.status === 1 ? '启用' : '禁用' }}
             </el-tag>
           </template>
@@ -154,14 +100,7 @@
         <el-table-column label="备注" min-width="220" show-overflow-tooltip>
           <template #default="scope">
             {{
-              scope.row.nodeType === 'firmware'
-                ? (resolveFirmware(scope.row).status === 'test_failed'
-                    ? latestFailureLogMap[resolveFirmware(scope.row).ID]
-                        ?.content || resolveFirmware(scope.row).releaseNote
-                    : resolveFirmware(scope.row).releaseNote) ||
-                  resolveFirmware(scope.row).packageName ||
-                  '-'
-                : scope.row.remark || '-'
+              scope.row.remark || '-'
             }}
           </template>
         </el-table-column>
@@ -211,100 +150,6 @@
                 icon="delete"
                 @click="deleteModelRow(scope.row)"
                 >删除型号</el-button
-              >
-            </template>
-            <template v-else>
-              <el-button
-                v-if="resolveFirmware(scope.row).publishStatus !== 'voided'"
-                type="primary"
-                link
-                icon="edit"
-                @click="openFirmwareDialog(scope.row)"
-                >编辑信息</el-button
-              >
-              <el-button
-                v-if="canEditFirmwarePackage(resolveFirmware(scope.row))"
-                type="primary"
-                link
-                @click="openPackageUpdateDialog(scope.row)"
-                >更新包</el-button
-              >
-              <el-button
-                v-if="canStartTesting(resolveFirmware(scope.row))"
-                type="primary"
-                link
-                @click="changeFirmwareStage(scope.row, 'testing', '开始测试')"
-                >开始测试</el-button
-              >
-              <el-button
-                v-if="canSubmitTestResult(resolveFirmware(scope.row))"
-                type="primary"
-                link
-                @click="openTestResultDialog(scope.row)"
-                >测试结果</el-button
-              >
-              <el-button
-                v-if="canDirectPublish(resolveFirmware(scope.row))"
-                type="primary"
-                link
-                @click="publishFirmware(scope.row, true)"
-                >直接发布</el-button
-              >
-              <el-button
-                v-if="canRejectRelease(resolveFirmware(scope.row))"
-                type="primary"
-                link
-                @click="
-                  changeFirmwareStage(scope.row, 'testing', '驳回到测试中')
-                "
-                >驳回</el-button
-              >
-              <el-button
-                v-if="canPublish(resolveFirmware(scope.row))"
-                type="primary"
-                link
-                @click="publishFirmware(scope.row)"
-                >发布</el-button
-              >
-              <el-button
-                v-if="canSetCurrentRelease(resolveFirmware(scope.row))"
-                type="primary"
-                link
-                @click="setCurrentRelease(scope.row)"
-                >设为当前推荐</el-button
-              >
-              <el-button
-                v-if="canVoid(resolveFirmware(scope.row))"
-                type="primary"
-                link
-                @click="voidFirmware(scope.row)"
-                >下架</el-button
-              >
-              <el-button
-                v-if="canOnShelf(resolveFirmware(scope.row))"
-                type="primary"
-                link
-                @click="onShelfFirmware(scope.row)"
-                >上架</el-button
-              >
-              <el-button type="primary" link @click="openLogDrawer(scope.row)"
-                >日志</el-button
-              >
-              <el-button
-                v-if="resolveFirmware(scope.row).packageUrl"
-                type="primary"
-                link
-                @click="downloadPackage(scope.row)"
-              >
-                下载
-              </el-button>
-              <el-button
-                v-if="canDeleteFirmwareRelation(resolveFirmware(scope.row))"
-                type="primary"
-                link
-                icon="delete"
-                @click="deleteRelationRow(scope.row)"
-                >移除</el-button
               >
             </template>
           </template>
@@ -658,7 +503,6 @@
     onShelfFirmwareVersion,
     createModelFirmwareRel,
     deleteModelFirmwareRel,
-    getModelFirmwareRelList,
     setModelFirmwareRecommended,
     getFirmwareVersionLogList
   } from '@/api/deviceFirmware'
@@ -682,7 +526,6 @@
 
   const categoryTableData = ref([])
   const modelTableData = ref([])
-  const relationTableData = ref([])
   const logTableData = ref([])
   const firmwareLogList = ref([])
 
@@ -832,15 +675,7 @@
             ...model,
             nodeType: 'model',
             rowKey: `model-${model.ID}`,
-            displayOrder: `${modelIndex + 1}`,
-            children: relationTableData.value
-              .filter((relation) => relation.modelId === model.ID)
-              .map((relation, relationIndex) => ({
-                ...relation,
-                nodeType: 'firmware',
-                rowKey: `firmware-${relation.ID}`,
-                displayOrder: `${relationIndex + 1}`
-              }))
+            displayOrder: `${modelIndex + 1}`
           }))
       }))
       .filter(
@@ -996,7 +831,6 @@
       loadCategories(),
       loadModels(),
       loadFirmwareOptions(),
-      loadAllRelations(),
       loadFirmwareLogs()
     ])
   }
@@ -1011,10 +845,7 @@
     if (row.nodeType === 'category') {
       return 'device-tree-category-row'
     }
-    if (row.nodeType === 'model') {
-      return 'device-tree-model-row'
-    }
-    return 'device-tree-firmware-row'
+    return 'device-tree-model-row'
   }
 
   const loadCategories = async () => {
@@ -1044,7 +875,6 @@
         )
         if (!stillExists) {
           firmwareContext.value.modelId = ''
-          relationTableData.value = []
         }
       }
     }
@@ -1054,13 +884,6 @@
     const res = await getFirmwareVersionList({ page: 1, pageSize: 999 })
     if (res.code === 0) {
       firmwareOptions.value = res.data.list || []
-    }
-  }
-
-  const loadAllRelations = async () => {
-    const res = await getModelFirmwareRelList({ page: 1, pageSize: 999 })
-    if (res.code === 0) {
-      relationTableData.value = res.data.list || []
     }
   }
 
