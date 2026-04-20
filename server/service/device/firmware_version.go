@@ -32,6 +32,7 @@ var validPublishStatuses = map[string]bool{
 	"unpublished": true,
 	"published":   true,
 	"voided":      true,
+	"removed":     true,
 }
 
 var firmwareVersionCodePattern = regexp.MustCompile(`^\d+(\.\d+){2}$`)
@@ -563,6 +564,55 @@ func (s *FirmwareVersionService) OnShelfFirmwareVersion(req deviceReq.OnShelfFir
 	return nil
 }
 
+// RemoveFirmwareVersion 移除已下架固件版本
+func (s *FirmwareVersionService) RemoveFirmwareVersion(req deviceReq.RemoveFirmwareVersionRequest) error {
+	var mailPayload *firmwareActionMailPayload
+	txErr := global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var firmware deviceModel.FirmwareVersion
+		if err := tx.Where("id = ?", req.ID).First(&firmware).Error; err != nil {
+			return err
+		}
+		if firmware.PublishStatus != "voided" {
+			return errors.New("只有已下架版本才能移除")
+		}
+		operator := req.Operator
+		if operator == "" {
+			operator = firmware.VoidedBy
+		}
+		updates := map[string]interface{}{
+			"publish_status": "removed",
+			"is_latest":      false,
+			"is_stable":      false,
+		}
+		if err := tx.Model(&deviceModel.FirmwareVersion{}).Where("id = ?", req.ID).Updates(updates).Error; err != nil {
+			return err
+		}
+		content := req.Content
+		if content == "" {
+			content = "移除已下架版本"
+		}
+		if err := createFirmwareVersionLog(tx, firmware.ID, nil, "remove_release", "voided", "removed", operator, content); err != nil {
+			return err
+		}
+		mailPayload = buildFirmwareActionMailPayload(tx, firmware.ID, firmwareActionMailOptions{
+			Action:   "remove_release",
+			Status:   "removed",
+			Operator: operator,
+			Content:  content,
+		})
+		return nil
+	})
+	if txErr != nil {
+		return txErr
+	}
+	if mailPayload != nil {
+		if sendErr := sendFirmwareActionEmail(mailPayload, req.NotifyTo); sendErr != nil {
+			return fmt.Errorf("移除已完成，但邮件发送失败: %w", sendErr)
+		}
+	}
+	return nil
+}
+
 // DeleteFirmwarePackage 删除固件包
 func (s *FirmwareVersionService) DeleteFirmwarePackage(req deviceReq.DeleteFirmwarePackageRequest) error {
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
@@ -1018,6 +1068,21 @@ func (s *FirmwareVersionService) GetPublicFirmwareDownloadPage(categoryID, model
 			IsRecommended: rel.IsRecommended,
 			PackageSize:   pkgSize,
 		})
+	}
+
+	var latestFirmwareID uint
+	var latestFirmwareTime time.Time
+	for i := range items {
+		itemTime := publicFirmwareItemTime(items[i])
+		if latestFirmwareID == 0 ||
+			itemTime.After(latestFirmwareTime) ||
+			(itemTime.Equal(latestFirmwareTime) && items[i].Firmware.ID > latestFirmwareID) {
+			latestFirmwareID = items[i].Firmware.ID
+			latestFirmwareTime = itemTime
+		}
+	}
+	for i := range items {
+		items[i].Firmware.IsLatest = items[i].Firmware.ID == latestFirmwareID
 	}
 
 	sort.SliceStable(items, func(i, j int) bool {

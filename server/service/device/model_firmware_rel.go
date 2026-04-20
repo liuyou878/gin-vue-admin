@@ -72,13 +72,6 @@ func (s *ModelFirmwareRelService) DeleteModelFirmwareRel(id string) error {
 		if err := tx.Where("id = ?", id).First(&rel).Error; err != nil {
 			return err
 		}
-		var firmware deviceModel.FirmwareVersion
-		if err := tx.Select("publish_status").Where("id = ?", rel.FirmwareID).First(&firmware).Error; err != nil {
-			return err
-		}
-		if firmware.PublishStatus == "published" || firmware.PublishStatus == "voided" {
-			return errors.New("已发布版本不能删除关联，只能保留历史或作废")
-		}
 		return tx.Unscoped().Delete(&deviceModel.ModelFirmwareRel{}, "id = ?", id).Error
 	})
 }
@@ -89,19 +82,6 @@ func (s *ModelFirmwareRelService) DeleteModelFirmwareRelByIds(ids commonReq.IdsR
 		var rels []deviceModel.ModelFirmwareRel
 		if err := tx.Where("id in ?", ids.Ids).Find(&rels).Error; err != nil {
 			return err
-		}
-		var firmwareIDs []uint
-		for _, rel := range rels {
-			firmwareIDs = append(firmwareIDs, rel.FirmwareID)
-		}
-		if len(firmwareIDs) > 0 {
-			var count int64
-			if err := tx.Model(&deviceModel.FirmwareVersion{}).Where("id in ? AND publish_status in ?", firmwareIDs, []string{"published", "voided"}).Count(&count).Error; err != nil {
-				return err
-			}
-			if count > 0 {
-				return errors.New("所选关联中存在已发布或已作废版本，不能删除")
-			}
 		}
 		return tx.Unscoped().Delete(&[]deviceModel.ModelFirmwareRel{}, "id in ?", ids.Ids).Error
 	})

@@ -152,14 +152,11 @@
                 firmwareStatusLabel(firmwareOf(scope.row))
               }}</el-tag>
               <el-tag
-                v-if="
-                  firmwareOf(scope.row).publishStatus === 'published' &&
-                  firmwareOf(scope.row).isLatest
-                "
+                v-if="isLatestVersion(scope.row)"
                 type="danger"
                 >最新版本</el-tag
               >
-              <el-tag v-if="isHistoryVersion(firmwareOf(scope.row))" type="info"
+              <el-tag v-if="isHistoryVersion(scope.row)" type="info"
                 >历史版本</el-tag
               >
               <el-tag v-if="scope.row.isRecommended" type="warning"
@@ -236,11 +233,12 @@
               @click="openActionNotifyDialog(scope.row, 'onShelfRelease')"
               >上架</el-button
             >
-            <el-button type="info" link @click="openLogDrawer(scope.row)"
-              >日志</el-button
-            >
-            <el-button type="primary" link @click="openPackageDialog(scope.row)"
-              >下载</el-button
+            <el-button
+              v-if="canRemoveFirmware(firmwareOf(scope.row))"
+              type="danger"
+              link
+              @click="removeFirmware(scope.row)"
+              >移除</el-button
             >
             <el-button
               v-if="canDeleteRelation(firmwareOf(scope.row))"
@@ -248,6 +246,12 @@
               link
               @click="deleteRelation(scope.row)"
               >移除</el-button
+            >
+            <el-button type="info" link @click="openLogDrawer(scope.row)"
+              >日志</el-button
+            >
+            <el-button type="primary" link @click="openPackageDialog(scope.row)"
+              >下载</el-button
             >
           </template>
         </el-table-column>
@@ -782,6 +786,7 @@
     publishFirmwareVersion,
     voidFirmwareVersion,
     onShelfFirmwareVersion,
+    removeFirmwareVersion,
     deleteModelFirmwareRel,
     getModelFirmwareRelList,
     setModelFirmwareTestResult,
@@ -1011,18 +1016,20 @@
         : [row.model?.categoryId || row.model?.category?.ID].filter(Boolean)
       const modelIds = row.modelIds?.length
         ? row.modelIds
-        : [row.modelId].filter(Boolean)
+        : [row.modelId || row.model?.ID].filter(Boolean)
       const keyword = (searchForm.value.keyword || '').trim().toLowerCase()
       if (
         searchForm.value.categoryId &&
         !categoryIds.includes(searchForm.value.categoryId)
-      )
+      ) {
         return false
+      }
       if (
         searchForm.value.modelId &&
         !modelIds.includes(searchForm.value.modelId)
-      )
+      ) {
         return false
+      }
       if (
         searchForm.value.status &&
         firmware.status !== searchForm.value.status
@@ -1046,6 +1053,58 @@
       return haystack.includes(keyword)
     })
   )
+  const modelScopeRows = computed(() =>
+    relationRows.value.filter((row) => {
+      const categoryIds = row.categoryIds?.length
+        ? row.categoryIds
+        : [row.model?.categoryId || row.model?.category?.ID].filter(Boolean)
+      const modelIds = row.modelIds?.length
+        ? row.modelIds
+        : [row.modelId || row.model?.ID].filter(Boolean)
+      if (
+        searchForm.value.categoryId &&
+        !categoryIds.includes(searchForm.value.categoryId)
+      ) {
+        return false
+      }
+      if (
+        searchForm.value.modelId &&
+        !modelIds.includes(searchForm.value.modelId)
+      ) {
+        return false
+      }
+      return true
+    })
+  )
+  const modelLatestMap = computed(() => {
+    const latestByModel = {}
+    const latestTimeByModel = {}
+    for (const row of modelScopeRows.value) {
+      const firmware = firmwareOf(row)
+      if (firmware?.publishStatus !== 'published') {
+        continue
+      }
+      const timeValue = new Date(
+        firmware.publishedAt || firmware.uploadedAt || 0
+      ).getTime()
+      const modelIds = row.modelIds?.length
+        ? row.modelIds
+        : [row.modelId || row.model?.ID].filter(Boolean)
+      for (const modelId of modelIds) {
+        const currentTime = latestTimeByModel[modelId] || 0
+        const currentFirmwareId = latestByModel[modelId] || 0
+        if (
+          !currentFirmwareId ||
+          timeValue > currentTime ||
+          (timeValue === currentTime && firmware.ID > currentFirmwareId)
+        ) {
+          latestByModel[modelId] = firmware.ID
+          latestTimeByModel[modelId] = timeValue
+        }
+      }
+    }
+    return latestByModel
+  })
   const testRows = computed(() =>
     filteredRows.value.filter(
       (row) =>
@@ -1111,6 +1170,22 @@
     const name = firmware?.versionCode || firmware?.versionName || ''
     return name ? `安装包列表 - ${name}` : '安装包列表'
   })
+  const rowModelIds = (row) =>
+    row?.modelIds?.length
+      ? row.modelIds
+      : [row?.modelId || row?.model?.ID].filter(Boolean)
+  const isLatestVersion = (row) => {
+    const firmware = firmwareOf(row)
+    if (firmware?.publishStatus !== 'published') {
+      return false
+    }
+    const modelIds = rowModelIds(row)
+    return modelIds.some((modelId) => modelLatestMap.value[modelId] === firmware.ID)
+  }
+  const isHistoryVersion = (row) =>
+    firmwareOf(row)?.publishStatus === 'published' &&
+    !isLatestVersion(row) &&
+    !firmwareOf(row)?.isStable
   const firmwareOf = (row) => {
     if (!row) return {}
     return (
@@ -1137,21 +1212,25 @@
     ({
       unpublished: '未发布',
       published: '已发布',
-      voided: '已下架'
+      voided: '已下架',
+      removed: '已移除'
     }[status] || '-')
   const firmwareStatusLabel = (firmware) => {
     if (firmware?.publishStatus === 'published') return '已发布'
     if (firmware?.publishStatus === 'voided') return '已下架'
+    if (firmware?.publishStatus === 'removed') return '已移除'
     return devStatusLabel(firmware?.status)
   }
   const firmwareStatusTag = (firmware) => {
     if (firmware?.publishStatus === 'published') return 'success'
     if (firmware?.publishStatus === 'voided') return 'danger'
+    if (firmware?.publishStatus === 'removed') return 'info'
     return devStatusTag(firmware?.status)
   }
   const logStatusLabel = (log) => {
     if (log?.toStatus === 'published') return '已发布'
     if (log?.toStatus === 'voided') return '已下架'
+    if (log?.toStatus === 'removed') return '已移除'
     return devStatusLabel(log?.toStatus || log?.fromStatus)
   }
   const devStatusTag = (status) => {
@@ -1160,10 +1239,6 @@
     if (status === 'test_failed') return 'danger'
     return 'info'
   }
-  const isHistoryVersion = (firmware) =>
-    firmware?.publishStatus === 'published' &&
-    !firmware?.isLatest &&
-    !firmware?.isStable
   const canStartTesting = (firmware) =>
     ['pending_test', 'test_failed'].includes(firmware?.status) &&
     !['published', 'voided'].includes(firmware?.publishStatus)
@@ -1178,6 +1253,7 @@
     firmware?.publishStatus === 'published'
   const canVoid = (firmware) => firmware?.publishStatus === 'published'
   const canOnShelf = (firmware) => firmware?.publishStatus === 'voided'
+  const canRemoveFirmware = (firmware) => firmware?.publishStatus === 'voided'
   const canDeleteRelation = (firmware) =>
     !['published', 'voided'].includes(firmware?.publishStatus)
   const canEditFirmwarePackage = (firmware) =>
@@ -1746,23 +1822,69 @@
     }`
     logDrawerVisible.value = true
   }
-  const deleteRelation = (row) => {
+  const deleteRelation = async (row) => {
     const firmware = firmwareOf(row)
-    ElMessageBox.confirm(
-      `确定把 ${firmware.versionCode || '该固件'} 从当前型号中移除吗？`,
-      '提示',
-      {
-        type: 'warning'
-      }
-    )
-      .then(async () => {
-        const res = await deleteModelFirmwareRel({ ID: row.ID })
-        if (res.code === 0) {
-          ElMessage.success('移除成功')
-          await loadPage()
+    try {
+      await ElMessageBox.confirm(
+        `确定把 ${firmware.versionCode || '该固件'} 从当前型号中移除吗？`,
+        '提示',
+        {
+          type: 'warning',
+          confirmButtonText: '继续移除',
+          cancelButtonText: '取消'
         }
+      )
+      await ElMessageBox.confirm(
+        '请再次确认，移除后该型号将不再关联这个固件版本。',
+        '二次确认',
+        {
+          type: 'warning',
+          confirmButtonText: '确认移除',
+          cancelButtonText: '返回'
+        }
+      )
+      const res = await deleteModelFirmwareRel({ ID: row.ID })
+      if (res.code === 0) {
+        ElMessage.success('移除成功')
+        await loadPage()
+      }
+    } catch (error) {
+      // 用户取消确认时直接结束
+    }
+  }
+  const removeFirmware = async (row) => {
+    const firmware = firmwareOf(row)
+    try {
+      await ElMessageBox.confirm(
+        `确定移除 ${firmware.versionCode || '该固件'} 吗？`,
+        '提示',
+        {
+          type: 'warning',
+          confirmButtonText: '继续移除',
+          cancelButtonText: '取消'
+        }
+      )
+      await ElMessageBox.confirm(
+        '请再次确认，移除后该版本将从列表中隐藏，但型号绑定关系会保留。',
+        '二次确认',
+        {
+          type: 'warning',
+          confirmButtonText: '确认移除',
+          cancelButtonText: '返回'
+        }
+      )
+      const res = await removeFirmwareVersion({
+        id: firmware.ID,
+        operator: defaultUploadedBy(),
+        content: '移除已下架版本'
       })
-      .catch(() => {})
+      if (res.code === 0) {
+        ElMessage.success('移除成功')
+        await loadPage()
+      }
+    } catch (error) {
+      // 用户取消确认时直接结束
+    }
   }
   const openPublicFirmwareDownloadPage = () => {
     const { href } = router.resolve({ name: 'PublicFirmwareDownload' })

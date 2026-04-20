@@ -176,6 +176,21 @@ func (a *FirmwareVersionApi) OnShelfFirmwareVersion(c *gin.Context) {
 	response.OkWithMessage("上架成功", c)
 }
 
+// RemoveFirmwareVersion 移除已下架固件版本
+func (a *FirmwareVersionApi) RemoveFirmwareVersion(c *gin.Context) {
+	var req deviceReq.RemoveFirmwareVersionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if err := firmwareVersionService.RemoveFirmwareVersion(req); err != nil {
+		global.GVA_LOG.Error("移除固件版本失败!", zap.Error(err))
+		response.FailWithMessage("移除固件版本失败:"+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("移除成功", c)
+}
+
 // DeleteFirmwarePackage 删除固件包
 func (a *FirmwareVersionApi) DeleteFirmwarePackage(c *gin.Context) {
 	var req deviceReq.DeleteFirmwarePackageRequest

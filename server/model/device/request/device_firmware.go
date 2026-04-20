@@ -109,6 +109,13 @@ type OnShelfFirmwareVersionRequest struct {
 	NotifyTo string `json:"notifyTo"`              // 邮件通知收件人
 }
 
+type RemoveFirmwareVersionRequest struct {
+	ID       uint   `json:"id" binding:"required"` // 固件版本ID
+	Operator string `json:"operator"`              // 操作人
+	Content  string `json:"content"`               // 日志内容
+	NotifyTo string `json:"notifyTo"`              // 邮件通知收件人
+}
+
 type DeleteFirmwarePackageRequest struct {
 	ID       uint   `json:"id" binding:"required"` // 固件版本ID
 	Operator string `json:"operator"`              // 操作人
