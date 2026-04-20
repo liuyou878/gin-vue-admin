@@ -7,6 +7,7 @@ import { ref, computed } from 'vue'
 import { useRouterStore } from './router'
 import { useCookies } from '@vueuse/integrations/useCookies'
 import { useStorage } from '@vueuse/core'
+import { resolveDefaultRouterName } from '@/utils/defaultRoute'
 
 import { useAppStore } from '@/pinia'
 
@@ -80,6 +81,13 @@ export const useUserStore = defineStore('user', () => {
       const routerStore = useRouterStore()
       await routerStore.SetAsyncRouter()
       const asyncRouters = routerStore.asyncRouters
+      const resolvedDefaultRouter = resolveDefaultRouterName(
+        userInfo.value.authority.defaultRouter,
+        asyncRouters
+      )
+      if (resolvedDefaultRouter && userInfo.value.authority) {
+        userInfo.value.authority.defaultRouter = resolvedDefaultRouter
+      }
 
       // 注册到路由表里
       asyncRouters.forEach((asyncRouter) => {

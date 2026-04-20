@@ -49,7 +49,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="发布状态">
+        <!-- <el-form-item label="发布状态">
           <el-select
             v-model="searchForm.publishStatus"
             clearable
@@ -63,7 +63,7 @@
               :value="item.value"
             />
           </el-select>
-        </el-form-item>
+        </el-form-item> -->
         <el-form-item label="版本关键字">
           <el-input
             v-model="searchForm.keyword"
@@ -175,68 +175,68 @@
           <template #default="scope">
             <el-button
               v-if="firmwareOf(scope.row).publishStatus !== 'voided'"
-              type="primary"
+              type="info"
               link
               @click="openFirmwareDialog(scope.row)"
               >编辑信息</el-button
             >
             <el-button
               v-if="canEditFirmwarePackage(firmwareOf(scope.row))"
-              type="primary"
+              type="warning"
               link
               @click="openPackageUpdateDialog(scope.row)"
               >更新包</el-button
             >
             <el-button
               v-if="canStartTesting(firmwareOf(scope.row))"
-              type="primary"
+              type="warning"
               link
               @click="openActionNotifyDialog(scope.row, 'startTest')"
               >开始测试</el-button
             >
             <el-button
               v-if="canSubmitTestResult(firmwareOf(scope.row))"
-              type="primary"
+              type="success"
               link
               @click="openTestResultDialog(scope.row)"
               >测试结果</el-button
             >
             <el-button
               v-if="canRejectRelease(firmwareOf(scope.row))"
-              type="primary"
+              type="danger"
               link
               @click="openActionNotifyDialog(scope.row, 'rejectRelease')"
               >驳回</el-button
             >
             <el-button
               v-if="canPublish(firmwareOf(scope.row))"
-              type="primary"
+              type="success"
               link
               @click="openActionNotifyDialog(scope.row, 'publish')"
               >发布</el-button
             >
             <el-button
               v-if="canSetCurrentRelease(firmwareOf(scope.row))"
-              type="primary"
+              type="success"
               link
               @click="setCurrentRelease(scope.row)"
               >设为当前推荐</el-button
             >
             <el-button
               v-if="canVoid(firmwareOf(scope.row))"
-              type="primary"
+              type="danger"
               link
               @click="openActionNotifyDialog(scope.row, 'voidRelease')"
               >下架</el-button
             >
             <el-button
               v-if="canOnShelf(firmwareOf(scope.row))"
-              type="primary"
+              type="success"
               link
               @click="openActionNotifyDialog(scope.row, 'onShelfRelease')"
               >上架</el-button
             >
-            <el-button type="primary" link @click="openLogDrawer(scope.row)"
+            <el-button type="info" link @click="openLogDrawer(scope.row)"
               >日志</el-button
             >
             <el-button type="primary" link @click="openPackageDialog(scope.row)"
@@ -244,7 +244,7 @@
             >
             <el-button
               v-if="canDeleteRelation(firmwareOf(scope.row))"
-              type="primary"
+              type="danger"
               link
               @click="deleteRelation(scope.row)"
               >移除</el-button
@@ -793,6 +793,7 @@
   import { deleteFile } from '@/api/fileUploadAndDownload'
   import { getUserList } from '@/api/user'
   import { formatDate, getBaseUrl } from '@/utils/format'
+  import { getUrl } from '@/utils/image'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
@@ -806,7 +807,6 @@
   const modelOptions = ref([])
   const firmwareOptions = ref([])
   const relationRows = ref([])
-  const firmwareLogs = ref([])
   const logRows = ref([])
   const packageRows = ref([])
   const firmwareDialogVisible = ref(false)
@@ -833,6 +833,8 @@
   const logDrawerTitle = ref('固件日志')
   const activeTab = ref('test')
   const notifyUserLoading = ref(false)
+  const notifyUserOptionsLoaded = ref(false)
+  let notifyUserOptionsPromise = null
   const failReasonOptions = ['有Bug', '少功能', '需优化']
   const notifyUserOptions = ref([])
   const devStatusOptions = [
@@ -1016,7 +1018,10 @@
         !categoryIds.includes(searchForm.value.categoryId)
       )
         return false
-      if (searchForm.value.modelId && !modelIds.includes(searchForm.value.modelId))
+      if (
+        searchForm.value.modelId &&
+        !modelIds.includes(searchForm.value.modelId)
+      )
         return false
       if (
         searchForm.value.status &&
@@ -1093,19 +1098,6 @@
     return firmware.versionCode || firmware.versionName
       ? `更新包 - ${firmware.versionCode || firmware.versionName}`
       : '更新包'
-  })
-  const latestFailureLogMap = computed(() => {
-    const map = {}
-    ;(firmwareLogs.value || []).forEach((log) => {
-      if (log.action !== 'test_fail' || !log.firmwareId) return
-      const current = map[log.firmwareId]
-      const currentTime = current
-        ? new Date(current.operateAt || current.CreatedAt || 0).getTime()
-        : 0
-      const nextTime = new Date(log.operateAt || log.CreatedAt || 0).getTime()
-      if (!current || nextTime >= currentTime) map[log.firmwareId] = log
-    })
-    return map
   })
   const logTimelineRows = computed(() =>
     [...logRows.value].sort((a, b) => {
@@ -1211,8 +1203,14 @@
     return [...emailSet].join(',')
   }
   const loadNotifyUserOptions = async () => {
+    if (notifyUserOptionsLoaded.value) {
+      return notifyUserOptions.value
+    }
+    if (notifyUserOptionsPromise) {
+      return notifyUserOptionsPromise
+    }
     notifyUserLoading.value = true
-    try {
+    notifyUserOptionsPromise = (async () => {
       const res = await getUserList({
         page: 1,
         pageSize: 999,
@@ -1239,20 +1237,21 @@
             optionLabel: `${name} <${email}>`
           }
         })
+      notifyUserOptionsLoaded.value = true
+      return notifyUserOptions.value
+    })()
+    try {
+      return await notifyUserOptionsPromise
     } finally {
       notifyUserLoading.value = false
+      notifyUserOptionsPromise = null
     }
+  }
+  const ensureNotifyUserOptionsLoaded = async () => {
+    await loadNotifyUserOptions()
   }
   const rowNote = (row) => {
     const firmware = firmwareOf(row)
-    if (firmware.status === 'test_failed') {
-      return (
-        latestFailureLogMap.value[firmware.ID]?.content ||
-        firmware.releaseNote ||
-        firmware.packageName ||
-        '-'
-      )
-    }
     return firmware.releaseNote || firmware.packageName || '-'
   }
   const logActionLabel = (log) => {
@@ -1313,17 +1312,12 @@
     const res = await getModelFirmwareRelList({ page: 1, pageSize: 999 })
     if (res.code === 0) relationRows.value = res.data.list || []
   }
-  const loadLogs = async () => {
-    const res = await getFirmwareVersionLogList({ page: 1, pageSize: 999 })
-    if (res.code === 0) firmwareLogs.value = res.data.list || []
-  }
   const loadPage = async () => {
     await Promise.all([
       loadCategories(),
       loadModels(),
       loadFirmwareOptions(),
-      loadRelations(),
-      loadLogs()
+      loadRelations()
     ])
   }
   const beforeFirmwareUpload = (file) => {
@@ -1420,6 +1414,7 @@
     ElMessage.success('固件包已删除')
   }
   const openPackageUpdateDialog = async (row) => {
+    await ensureNotifyUserOptionsLoaded()
     const firmware = firmwareOf(row)
     const res = await findFirmwareVersion({ ID: firmware.ID })
     if (res.code === 0) {
@@ -1510,6 +1505,7 @@
         firmwareUploadName.value = res.data.packageName || ''
       }
     } else {
+      await ensureNotifyUserOptionsLoaded()
       firmwareForm.value = {
         ID: undefined,
         categoryId: searchForm.value.categoryId || '',
@@ -1573,7 +1569,8 @@
       firmwareSubmitting.value = false
     }
   }
-  const openTestResultDialog = (row) => {
+  const openTestResultDialog = async (row) => {
+    await ensureNotifyUserOptionsLoaded()
     currentTestRow.value = row
     testResultForm.value = {
       result: 'tested_pass',
@@ -1584,7 +1581,8 @@
     }
     testResultDialogVisible.value = true
   }
-  const openActionNotifyDialog = (row, actionType) => {
+  const openActionNotifyDialog = async (row, actionType) => {
+    await ensureNotifyUserOptionsLoaded()
     currentActionRow.value = row
     currentActionType.value = actionType
     actionNotifyForm.value = {
@@ -1739,13 +1737,14 @@
       pageSize: 999,
       firmwareId: firmware.ID
     })
-    if (res.code === 0) {
-      logRows.value = res.data.list || []
-      logDrawerTitle.value = `固件日志 - ${
-        firmware.versionCode || firmware.versionName || ''
-      }`
-      logDrawerVisible.value = true
+    if (res.code !== 0) {
+      return
     }
+    logRows.value = res.data.list || []
+    logDrawerTitle.value = `固件日志 - ${
+      firmware.versionCode || firmware.versionName || ''
+    }`
+    logDrawerVisible.value = true
   }
   const deleteRelation = (row) => {
     const firmware = firmwareOf(row)
@@ -1769,13 +1768,116 @@
     const { href } = router.resolve({ name: 'PublicFirmwareDownload' })
     window.open(href, '_blank', 'noopener,noreferrer')
   }
-  const downloadPackage = (row) => {
+  const extractFileNameFromDisposition = (disposition) => {
+    if (!disposition) return ''
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+    if (utf8Match?.[1]) {
+      try {
+        return decodeURIComponent(utf8Match[1])
+      } catch (error) {
+        return utf8Match[1]
+      }
+    }
+    const normalMatch = disposition.match(/filename="?([^";]+)"?/i)
+    return normalMatch?.[1] || ''
+  }
+  const downloadPackageFromUrl = async (url, fallbackName) => {
+    if (!url) {
+      ElMessage.warning('当前没有可下载的安装包')
+      return
+    }
+    const loadingMessage = ElMessage({
+      message: '下载中...',
+      type: 'info',
+      duration: 0,
+      showClose: false
+    })
+
+    try {
+      const response = await fetch(getUrl(url), {
+        credentials: 'include'
+      })
+      if (!response.ok) {
+        let errorMessage = '下载失败'
+        try {
+          const text = await response.text()
+          if (text) {
+            try {
+              const json = JSON.parse(text)
+              errorMessage = json?.msg || errorMessage
+            } catch (error) {
+              errorMessage = text
+            }
+          }
+        } catch (error) {
+          // ignore parse error
+        }
+        throw new Error(errorMessage)
+      }
+
+      const blob = await response.blob()
+      const contentType = String(
+        response.headers.get('content-type') || blob.type || ''
+      ).toLowerCase()
+      const disposition = String(
+        response.headers.get('content-disposition') || ''
+      )
+      const isErrorBlob =
+        contentType.includes('application/json') ||
+        contentType.includes('text/plain')
+      if (!blob.size || isErrorBlob) {
+        let errorMessage = '下载失败'
+        try {
+          const text = await blob.text()
+          if (text) {
+            try {
+              const json = JSON.parse(text)
+              errorMessage = json?.msg || errorMessage
+            } catch (error) {
+              errorMessage = text
+            }
+          }
+        } catch (error) {
+          // ignore parse error
+        }
+        throw new Error(errorMessage)
+      }
+
+      const downloadName =
+        extractFileNameFromDisposition(disposition) ||
+        fallbackName ||
+        'firmware.bin'
+      const objectUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = downloadName
+      link.rel = 'noopener'
+      link.style.display = 'none'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(objectUrl)
+      }, 1000)
+      ElMessage.success('下载成功')
+    } catch (error) {
+      ElMessage.error(error?.message || '下载失败')
+    } finally {
+      loadingMessage?.close?.()
+    }
+  }
+  const downloadPackage = async (row) => {
     const firmware = firmwareOf(row)
-    if (!firmware.packageUrl) {
+    const url = firmware.packageUrl
+    if (!url) {
       ElMessage.warning('当前固件还没有安装包地址')
       return
     }
-    window.open(firmware.packageUrl, '_blank')
+    await downloadPackageFromUrl(
+      url,
+      firmware.packageName ||
+        `${firmware.versionCode || firmware.versionName || 'firmware'}.bin`
+    )
   }
   const packageHistoryActions = new Set(['upload', 'fix_upload'])
   const timelineCanViewPackage = (log) =>
@@ -1823,13 +1925,21 @@
         return bTime - aTime
       })
   }
-  const downloadPackageByRow = (row) => {
+  const downloadPackageByRow = async (row) => {
     const url = timelinePackageUrl(row)
     if (!url) {
       ElMessage.warning('当前安装包没有可下载地址')
       return
     }
-    window.open(url, '_blank')
+    await downloadPackageFromUrl(
+      url,
+      timelinePackageName(row) ||
+        `${
+          selectedPackageFirmware.value?.versionCode ||
+          selectedPackageFirmware.value?.versionName ||
+          'firmware'
+        }.bin`
+    )
   }
   const closePackageDialog = () => {
     packageDialogVisible.value = false
@@ -1878,7 +1988,7 @@
   )
 
   onMounted(async () => {
-    await Promise.all([loadPage(), loadNotifyUserOptions()])
+    await loadPage()
   })
 </script>
 

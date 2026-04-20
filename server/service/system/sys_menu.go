@@ -379,12 +379,29 @@ func (menuService *MenuService) SetMenuAuthorities(menuId uint, authorityIds []u
 func (menuService *MenuService) UserAuthorityDefaultRouter(user *system.SysUser) {
 	var menuIds []string
 	err := global.GVA_DB.Model(&system.SysAuthorityMenu{}).Where("sys_authority_authority_id = ?", user.AuthorityId).Pluck("sys_base_menu_id", &menuIds).Error
-	if err != nil {
+	if err != nil || len(menuIds) == 0 {
 		return
 	}
-	var am system.SysBaseMenu
-	err = global.GVA_DB.First(&am, "name = ? and id in (?)", user.Authority.DefaultRouter, menuIds).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+
+	var menus []system.SysBaseMenu
+	err = global.GVA_DB.Where("id in (?)", menuIds).Order("sort").Find(&menus).Error
+	if err != nil || len(menus) == 0 {
 		user.Authority.DefaultRouter = "404"
+		return
 	}
+
+	for _, menu := range menus {
+		if menu.Name == user.Authority.DefaultRouter {
+			return
+		}
+	}
+
+	for _, menu := range menus {
+		if !menu.Hidden {
+			user.Authority.DefaultRouter = menu.Name
+			return
+		}
+	}
+
+	user.Authority.DefaultRouter = menus[0].Name
 }

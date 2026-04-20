@@ -1,6 +1,7 @@
 import { useUserStore } from '@/pinia/modules/user'
 import { useRouterStore } from '@/pinia/modules/router'
 import getPageTitle from '@/utils/page'
+import { resolveDefaultRouterName } from '@/utils/defaultRoute'
 import router from '@/router'
 import Nprogress from 'nprogress'
 import 'nprogress/nprogress.css'
@@ -119,6 +120,14 @@ const setupRouter = async (userStore) => {
     const routerStore = useRouterStore()
     await Promise.all([routerStore.SetAsyncRouter(), userStore.GetUserInfo()])
 
+    const resolvedDefaultRouter = resolveDefaultRouterName(
+      userStore.userInfo?.authority?.defaultRouter,
+      routerStore.asyncRouters
+    )
+    if (resolvedDefaultRouter && userStore.userInfo?.authority) {
+      userStore.userInfo.authority.defaultRouter = resolvedDefaultRouter
+    }
+
     // 确保先注册父级 layout
     const baseRouters = routerStore.asyncRouters || []
     const layoutRoute = baseRouters[0]
@@ -137,7 +146,7 @@ const setupRouter = async (userStore) => {
         if (r?.name !== 'layout') toRegister.push(r)
       })
     }
-  toRegister.forEach((r) => addRouteByChildren(r, [], null))
+    toRegister.forEach((r) => addRouteByChildren(r, [], null))
     return true
   } catch (error) {
     console.error('Setup router failed:', error)
@@ -179,7 +188,7 @@ router.beforeEach(async (to, from) => {
         return { name: userStore.userInfo.authority.defaultRouter }
       }
     }
-    return  true
+    return true
   }
 
   // 需要登录的路由处理
@@ -196,7 +205,18 @@ router.beforeEach(async (to, from) => {
       return to
     }
 
-    return to.matched.length ? true : { path: '/layout/404' }
+    if (!to.matched.length) {
+      const firstRouteName = resolveDefaultRouterName(
+        userStore.userInfo?.authority?.defaultRouter,
+        routerStore.asyncRouters
+      )
+      if (firstRouteName && router.hasRoute(firstRouteName)) {
+        return { name: firstRouteName }
+      }
+      return { path: '/layout/404' }
+    }
+
+    return true
   }
 
   // 未登录跳转登录页

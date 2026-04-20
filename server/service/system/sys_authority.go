@@ -37,7 +37,11 @@ func (authorityService *AuthorityService) CreateAuthority(auth system.SysAuthori
 			return err
 		}
 
-		auth.SysBaseMenus = systemReq.DefaultMenu()
+		var defaultMenu system.SysBaseMenu
+		if err = tx.Where("name = ?", "about").First(&defaultMenu).Error; err != nil {
+			return err
+		}
+		auth.SysBaseMenus = []system.SysBaseMenu{defaultMenu}
 		if err = tx.Model(&auth).Association("SysBaseMenus").Replace(&auth.SysBaseMenus); err != nil {
 			return err
 		}
