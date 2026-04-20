@@ -6,6 +6,7 @@ import (
 	"html"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -48,6 +49,86 @@ func validateFirmwareVersionCode(versionCode string) error {
 	return nil
 }
 
+func compareFirmwareVersionCode(a, b string) (int, error) {
+	partsA := strings.Split(strings.TrimSpace(a), ".")
+	partsB := strings.Split(strings.TrimSpace(b), ".")
+	if len(partsA) != 3 || len(partsB) != 3 {
+		return 0, errors.New("版本号格式不合法")
+	}
+	for i := 0; i < 3; i++ {
+		left, err := strconv.ParseUint(partsA[i], 10, 64)
+		if err != nil {
+			return 0, errors.New("版本号格式不合法")
+		}
+		right, err := strconv.ParseUint(partsB[i], 10, 64)
+		if err != nil {
+			return 0, errors.New("版本号格式不合法")
+		}
+		switch {
+		case left > right:
+			return 1, nil
+		case left < right:
+			return -1, nil
+		}
+	}
+	return 0, nil
+}
+
+type modelLatestPublishedVersionInfo struct {
+	ModelID     uint   `gorm:"column:model_id"`
+	ModelName   string `gorm:"column:model_name"`
+	VersionCode string `gorm:"column:version_code"`
+}
+
+func ensureFirmwareVersionNotLowerThanPublished(tx *gorm.DB, versionCode string, modelIDs []uint) error {
+	if len(modelIDs) == 0 {
+		return nil
+	}
+	var rows []modelLatestPublishedVersionInfo
+	err := tx.Table("alpha_model_firmware_rels").
+		Select("alpha_model_firmware_rels.model_id, alpha_device_models.model_name, alpha_firmware_versions.version_code").
+		Joins("JOIN alpha_firmware_versions ON alpha_firmware_versions.id = alpha_model_firmware_rels.firmware_id").
+		Joins("JOIN alpha_device_models ON alpha_device_models.id = alpha_model_firmware_rels.model_id").
+		Where("alpha_model_firmware_rels.model_id IN ? AND alpha_firmware_versions.publish_status = ?", modelIDs, "published").
+		Find(&rows).Error
+	if err != nil {
+		return err
+	}
+	latestByModel := make(map[uint]modelLatestPublishedVersionInfo, len(rows))
+	for _, row := range rows {
+		current, exists := latestByModel[row.ModelID]
+		if !exists {
+			latestByModel[row.ModelID] = row
+			continue
+		}
+		cmp, err := compareFirmwareVersionCode(row.VersionCode, current.VersionCode)
+		if err != nil {
+			return err
+		}
+		if cmp > 0 {
+			latestByModel[row.ModelID] = row
+		}
+	}
+	for _, modelID := range modelIDs {
+		latest, exists := latestByModel[modelID]
+		if !exists {
+			continue
+		}
+		cmp, err := compareFirmwareVersionCode(versionCode, latest.VersionCode)
+		if err != nil {
+			return err
+		}
+		if cmp < 0 {
+			modelName := strings.TrimSpace(latest.ModelName)
+			if modelName != "" {
+				return fmt.Errorf("版本号不能小于当前正式版最新版本(%s: %s)", modelName, latest.VersionCode)
+			}
+			return fmt.Errorf("版本号不能小于当前正式版最新版本(%s)", latest.VersionCode)
+		}
+	}
+	return nil
+}
+
 func uniqueUintIDs(ids []uint) []uint {
 	if len(ids) == 0 {
 		return nil
@@ -72,6 +153,10 @@ func (s *FirmwareVersionService) CreateFirmwareVersion(firmware *deviceModel.Fir
 	if err := validateFirmwareVersionCode(firmware.VersionCode); err != nil {
 		return err
 	}
+	modelIDs := uniqueUintIDs(firmware.ModelIDs)
+	if len(modelIDs) == 0 {
+		return errors.New("请选择设备型号")
+	}
 	var mailPayload *firmwareActionMailPayload
 	txErr := global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		if firmware.Status == "" || firmware.Status == "draft" {
@@ -83,15 +168,14 @@ func (s *FirmwareVersionService) CreateFirmwareVersion(firmware *deviceModel.Fir
 		if firmware.PublishStatus == "" {
 			firmware.PublishStatus = "unpublished"
 		}
+		if err := ensureFirmwareVersionNotLowerThanPublished(tx, firmware.VersionCode, modelIDs); err != nil {
+			return err
+		}
 		if err := tx.Create(firmware).Error; err != nil {
 			return err
 		}
 		if err := createFirmwareVersionLog(tx, firmware.ID, nil, "upload", "", firmware.Status, firmware.UploadedBy, "创建固件版本", firmware); err != nil {
 			return err
-		}
-		modelIDs := uniqueUintIDs(firmware.ModelIDs)
-		if len(modelIDs) == 0 {
-			return errors.New("请选择设备型号")
 		}
 		for _, modelID := range modelIDs {
 			if err := ensureDeviceModelExists(tx, modelID); err != nil {

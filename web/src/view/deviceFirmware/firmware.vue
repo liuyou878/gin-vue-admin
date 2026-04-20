@@ -49,6 +49,21 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="版本类型">
+          <el-select
+            v-model="searchForm.versionTag"
+            clearable
+            placeholder="版本类型"
+            style="width: 160px"
+          >
+            <el-option
+              v-for="item in versionTagOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
         <!-- <el-form-item label="发布状态">
           <el-select
             v-model="searchForm.publishStatus"
@@ -151,9 +166,7 @@
               <el-tag :type="firmwareStatusTag(firmwareOf(scope.row))">{{
                 firmwareStatusLabel(firmwareOf(scope.row))
               }}</el-tag>
-              <el-tag
-                v-if="isLatestVersion(scope.row)"
-                type="danger"
+              <el-tag v-if="isLatestVersion(scope.row)" type="danger"
                 >最新版本</el-tag
               >
               <el-tag v-if="isHistoryVersion(scope.row)" type="info"
@@ -742,11 +755,11 @@
             formatDate(scope.row.operateAt || scope.row.CreatedAt)
           }}</template>
         </el-table-column>
-        <el-table-column label="状态" width="120">
+        <!-- <el-table-column label="状态" width="120">
           <template #default="scope">
             <el-tag size="small">{{ logStatusLabel(scope.row) }}</el-tag>
           </template>
-        </el-table-column>
+        </el-table-column> -->
         <el-table-column label="包名" min-width="220" show-overflow-tooltip>
           <template #default="scope">{{
             timelinePackageName(scope.row) || '-'
@@ -848,6 +861,11 @@
     { label: '测试通过', value: 'tested_pass' },
     { label: '测试不通过', value: 'test_failed' }
   ]
+  const versionTagOptions = [
+    { label: '最新版本', value: 'latest' },
+    { label: '推荐版本', value: 'recommended' },
+    { label: '历史版本', value: 'history' }
+  ]
   const publishStatusOptions = [
     { label: '未发布', value: 'unpublished' },
     { label: '已发布', value: 'published' },
@@ -857,6 +875,7 @@
     categoryId: '',
     modelId: '',
     status: '',
+    versionTag: '',
     publishStatus: '',
     keyword: ''
   })
@@ -1040,6 +1059,15 @@
         firmware.publishStatus !== searchForm.value.publishStatus
       )
         return false
+      if (searchForm.value.versionTag === 'latest' && !isLatestVersion(row)) {
+        return false
+      }
+      if (searchForm.value.versionTag === 'recommended' && !row.isRecommended) {
+        return false
+      }
+      if (searchForm.value.versionTag === 'history' && !isHistoryVersion(row)) {
+        return false
+      }
       if (!keyword) return true
       const haystack = [
         firmware.versionCode,
@@ -1105,28 +1133,64 @@
     }
     return latestByModel
   })
+  const sortVersionRows = (rows) =>
+    [...rows].sort((a, b) => {
+      const firmwareA = firmwareOf(a)
+      const firmwareB = firmwareOf(b)
+      const recommendedA = !!a?.isRecommended
+      const recommendedB = !!b?.isRecommended
+      if (recommendedA !== recommendedB) {
+        return recommendedA ? -1 : 1
+      }
+      const timeA = new Date(
+        firmwareA?.publishStatus === 'published'
+          ? firmwareA?.publishedAt || firmwareA?.uploadedAt || 0
+          : firmwareA?.uploadedAt || firmwareA?.publishedAt || 0
+      ).getTime()
+      const timeB = new Date(
+        firmwareB?.publishStatus === 'published'
+          ? firmwareB?.publishedAt || firmwareB?.uploadedAt || 0
+          : firmwareB?.uploadedAt || firmwareB?.publishedAt || 0
+      ).getTime()
+      if (timeA !== timeB) {
+        return timeB - timeA
+      }
+      return (firmwareB?.ID || b?.ID || 0) - (firmwareA?.ID || a?.ID || 0)
+    })
   const testRows = computed(() =>
-    filteredRows.value.filter(
-      (row) =>
-        !['published', 'voided'].includes(firmwareOf(row)?.publishStatus) &&
-        !['tested_pass', 'pending_release'].includes(firmwareOf(row)?.status)
+    sortVersionRows(
+      filteredRows.value.filter(
+        (row) =>
+          !['published', 'voided', 'removed'].includes(
+            firmwareOf(row)?.publishStatus
+          ) &&
+          !['tested_pass', 'pending_release'].includes(firmwareOf(row)?.status)
+      )
     )
   )
   const pendingReleaseRows = computed(() =>
-    filteredRows.value.filter(
-      (row) =>
-        !['published', 'voided'].includes(firmwareOf(row)?.publishStatus) &&
-        ['tested_pass', 'pending_release'].includes(firmwareOf(row)?.status)
+    sortVersionRows(
+      filteredRows.value.filter(
+        (row) =>
+          !['published', 'voided', 'removed'].includes(
+            firmwareOf(row)?.publishStatus
+          ) &&
+          ['tested_pass', 'pending_release'].includes(firmwareOf(row)?.status)
+      )
     )
   )
   const officialRows = computed(() =>
-    filteredRows.value.filter(
-      (row) => firmwareOf(row)?.publishStatus === 'published'
+    sortVersionRows(
+      filteredRows.value.filter(
+        (row) => firmwareOf(row)?.publishStatus === 'published'
+      )
     )
   )
   const voidRows = computed(() =>
-    filteredRows.value.filter(
-      (row) => firmwareOf(row)?.publishStatus === 'voided'
+    sortVersionRows(
+      filteredRows.value.filter(
+        (row) => firmwareOf(row)?.publishStatus === 'voided'
+      )
     )
   )
   const displayRows = computed(() =>
@@ -1180,12 +1244,15 @@
       return false
     }
     const modelIds = rowModelIds(row)
-    return modelIds.some((modelId) => modelLatestMap.value[modelId] === firmware.ID)
+    return modelIds.some(
+      (modelId) => modelLatestMap.value[modelId] === firmware.ID
+    )
   }
   const isHistoryVersion = (row) =>
     firmwareOf(row)?.publishStatus === 'published' &&
     !isLatestVersion(row) &&
-    !firmwareOf(row)?.isStable
+    !firmwareOf(row)?.isStable &&
+    !row.isRecommended
   const firmwareOf = (row) => {
     if (!row) return {}
     return (
@@ -1367,6 +1434,7 @@
       categoryId: '',
       modelId: '',
       status: '',
+      versionTag: '',
       publishStatus: '',
       keyword: ''
     }

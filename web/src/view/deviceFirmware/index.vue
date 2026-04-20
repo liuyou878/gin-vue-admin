@@ -754,7 +754,8 @@
   const isHistoryVersion = (firmware) =>
     firmware?.publishStatus === 'published' &&
     !firmware?.isLatest &&
-    !firmware?.isStable
+    !firmware?.isStable &&
+    !firmware?.isRecommended
   const canStartTesting = (firmware) =>
     ['pending_test', 'test_failed'].includes(firmware?.status) &&
     !['published', 'voided'].includes(firmware?.publishStatus)
