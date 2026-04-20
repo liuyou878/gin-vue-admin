@@ -492,6 +492,7 @@
   } from '@/api/deviceFirmware'
   import { deleteFile } from '@/api/fileUploadAndDownload'
   import { formatDate, getBaseUrl } from '@/utils/format'
+  import { getUrl } from '@/utils/image'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { computed, onMounted, ref } from 'vue'
   import { useUserStore } from '@/pinia/modules/user'
@@ -1443,7 +1444,17 @@
       ElMessage.warning('当前固件还没有安装包地址')
       return
     }
-    window.open(firmware.packageUrl, '_blank')
+    const link = document.createElement('a')
+    link.href = getUrl(firmware.packageUrl)
+    link.rel = 'noopener noreferrer'
+    link.style.display = 'none'
+    if (firmware.packageName) {
+      link.download = firmware.packageName
+    }
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    ElMessage.info('已发起下载，请查看浏览器下载列表')
   }
 
   onMounted(async () => {

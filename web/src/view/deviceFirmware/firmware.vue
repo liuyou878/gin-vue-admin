@@ -263,7 +263,7 @@
             <el-button type="info" link @click="openLogDrawer(scope.row)"
               >日志</el-button
             >
-            <el-button type="primary" link @click="openPackageDialog(scope.row)"
+            <el-button type="primary" link @click="downloadPackage(scope.row)"
               >下载</el-button
             >
           </template>
@@ -734,58 +734,23 @@
               <span>当前状态：{{ logStatusLabel(item) }}</span>
             </div>
             <div class="timeline-card-content">{{ item.content || '-' }}</div>
-            <div v-if="timelinePackageName(item)" class="timeline-card-footer">
+            <div v-if="timelineCanViewPackage(item)" class="timeline-card-footer">
               <span>包名：{{ timelinePackageName(item) }}</span>
+              <span v-if="timelinePackageSize(item) > 0">
+                大小：{{ formatPackageSize(timelinePackageSize(item)) }}
+              </span>
+              <el-button
+                type="primary"
+                link
+                :disabled="!timelinePackageUrl(item)"
+                @click="downloadPackageByRow(item)"
+                >下载</el-button
+              >
             </div>
           </div>
         </el-timeline-item>
       </el-timeline>
     </el-drawer>
-
-    <el-dialog
-      v-model="packageDialogVisible"
-      :title="packageDialogTitle"
-      width="820px"
-      @closed="closePackageDialog"
-    >
-      <el-empty v-if="!packageRows.length" description="暂无可下载安装包" />
-      <el-table v-else :data="packageRows" row-key="ID">
-        <el-table-column label="上传日期" width="180">
-          <template #default="scope">{{
-            formatDate(scope.row.operateAt || scope.row.CreatedAt)
-          }}</template>
-        </el-table-column>
-        <!-- <el-table-column label="状态" width="120">
-          <template #default="scope">
-            <el-tag size="small">{{ logStatusLabel(scope.row) }}</el-tag>
-          </template>
-        </el-table-column> -->
-        <el-table-column label="包名" min-width="220" show-overflow-tooltip>
-          <template #default="scope">{{
-            timelinePackageName(scope.row) || '-'
-          }}</template>
-        </el-table-column>
-        <el-table-column v-if="showPackageSizeColumn" label="大小" width="120">
-          <template #default="scope">{{
-            formatPackageSize(timelinePackageSize(scope.row))
-          }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
-          <template #default="scope">
-            <el-button
-              type="primary"
-              link
-              :disabled="!timelinePackageUrl(scope.row)"
-              @click="downloadPackageByRow(scope.row)"
-              >下载</el-button
-            >
-          </template>
-        </el-table-column>
-      </el-table>
-      <template #footer>
-        <el-button @click="packageDialogVisible = false">关闭</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -826,12 +791,10 @@
   const firmwareOptions = ref([])
   const relationRows = ref([])
   const logRows = ref([])
-  const packageRows = ref([])
   const firmwareDialogVisible = ref(false)
   const testResultDialogVisible = ref(false)
   const actionNotifyDialogVisible = ref(false)
   const logDrawerVisible = ref(false)
-  const packageDialogVisible = ref(false)
   const packageUpdateDialogVisible = ref(false)
   const firmwareDialogType = ref('create')
   const firmwareFormRef = ref()
@@ -839,7 +802,6 @@
   const currentTestRow = ref(null)
   const currentActionRow = ref(null)
   const currentActionType = ref('startTest')
-  const selectedPackageFirmware = ref(null)
   const firmwareUploading = ref(false)
   const firmwareUploadName = ref('')
   const packageUpdateUploading = ref(false)
@@ -1229,11 +1191,6 @@
       return bTime - aTime
     })
   )
-  const packageDialogTitle = computed(() => {
-    const firmware = selectedPackageFirmware.value
-    const name = firmware?.versionCode || firmware?.versionName || ''
-    return name ? `安装包列表 - ${name}` : '安装包列表'
-  })
   const rowModelIds = (row) =>
     row?.modelIds?.length
       ? row.modelIds
@@ -1958,112 +1915,31 @@
     const { href } = router.resolve({ name: 'PublicFirmwareDownload' })
     window.open(href, '_blank', 'noopener,noreferrer')
   }
-  const extractFileNameFromDisposition = (disposition) => {
-    if (!disposition) return ''
-    const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
-    if (utf8Match?.[1]) {
-      try {
-        return decodeURIComponent(utf8Match[1])
-      } catch (error) {
-        return utf8Match[1]
-      }
-    }
-    const normalMatch = disposition.match(/filename="?([^";]+)"?/i)
-    return normalMatch?.[1] || ''
-  }
-  const downloadPackageFromUrl = async (url, fallbackName) => {
+  const downloadPackageFromUrl = (url, fallbackName) => {
     if (!url) {
       ElMessage.warning('当前没有可下载的安装包')
       return
     }
-    const loadingMessage = ElMessage({
-      message: '下载中...',
-      type: 'info',
-      duration: 0,
-      showClose: false
-    })
-
-    try {
-      const response = await fetch(getUrl(url), {
-        credentials: 'include'
-      })
-      if (!response.ok) {
-        let errorMessage = '下载失败'
-        try {
-          const text = await response.text()
-          if (text) {
-            try {
-              const json = JSON.parse(text)
-              errorMessage = json?.msg || errorMessage
-            } catch (error) {
-              errorMessage = text
-            }
-          }
-        } catch (error) {
-          // ignore parse error
-        }
-        throw new Error(errorMessage)
-      }
-
-      const blob = await response.blob()
-      const contentType = String(
-        response.headers.get('content-type') || blob.type || ''
-      ).toLowerCase()
-      const disposition = String(
-        response.headers.get('content-disposition') || ''
-      )
-      const isErrorBlob =
-        contentType.includes('application/json') ||
-        contentType.includes('text/plain')
-      if (!blob.size || isErrorBlob) {
-        let errorMessage = '下载失败'
-        try {
-          const text = await blob.text()
-          if (text) {
-            try {
-              const json = JSON.parse(text)
-              errorMessage = json?.msg || errorMessage
-            } catch (error) {
-              errorMessage = text
-            }
-          }
-        } catch (error) {
-          // ignore parse error
-        }
-        throw new Error(errorMessage)
-      }
-
-      const downloadName =
-        extractFileNameFromDisposition(disposition) ||
-        fallbackName ||
-        'firmware.bin'
-      const objectUrl = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = objectUrl
-      link.download = downloadName
-      link.rel = 'noopener'
-      link.style.display = 'none'
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.setTimeout(() => {
-        window.URL.revokeObjectURL(objectUrl)
-      }, 1000)
-      ElMessage.success('下载成功')
-    } catch (error) {
-      ElMessage.error(error?.message || '下载失败')
-    } finally {
-      loadingMessage?.close?.()
+    const link = document.createElement('a')
+    link.href = getUrl(url)
+    link.rel = 'noopener noreferrer'
+    link.style.display = 'none'
+    if (fallbackName) {
+      link.download = fallbackName
     }
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    ElMessage.info('已发起下载，请查看浏览器下载列表')
   }
-  const downloadPackage = async (row) => {
+  const downloadPackage = (row) => {
     const firmware = firmwareOf(row)
     const url = firmware.packageUrl
     if (!url) {
       ElMessage.warning('当前固件还没有安装包地址')
       return
     }
-    await downloadPackageFromUrl(
+    downloadPackageFromUrl(
       url,
       firmware.packageName ||
         `${firmware.versionCode || firmware.versionName || 'firmware'}.bin`
@@ -2075,9 +1951,6 @@
   const timelinePackageUrl = (log) => log?.packageUrl || ''
   const timelinePackageName = (log) => log?.packageName || ''
   const timelinePackageSize = (log) => Number(log?.packageSize || 0)
-  const showPackageSizeColumn = computed(() =>
-    packageRows.value.some((item) => timelinePackageSize(item) > 0)
-  )
   const formatPackageSize = (size) => {
     if (!size) return '-'
     if (size < 1024) return `${size} B`
@@ -2086,55 +1959,17 @@
       return `${(size / (1024 * 1024)).toFixed(1)} MB`
     return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`
   }
-  const openPackageDialog = async (log) => {
-    const firmware = firmwareOf(log)
-    if (!firmware?.ID) {
-      ElMessage.warning('未找到可下载的固件记录')
-      return
-    }
-    selectedPackageFirmware.value = firmware
-    packageRows.value = []
-    await loadPackageRows(firmware.ID)
-    packageDialogVisible.value = true
-  }
-  const loadPackageRows = async (firmwareId) => {
-    const res = await getFirmwareVersionLogList({
-      page: 1,
-      pageSize: 999,
-      firmwareId
-    })
-    if (res.code !== 0) {
-      packageRows.value = []
-      return
-    }
-    packageRows.value = (res.data.list || [])
-      .filter((item) => timelineCanViewPackage(item))
-      .sort((a, b) => {
-        const bTime = new Date(b.operateAt || b.CreatedAt || 0).getTime()
-        const aTime = new Date(a.operateAt || a.CreatedAt || 0).getTime()
-        return bTime - aTime
-      })
-  }
-  const downloadPackageByRow = async (row) => {
+  const downloadPackageByRow = (row) => {
     const url = timelinePackageUrl(row)
     if (!url) {
       ElMessage.warning('当前安装包没有可下载地址')
       return
     }
-    await downloadPackageFromUrl(
+    downloadPackageFromUrl(
       url,
       timelinePackageName(row) ||
-        `${
-          selectedPackageFirmware.value?.versionCode ||
-          selectedPackageFirmware.value?.versionName ||
-          'firmware'
-        }.bin`
+        `${logActionLabel(row) || 'firmware'}.bin`
     )
-  }
-  const closePackageDialog = () => {
-    packageDialogVisible.value = false
-    selectedPackageFirmware.value = null
-    packageRows.value = []
   }
 
   watch(

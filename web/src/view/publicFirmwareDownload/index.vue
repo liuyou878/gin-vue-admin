@@ -293,103 +293,23 @@
 
   const downloadable = (item) => !!item?.firmware?.packageUrl
 
-  const extractFileNameFromDisposition = (disposition) => {
-    if (!disposition) return ''
-    const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
-    if (utf8Match?.[1]) {
-      try {
-        return decodeURIComponent(utf8Match[1])
-      } catch (error) {
-        return utf8Match[1]
-      }
-    }
-    const normalMatch = disposition.match(/filename="?([^";]+)"?/i)
-    return normalMatch?.[1] || ''
-  }
-
-  const downloadVersion = async (item) => {
+  const downloadVersion = (item) => {
     const url = item?.firmware?.packageUrl
     if (!url) {
       ElMessage.warning('当前上传包没有可下载的安装包')
       return
     }
-    const loadingMessage = ElMessage({
-      message: '下载中...',
-      type: 'info',
-      duration: 0,
-      showClose: false
-    })
-
-    try {
-      const response = await fetch(getUrl(url), {
-        credentials: 'include'
-      })
-      if (!response.ok) {
-        let errorMessage = '下载失败'
-        try {
-          const text = await response.text()
-          if (text) {
-            try {
-              const json = JSON.parse(text)
-              errorMessage = json?.msg || errorMessage
-            } catch (error) {
-              errorMessage = text
-            }
-          }
-        } catch (error) {
-          // ignore parse error
-        }
-        throw new Error(errorMessage)
-      }
-
-      const blob = await response.blob()
-      const contentType = String(
-        response.headers.get('content-type') || blob.type || ''
-      ).toLowerCase()
-      const disposition = String(response.headers.get('content-disposition') || '')
-      const isErrorBlob =
-        contentType.includes('application/json') ||
-        contentType.includes('text/plain')
-      if (!blob.size || isErrorBlob) {
-        let errorMessage = '下载失败'
-        try {
-          const text = await blob.text()
-          if (text) {
-            try {
-              const json = JSON.parse(text)
-              errorMessage = json?.msg || errorMessage
-            } catch (error) {
-              errorMessage = text
-            }
-          }
-        } catch (error) {
-          // ignore parse error
-        }
-        throw new Error(errorMessage)
-      }
-
-      const downloadName =
-        extractFileNameFromDisposition(disposition) ||
-        item?.firmware?.packageName ||
-        `${item?.firmware?.versionCode || item?.firmware?.versionName || 'firmware'}.bin`
-      const objectUrl = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = objectUrl
-      link.download = downloadName
-      link.rel = 'noopener'
-      link.style.display = 'none'
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.setTimeout(() => {
-        window.URL.revokeObjectURL(objectUrl)
-      }, 1000)
-      ElMessage.success('下载成功')
-    } catch (error) {
-      ElMessage.error(error?.message || '下载失败')
-    } finally {
-      loadingMessage?.close?.()
+    const link = document.createElement('a')
+    link.href = getUrl(url)
+    link.rel = 'noopener noreferrer'
+    link.style.display = 'none'
+    if (item?.firmware?.packageName) {
+      link.download = item.firmware.packageName
     }
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    ElMessage.info('已发起下载，请查看浏览器下载列表')
   }
 
   const formatPackageSize = (size) => {
