@@ -2,10 +2,12 @@ package example
 
 import (
 	"errors"
+	"fmt"
 	"mime/multipart"
 	"strings"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
+	deviceModel "github.com/flipped-aurora/gin-vue-admin/server/model/device"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/example"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/example/request"
 	"github.com/flipped-aurora/gin-vue-admin/server/utils/upload"
@@ -46,12 +48,67 @@ func (e *FileUploadAndDownloadService) DeleteFile(file example.ExaFileUploadAndD
 	if err != nil {
 		return
 	}
+	if err = ensureFileNotReferenced(fileFromDb); err != nil {
+		return err
+	}
 	oss := upload.NewOss()
 	if err = oss.DeleteFile(fileFromDb.Key); err != nil {
 		return errors.New("文件删除失败")
 	}
 	err = global.GVA_DB.Where("id = ?", file.ID).Unscoped().Delete(&file).Error
 	return err
+}
+
+func ensureFileNotReferenced(file example.ExaFileUploadAndDownload) error {
+	referencedByVersion, err := isFileReferencedByFirmware(file)
+	if err != nil {
+		return err
+	}
+	if referencedByVersion {
+		return errors.New("该文件已被固件版本引用，不能删除")
+	}
+
+	referencedByLog, err := isFileReferencedByFirmwareLog(file)
+	if err != nil {
+		return err
+	}
+	if referencedByLog {
+		return errors.New("该文件已被固件下载历史引用，不能删除")
+	}
+	return nil
+}
+
+func isFileReferencedByFirmware(file example.ExaFileUploadAndDownload) (bool, error) {
+	return hasFileReference(deviceModel.FirmwareVersion{}.TableName(), file)
+}
+
+func isFileReferencedByFirmwareLog(file example.ExaFileUploadAndDownload) (bool, error) {
+	return hasFileReference(deviceModel.FirmwareVersionLog{}.TableName(), file)
+}
+
+func hasFileReference(tableName string, file example.ExaFileUploadAndDownload) (bool, error) {
+	db := global.GVA_DB.Table(tableName)
+	conditions := make([]string, 0, 2)
+	args := make([]interface{}, 0, 2)
+
+	if file.ID > 0 {
+		conditions = append(conditions, "package_file_id = ?")
+		args = append(args, file.ID)
+	}
+	if url := strings.TrimSpace(file.Url); url != "" {
+		conditions = append(conditions, "package_url = ?")
+		args = append(args, url)
+	}
+	if len(conditions) == 0 {
+		return false, nil
+	}
+
+	var count int64
+	query := db.Where(strings.Join(conditions, " OR "), args...)
+	if err := query.Count(&count).Error; err != nil {
+		return false, fmt.Errorf("检查文件引用失败: %w", err)
+	}
+	return count > 0, nil
 }
 
 // EditFileName 编辑文件名或者备注

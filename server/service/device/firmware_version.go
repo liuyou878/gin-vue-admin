@@ -1030,12 +1030,6 @@ func resolveFirmwarePackageFile(tx *gorm.DB, firmware deviceModel.FirmwareVersio
 			return fileRecord, nil
 		}
 	}
-	if firmware.PackageName != "" {
-		var fileRecord exampleModel.ExaFileUploadAndDownload
-		if err := tx.Where("name = ?", firmware.PackageName).First(&fileRecord).Error; err == nil {
-			return fileRecord, nil
-		}
-	}
 	return exampleModel.ExaFileUploadAndDownload{}, errors.New("未找到安装包文件记录")
 }
 
@@ -1049,12 +1043,6 @@ func resolveFirmwareLogPackageFile(tx *gorm.DB, log deviceModel.FirmwareVersionL
 	if log.PackageURL != "" {
 		var fileRecord exampleModel.ExaFileUploadAndDownload
 		if err := tx.Where("url = ?", log.PackageURL).First(&fileRecord).Error; err == nil {
-			return fileRecord, nil
-		}
-	}
-	if log.PackageName != "" {
-		var fileRecord exampleModel.ExaFileUploadAndDownload
-		if err := tx.Where("name = ?", log.PackageName).First(&fileRecord).Error; err == nil {
 			return fileRecord, nil
 		}
 	}
@@ -1249,10 +1237,7 @@ func buildPublicFirmwareDownloadPackageItems(tx *gorm.DB, model deviceModel.Devi
 		if firmware.PackageURL == "" && firmware.PackageName == "" && firmware.PackageFileID == 0 {
 			continue
 		}
-		fileRecord, err := resolveFirmwarePackageFile(tx, firmware)
-		if err != nil {
-			continue
-		}
+		fileRecord, _ := resolveFirmwarePackageFile(tx, firmware)
 		rel, ok := relationMap[firmware.ID]
 		item := deviceResp.PublicFirmwareDownloadPackageItem{
 			LogID:         firmware.ID,
