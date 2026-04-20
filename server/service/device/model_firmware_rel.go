@@ -158,15 +158,87 @@ func (s *ModelFirmwareRelService) GetModelFirmwareRelInfoList(info deviceReq.Mod
 	if info.IsRecommended != nil {
 		db = db.Where("is_recommended = ?", *info.IsRecommended)
 	}
-	err = db.Count(&total).Error
+	var rels []deviceModel.ModelFirmwareRel
+	err = db.Preload("Model.Category").Preload("Firmware").Order("id desc").Find(&rels).Error
 	if err != nil {
 		return
 	}
-	if info.PageSize > 0 {
-		db = db.Limit(info.PageSize).Offset(info.PageSize * (info.Page - 1))
+	grouped := make(map[uint]*deviceModel.ModelFirmwareRel)
+	order := make([]uint, 0, len(rels))
+	for i := range rels {
+		rel := rels[i]
+		if rel.FirmwareID == 0 {
+			continue
+		}
+		current, exists := grouped[rel.FirmwareID]
+		if !exists {
+			rel.ModelIDs = append(rel.ModelIDs, rel.ModelID)
+			rel.ModelNames = append(rel.ModelNames, strings.TrimSpace(rel.Model.ModelName))
+			rel.CategoryIDs = append(rel.CategoryIDs, rel.Model.CategoryID)
+			rel.CategoryNames = append(rel.CategoryNames, strings.TrimSpace(rel.Model.Category.Name))
+			rel.RelationIDs = append(rel.RelationIDs, rel.ID)
+			grouped[rel.FirmwareID] = &rel
+			order = append(order, rel.FirmwareID)
+			continue
+		}
+		current.RelationIDs = appendUniqueUint(current.RelationIDs, rel.ID)
+		current.ModelIDs = appendUniqueUint(current.ModelIDs, rel.ModelID)
+		current.ModelNames = appendUniqueString(current.ModelNames, strings.TrimSpace(rel.Model.ModelName))
+		current.CategoryIDs = appendUniqueUint(current.CategoryIDs, rel.Model.CategoryID)
+		current.CategoryNames = appendUniqueString(current.CategoryNames, strings.TrimSpace(rel.Model.Category.Name))
+		if rel.IsRecommended {
+			current.IsRecommended = true
+		}
 	}
-	err = db.Preload("Model.Category").Preload("Firmware").Order("id desc").Find(&list).Error
+	list = make([]deviceModel.ModelFirmwareRel, 0, len(order))
+	for _, firmwareID := range order {
+		if item, ok := grouped[firmwareID]; ok {
+			list = append(list, *item)
+		}
+	}
+	total = int64(len(list))
+	if info.PageSize > 0 {
+		page := info.Page
+		if page <= 0 {
+			page = 1
+		}
+		start := info.PageSize * (page - 1)
+		if start >= len(list) {
+			list = []deviceModel.ModelFirmwareRel{}
+			return
+		}
+		end := start + info.PageSize
+		if end > len(list) {
+			end = len(list)
+		}
+		list = list[start:end]
+	}
 	return
+}
+
+func appendUniqueUint(values []uint, value uint) []uint {
+	if value == 0 {
+		return values
+	}
+	for _, item := range values {
+		if item == value {
+			return values
+		}
+	}
+	return append(values, value)
+}
+
+func appendUniqueString(values []string, value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return values
+	}
+	for _, item := range values {
+		if item == value {
+			return values
+		}
+	}
+	return append(values, value)
 }
 
 // SetModelFirmwareRecommended 设置推荐版本

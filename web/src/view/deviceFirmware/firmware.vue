@@ -123,12 +123,16 @@
       <el-table :data="displayRows" row-key="ID">
         <el-table-column label="设备类别" min-width="120">
           <template #default="scope">{{
-            scope.row.model?.category?.name || '-'
+            scope.row.categoryNames?.length
+              ? scope.row.categoryNames.join('、')
+              : scope.row.model?.category?.name || '-'
           }}</template>
         </el-table-column>
         <el-table-column label="设备型号" min-width="140">
           <template #default="scope">{{
-            scope.row.model?.modelName || '-'
+            scope.row.modelNames?.length
+              ? scope.row.modelNames.join('、')
+              : scope.row.model?.modelName || '-'
           }}</template>
         </el-table-column>
         <el-table-column label="版本号" min-width="130">
@@ -1000,14 +1004,19 @@
   const filteredRows = computed(() =>
     relationRows.value.filter((row) => {
       const firmware = firmwareOf(row)
-      const categoryId = row.model?.categoryId || row.model?.category?.ID
+      const categoryIds = row.categoryIds?.length
+        ? row.categoryIds
+        : [row.model?.categoryId || row.model?.category?.ID].filter(Boolean)
+      const modelIds = row.modelIds?.length
+        ? row.modelIds
+        : [row.modelId].filter(Boolean)
       const keyword = (searchForm.value.keyword || '').trim().toLowerCase()
       if (
         searchForm.value.categoryId &&
-        categoryId !== searchForm.value.categoryId
+        !categoryIds.includes(searchForm.value.categoryId)
       )
         return false
-      if (searchForm.value.modelId && row.modelId !== searchForm.value.modelId)
+      if (searchForm.value.modelId && !modelIds.includes(searchForm.value.modelId))
         return false
       if (
         searchForm.value.status &&
@@ -1023,8 +1032,8 @@
       const haystack = [
         firmware.versionCode,
         firmware.versionName,
-        row.model?.modelName,
-        row.model?.category?.name
+        row.modelNames?.join(' '),
+        row.categoryNames?.join(' ')
       ]
         .filter(Boolean)
         .join(' ')
@@ -1248,11 +1257,12 @@
   }
   const logActionLabel = (log) => {
     const row = relationRows.value.find(
-      (item) =>
-        item.firmwareId === log?.firmwareId &&
-        (!log?.modelId || item.modelId === log.modelId)
+      (item) => item.firmwareId === log?.firmwareId
     )
-    const modelName = log?.model?.modelName || row?.model?.modelName
+    const modelName =
+      log?.model?.modelName ||
+      row?.modelNames?.join('、') ||
+      row?.model?.modelName
     return (
       {
         upload: '上传固件',

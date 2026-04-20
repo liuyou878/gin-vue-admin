@@ -20,6 +20,11 @@ type ModelFirmwareRel struct {
 	Remark        string          `json:"remark" form:"remark" gorm:"column:remark;comment:备注;size:255"`                                                             // 备注
 	Model         DeviceModel     `json:"model" gorm:"foreignKey:ModelID"`                                                                                           // 型号信息
 	Firmware      FirmwareVersion `json:"firmware" gorm:"foreignKey:FirmwareID"`                                                                                     // 固件信息
+	ModelIDs      []uint          `json:"modelIds" gorm:"-"`
+	ModelNames    []string        `json:"modelNames" gorm:"-"`
+	CategoryIDs   []uint          `json:"categoryIds" gorm:"-"`
+	CategoryNames []string        `json:"categoryNames" gorm:"-"`
+	RelationIDs   []uint          `json:"relationIds" gorm:"-"`
 }
 
 // TableName 型号固件关系表
