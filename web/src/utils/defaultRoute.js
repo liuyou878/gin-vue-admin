@@ -51,8 +51,13 @@ export function findFirstAccessibleRouteName(routes) {
   return null
 }
 
-export function resolveDefaultRouterName(configuredDefaultRouter, routes) {
-  const routerName = String(configuredDefaultRouter || '')
+export function resolveDefaultRouterName(_configuredDefaultRouter, routes) {
+  const firstRouteName = findFirstAccessibleRouteName(routes)
+  if (firstRouteName) {
+    return firstRouteName
+  }
+
+  const routerName = String(_configuredDefaultRouter || '')
   if (routerName) {
     const matchedRoute = findRouteByName(routes, routerName)
     if (matchedRoute) {
@@ -60,5 +65,5 @@ export function resolveDefaultRouterName(configuredDefaultRouter, routes) {
     }
   }
 
-  return findFirstAccessibleRouteName(routes)
+  return null
 }

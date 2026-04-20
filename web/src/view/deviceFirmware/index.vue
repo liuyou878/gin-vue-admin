@@ -86,17 +86,6 @@
             </el-tag>
           </template>
         </el-table-column>
-        <!-- <el-table-column label="排序/代际" min-width="120">
-          <template #default="scope">
-            {{
-              scope.row.nodeType === 'category'
-                ? scope.row.sort
-                : scope.row.nodeType === 'model'
-                  ? (scope.row.generation || '-')
-              : (scope.row.isRecommended ? '当前推荐' : '-')
-            }}
-          </template>
-        </el-table-column> -->
         <el-table-column label="备注" min-width="220" show-overflow-tooltip>
           <template #default="scope">
             {{
@@ -130,13 +119,6 @@
               >
             </template>
             <template v-else-if="scope.row.nodeType === 'model'">
-              <el-button
-                type="primary"
-                link
-                icon="plus"
-                @click="openFirmwareDialog(null, scope.row)"
-                >添加固件</el-button
-              >
               <el-button
                 type="primary"
                 link
@@ -207,9 +189,6 @@
         <el-form-item label="型号名称" prop="modelName">
           <el-input v-model="modelForm.modelName" />
         </el-form-item>
-        <el-form-item label="代际" prop="generation">
-          <el-input v-model="modelForm.generation" />
-        </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="modelForm.status">
             <el-radio :value="1">启用</el-radio>
@@ -217,7 +196,12 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="备注" prop="remark">
-          <el-input v-model="modelForm.remark" type="textarea" :rows="3" />
+          <el-input
+            v-model="modelForm.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="可选"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -564,7 +548,6 @@
     modelCode: '',
     modelName: '',
     seriesName: '',
-    generation: '',
     status: 1,
     remark: ''
   })
@@ -623,9 +606,7 @@
   const modelRules = {
     categoryId: [requiredRule('请选择设备类别')],
     modelName: [requiredRule('请输入型号名称')],
-    generation: [requiredRule('请填写代际')],
-    status: [requiredRule('请选择状态')],
-    remark: [requiredRule('请填写备注')]
+    status: [requiredRule('请选择状态')]
   }
   const firmwareRules = {
     versionCode: [requiredRule('请输入版本号')],
@@ -966,7 +947,6 @@
         modelCode: '',
         modelName: '',
         seriesName: '',
-        generation: '',
         status: 1,
         remark: ''
       }
