@@ -8,9 +8,10 @@ import (
 type FirmwareVersionRouter struct{}
 
 // InitFirmwareVersionRouter 初始化固件版本路由
-func (r *FirmwareVersionRouter) InitFirmwareVersionRouter(Router *gin.RouterGroup) {
-	firmwareVersionRouter := Router.Group("firmwareVersion").Use(middleware.OperationRecord())
-	firmwareVersionRouterWithoutRecord := Router.Group("firmwareVersion")
+func (r *FirmwareVersionRouter) InitFirmwareVersionRouter(PrivateRouter *gin.RouterGroup, PublicRouter *gin.RouterGroup) {
+	firmwareVersionRouter := PrivateRouter.Group("firmwareVersion").Use(middleware.OperationRecord())
+	firmwareVersionRouterWithoutRecord := PrivateRouter.Group("firmwareVersion")
+	publicFirmwareVersionRouter := PublicRouter.Group("firmwareVersion")
 	{
 		firmwareVersionRouter.POST("createFirmwareVersion", firmwareVersionApi.CreateFirmwareVersion)             // 创建固件版本
 		firmwareVersionRouter.DELETE("deleteFirmwareVersion", firmwareVersionApi.DeleteFirmwareVersion)           // 删除固件版本
@@ -27,5 +28,8 @@ func (r *FirmwareVersionRouter) InitFirmwareVersionRouter(Router *gin.RouterGrou
 	{
 		firmwareVersionRouterWithoutRecord.GET("findFirmwareVersion", firmwareVersionApi.FindFirmwareVersion)       // 获取固件版本详情
 		firmwareVersionRouterWithoutRecord.GET("getFirmwareVersionList", firmwareVersionApi.GetFirmwareVersionList) // 获取固件版本列表
+	}
+	{
+		publicFirmwareVersionRouter.GET("downloadFirmwarePackage", firmwareVersionApi.DownloadFirmwarePackage) // 下载固件包
 	}
 }

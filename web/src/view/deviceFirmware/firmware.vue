@@ -776,7 +776,6 @@
   import { deleteFile } from '@/api/fileUploadAndDownload'
   import { getUserList } from '@/api/user'
   import { formatDate, getBaseUrl } from '@/utils/format'
-  import { getUrl } from '@/utils/image'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
@@ -1915,34 +1914,29 @@
     const { href } = router.resolve({ name: 'PublicFirmwareDownload' })
     window.open(href, '_blank', 'noopener,noreferrer')
   }
-  const downloadPackageFromUrl = (url, fallbackName) => {
-    if (!url) {
+  const triggerIframeDownload = (downloadUrl) => {
+    if (!downloadUrl) {
       ElMessage.warning('当前没有可下载的安装包')
       return
     }
-    const link = document.createElement('a')
-    link.href = getUrl(url)
-    link.rel = 'noopener noreferrer'
-    link.style.display = 'none'
-    if (fallbackName) {
-      link.download = fallbackName
-    }
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
+    const iframe = document.createElement('iframe')
+    iframe.style.display = 'none'
+    iframe.referrerPolicy = 'no-referrer'
+    iframe.src = downloadUrl
+    document.body.appendChild(iframe)
+    window.setTimeout(() => {
+      iframe.remove()
+    }, 60000)
     ElMessage.info('已发起下载，请查看浏览器下载列表')
   }
   const downloadPackage = (row) => {
     const firmware = firmwareOf(row)
-    const url = firmware.packageUrl
-    if (!url) {
-      ElMessage.warning('当前固件还没有安装包地址')
+    if (!firmware?.ID) {
+      ElMessage.warning('未找到可下载的固件记录')
       return
     }
-    downloadPackageFromUrl(
-      url,
-      firmware.packageName ||
-        `${firmware.versionCode || firmware.versionName || 'firmware'}.bin`
+    triggerIframeDownload(
+      `${getBaseUrl()}/firmwareVersion/downloadFirmwarePackage?firmwareId=${firmware.ID}`
     )
   }
   const packageHistoryActions = new Set(['upload', 'fix_upload'])
@@ -1960,15 +1954,12 @@
     return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`
   }
   const downloadPackageByRow = (row) => {
-    const url = timelinePackageUrl(row)
-    if (!url) {
-      ElMessage.warning('当前安装包没有可下载地址')
+    if (!row?.ID) {
+      ElMessage.warning('未找到可下载的安装包记录')
       return
     }
-    downloadPackageFromUrl(
-      url,
-      timelinePackageName(row) ||
-        `${logActionLabel(row) || 'firmware'}.bin`
+    triggerIframeDownload(
+      `${getBaseUrl()}/firmwareVersionLog/downloadFirmwareLogPackage?logId=${row.ID}`
     )
   }
 

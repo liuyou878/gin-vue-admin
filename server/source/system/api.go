@@ -288,6 +288,7 @@ func (i *initApi) InitializeData(ctx context.Context) (context.Context, error) {
 		{ApiGroup: "设备固件-固件版本", Method: "POST", Path: "/firmwareVersion/onShelfFirmwareVersion", Description: "上架固件版本"},
 		{ApiGroup: "设备固件-固件版本", Method: "POST", Path: "/firmwareVersion/removeFirmwareVersion", Description: "移除已下架固件版本"},
 		{ApiGroup: "设备固件-固件版本", Method: "POST", Path: "/firmwareVersion/deleteFirmwarePackage", Description: "删除固件包"},
+		{ApiGroup: "设备固件-固件版本", Method: "GET", Path: "/firmwareVersion/downloadFirmwarePackage", Description: "下载固件包"},
 
 		{ApiGroup: "设备固件-型号关系", Method: "POST", Path: "/modelFirmware/createModelFirmwareRel", Description: "创建型号固件关系"},
 		{ApiGroup: "设备固件-型号关系", Method: "DELETE", Path: "/modelFirmware/deleteModelFirmwareRel", Description: "删除型号固件关系"},
@@ -308,6 +309,8 @@ func (i *initApi) InitializeData(ctx context.Context) (context.Context, error) {
 
 		{ApiGroup: "设备固件-日志", Method: "GET", Path: "/firmwareVersionLog/findFirmwareVersionLog", Description: "获取固件日志详情"},
 		{ApiGroup: "设备固件-日志", Method: "GET", Path: "/firmwareVersionLog/getFirmwareVersionLogList", Description: "获取固件日志列表"},
+		{ApiGroup: "设备固件-日志", Method: "GET", Path: "/firmwareVersionLog/downloadFirmwareLogPackage", Description: "下载固件日志包"},
+		{ApiGroup: "设备固件-公开下载", Method: "GET", Path: "/firmwarePublic/downloadFirmwarePackage", Description: "公开下载固件包"},
 	}
 	if err := db.Create(&entities).Error; err != nil {
 		return ctx, errors.Wrap(err, sysModel.SysApi{}.TableName()+"表数据初始化失败!")

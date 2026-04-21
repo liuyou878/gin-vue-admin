@@ -80,36 +80,36 @@ func Routers() *gin.Engine {
 	}
 
 	{
-		systemRouter.InitApiRouter(PrivateGroup, PublicGroup)               // 注册功能api路由
-		systemRouter.InitJwtRouter(PrivateGroup)                            // jwt相关路由
-		systemRouter.InitUserRouter(PrivateGroup)                           // 注册用户路由
-		systemRouter.InitMenuRouter(PrivateGroup)                           // 注册menu路由
-		systemRouter.InitSystemRouter(PrivateGroup)                         // system相关路由
-		systemRouter.InitSysVersionRouter(PrivateGroup)                     // 发版相关路由
-		systemRouter.InitCasbinRouter(PrivateGroup)                         // 权限相关路由
-		systemRouter.InitAutoCodeRouter(PrivateGroup, PublicGroup)          // 创建自动化代码
-		systemRouter.InitAuthorityRouter(PrivateGroup)                      // 注册角色路由
-		systemRouter.InitSysDictionaryRouter(PrivateGroup)                  // 字典管理
-		systemRouter.InitAutoCodeHistoryRouter(PrivateGroup)                // 自动化代码历史
-		systemRouter.InitSysOperationRecordRouter(PrivateGroup)             // 操作记录
-		systemRouter.InitSysDictionaryDetailRouter(PrivateGroup)            // 字典详情管理
-		systemRouter.InitAuthorityBtnRouterRouter(PrivateGroup)             // 按钮权限管理
-		systemRouter.InitSysExportTemplateRouter(PrivateGroup, PublicGroup) // 导出模板
-		systemRouter.InitSysParamsRouter(PrivateGroup, PublicGroup)         // 参数管理
-		systemRouter.InitSysErrorRouter(PrivateGroup, PublicGroup)          // 错误日志
-		systemRouter.InitLoginLogRouter(PrivateGroup)                       // 登录日志
-		systemRouter.InitApiTokenRouter(PrivateGroup)                       // apiToken签发
-		systemRouter.InitSkillsRouter(PrivateGroup, PublicGroup)            // Skills 定义器
-		deviceRouter.InitDeviceCategoryRouter(PrivateGroup)                 // 设备类别路由
-		deviceRouter.InitDeviceModelRouter(PrivateGroup)                    // 设备型号路由
-		deviceRouter.InitFirmwareVersionRouter(PrivateGroup)                // 固件版本路由
-		deviceRouter.InitModelFirmwareRelRouter(PrivateGroup)               // 型号固件关系路由
-		deviceRouter.InitFirmwareTagRouter(PrivateGroup)                    // 固件标签路由
-		deviceRouter.InitFirmwareVersionLogRouter(PrivateGroup)             // 固件日志路由
-		deviceRouter.InitPublicFirmwareDownloadRouter(PublicGroup)          // 公开固件下载路由
-		exampleRouter.InitCustomerRouter(PrivateGroup)                      // 客户路由
-		exampleRouter.InitFileUploadAndDownloadRouter(PrivateGroup)         // 文件上传下载功能路由
-		exampleRouter.InitAttachmentCategoryRouterRouter(PrivateGroup)      // 文件上传下载分类
+		systemRouter.InitApiRouter(PrivateGroup, PublicGroup)                // 注册功能api路由
+		systemRouter.InitJwtRouter(PrivateGroup)                             // jwt相关路由
+		systemRouter.InitUserRouter(PrivateGroup)                            // 注册用户路由
+		systemRouter.InitMenuRouter(PrivateGroup)                            // 注册menu路由
+		systemRouter.InitSystemRouter(PrivateGroup)                          // system相关路由
+		systemRouter.InitSysVersionRouter(PrivateGroup)                      // 发版相关路由
+		systemRouter.InitCasbinRouter(PrivateGroup)                          // 权限相关路由
+		systemRouter.InitAutoCodeRouter(PrivateGroup, PublicGroup)           // 创建自动化代码
+		systemRouter.InitAuthorityRouter(PrivateGroup)                       // 注册角色路由
+		systemRouter.InitSysDictionaryRouter(PrivateGroup)                   // 字典管理
+		systemRouter.InitAutoCodeHistoryRouter(PrivateGroup)                 // 自动化代码历史
+		systemRouter.InitSysOperationRecordRouter(PrivateGroup)              // 操作记录
+		systemRouter.InitSysDictionaryDetailRouter(PrivateGroup)             // 字典详情管理
+		systemRouter.InitAuthorityBtnRouterRouter(PrivateGroup)              // 按钮权限管理
+		systemRouter.InitSysExportTemplateRouter(PrivateGroup, PublicGroup)  // 导出模板
+		systemRouter.InitSysParamsRouter(PrivateGroup, PublicGroup)          // 参数管理
+		systemRouter.InitSysErrorRouter(PrivateGroup, PublicGroup)           // 错误日志
+		systemRouter.InitLoginLogRouter(PrivateGroup)                        // 登录日志
+		systemRouter.InitApiTokenRouter(PrivateGroup)                        // apiToken签发
+		systemRouter.InitSkillsRouter(PrivateGroup, PublicGroup)             // Skills 定义器
+		deviceRouter.InitDeviceCategoryRouter(PrivateGroup)                  // 设备类别路由
+		deviceRouter.InitDeviceModelRouter(PrivateGroup)                     // 设备型号路由
+		deviceRouter.InitFirmwareVersionRouter(PrivateGroup, PublicGroup)    // 固件版本路由
+		deviceRouter.InitModelFirmwareRelRouter(PrivateGroup)                // 型号固件关系路由
+		deviceRouter.InitFirmwareTagRouter(PrivateGroup)                     // 固件标签路由
+		deviceRouter.InitFirmwareVersionLogRouter(PrivateGroup, PublicGroup) // 固件日志路由
+		deviceRouter.InitPublicFirmwareDownloadRouter(PublicGroup)           // 公开固件下载路由
+		exampleRouter.InitCustomerRouter(PrivateGroup)                       // 客户路由
+		exampleRouter.InitFileUploadAndDownloadRouter(PrivateGroup)          // 文件上传下载功能路由
+		exampleRouter.InitAttachmentCategoryRouterRouter(PrivateGroup)       // 文件上传下载分类
 	}
 
 	//插件路由安装

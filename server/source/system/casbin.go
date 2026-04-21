@@ -286,6 +286,7 @@ func (i *initCasbin) InitializeData(ctx context.Context) (context.Context, error
 		{Ptype: "p", V0: "888", V1: "/firmwareVersion/onShelfFirmwareVersion", V2: "POST"},
 		{Ptype: "p", V0: "888", V1: "/firmwareVersion/removeFirmwareVersion", V2: "POST"},
 		{Ptype: "p", V0: "888", V1: "/firmwareVersion/deleteFirmwarePackage", V2: "POST"},
+		{Ptype: "p", V0: "888", V1: "/firmwareVersion/downloadFirmwarePackage", V2: "GET"},
 		{Ptype: "p", V0: "888", V1: "/modelFirmware/createModelFirmwareRel", V2: "POST"},
 		{Ptype: "p", V0: "888", V1: "/modelFirmware/deleteModelFirmwareRel", V2: "DELETE"},
 		{Ptype: "p", V0: "888", V1: "/modelFirmware/deleteModelFirmwareRelByIds", V2: "DELETE"},
@@ -303,6 +304,7 @@ func (i *initCasbin) InitializeData(ctx context.Context) (context.Context, error
 		{Ptype: "p", V0: "888", V1: "/firmwareTag/setFirmwareTags", V2: "POST"},
 		{Ptype: "p", V0: "888", V1: "/firmwareVersionLog/findFirmwareVersionLog", V2: "GET"},
 		{Ptype: "p", V0: "888", V1: "/firmwareVersionLog/getFirmwareVersionLogList", V2: "GET"},
+		{Ptype: "p", V0: "888", V1: "/firmwareVersionLog/downloadFirmwareLogPackage", V2: "GET"},
 
 		{Ptype: "p", V0: "8881", V1: "/user/admin_register", V2: "POST"},
 		{Ptype: "p", V0: "8881", V1: "/api/createApi", V2: "POST"},
@@ -374,6 +376,7 @@ func (i *initCasbin) InitializeData(ctx context.Context) (context.Context, error
 		{Ptype: "p", V0: "8881", V1: "/firmwareVersion/onShelfFirmwareVersion", V2: "POST"},
 		{Ptype: "p", V0: "8881", V1: "/firmwareVersion/removeFirmwareVersion", V2: "POST"},
 		{Ptype: "p", V0: "8881", V1: "/firmwareVersion/deleteFirmwarePackage", V2: "POST"},
+		{Ptype: "p", V0: "8881", V1: "/firmwareVersion/downloadFirmwarePackage", V2: "GET"},
 		{Ptype: "p", V0: "8881", V1: "/modelFirmware/createModelFirmwareRel", V2: "POST"},
 		{Ptype: "p", V0: "8881", V1: "/modelFirmware/deleteModelFirmwareRel", V2: "DELETE"},
 		{Ptype: "p", V0: "8881", V1: "/modelFirmware/deleteModelFirmwareRelByIds", V2: "DELETE"},
@@ -391,6 +394,7 @@ func (i *initCasbin) InitializeData(ctx context.Context) (context.Context, error
 		{Ptype: "p", V0: "8881", V1: "/firmwareTag/setFirmwareTags", V2: "POST"},
 		{Ptype: "p", V0: "8881", V1: "/firmwareVersionLog/findFirmwareVersionLog", V2: "GET"},
 		{Ptype: "p", V0: "8881", V1: "/firmwareVersionLog/getFirmwareVersionLogList", V2: "GET"},
+		{Ptype: "p", V0: "8881", V1: "/firmwareVersionLog/downloadFirmwareLogPackage", V2: "GET"},
 
 		{Ptype: "p", V0: "9528", V1: "/user/admin_register", V2: "POST"},
 		{Ptype: "p", V0: "9528", V1: "/api/createApi", V2: "POST"},
@@ -474,6 +478,7 @@ func (i *initCasbin) InitializeData(ctx context.Context) (context.Context, error
 		{Ptype: "p", V0: "9528", V1: "/firmwareVersion/onShelfFirmwareVersion", V2: "POST"},
 		{Ptype: "p", V0: "9528", V1: "/firmwareVersion/removeFirmwareVersion", V2: "POST"},
 		{Ptype: "p", V0: "9528", V1: "/firmwareVersion/deleteFirmwarePackage", V2: "POST"},
+		{Ptype: "p", V0: "9528", V1: "/firmwareVersion/downloadFirmwarePackage", V2: "GET"},
 		{Ptype: "p", V0: "9528", V1: "/modelFirmware/createModelFirmwareRel", V2: "POST"},
 		{Ptype: "p", V0: "9528", V1: "/modelFirmware/deleteModelFirmwareRel", V2: "DELETE"},
 		{Ptype: "p", V0: "9528", V1: "/modelFirmware/deleteModelFirmwareRelByIds", V2: "DELETE"},
@@ -491,6 +496,7 @@ func (i *initCasbin) InitializeData(ctx context.Context) (context.Context, error
 		{Ptype: "p", V0: "9528", V1: "/firmwareTag/setFirmwareTags", V2: "POST"},
 		{Ptype: "p", V0: "9528", V1: "/firmwareVersionLog/findFirmwareVersionLog", V2: "GET"},
 		{Ptype: "p", V0: "9528", V1: "/firmwareVersionLog/getFirmwareVersionLogList", V2: "GET"},
+		{Ptype: "p", V0: "9528", V1: "/firmwareVersionLog/downloadFirmwareLogPackage", V2: "GET"},
 	}
 	if err := db.Create(&entities).Error; err != nil {
 		return ctx, errors.Wrap(err, "Casbin 表 ("+i.InitializerName()+") 数据初始化失败!")

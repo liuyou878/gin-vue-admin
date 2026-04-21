@@ -158,7 +158,7 @@
   import { useRoute, useRouter } from 'vue-router'
   import { ElMessage } from 'element-plus'
   import { formatDate } from '@/utils/format'
-  import { getUrl } from '@/utils/image'
+  import { getBaseUrl } from '@/utils/format'
   import { getPublicFirmwareDownloadPage } from '@/api/publicFirmware'
 
   defineOptions({
@@ -294,21 +294,19 @@
   const downloadable = (item) => !!item?.firmware?.packageUrl
 
   const downloadVersion = (item) => {
-    const url = item?.firmware?.packageUrl
-    if (!url) {
+    const firmwareId = Number(item?.firmware?.ID || 0)
+    if (!firmwareId) {
       ElMessage.warning('当前上传包没有可下载的安装包')
       return
     }
-    const link = document.createElement('a')
-    link.href = getUrl(url)
-    link.rel = 'noopener noreferrer'
-    link.style.display = 'none'
-    if (item?.firmware?.packageName) {
-      link.download = item.firmware.packageName
-    }
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
+    const iframe = document.createElement('iframe')
+    iframe.style.display = 'none'
+    iframe.referrerPolicy = 'no-referrer'
+    iframe.src = `${getBaseUrl()}/firmwarePublic/downloadFirmwarePackage?firmwareId=${firmwareId}`
+    document.body.appendChild(iframe)
+    window.setTimeout(() => {
+      iframe.remove()
+    }, 60000)
     ElMessage.info('已发起下载，请查看浏览器下载列表')
   }
 

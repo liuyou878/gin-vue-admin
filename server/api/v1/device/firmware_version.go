@@ -1,6 +1,8 @@
 package device
 
 import (
+	"net/http"
+
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	commonReq "github.com/flipped-aurora/gin-vue-admin/server/model/common/request"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/common/response"
@@ -99,6 +101,33 @@ func (a *FirmwareVersionApi) GetFirmwareVersionList(c *gin.Context) {
 		Page:     pageInfo.Page,
 		PageSize: pageInfo.PageSize,
 	}, "获取成功", c)
+}
+
+// DownloadFirmwarePackage 下载固件当前安装包
+func (a *FirmwareVersionApi) DownloadFirmwarePackage(c *gin.Context) {
+	var req deviceReq.DownloadFirmwarePackageRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if req.FirmwareID == 0 {
+		response.FailWithMessage("固件版本ID不能为空", c)
+		return
+	}
+	download, err := firmwareVersionService.OpenFirmwarePackageDownload(req.FirmwareID)
+	if err != nil {
+		global.GVA_LOG.Error("下载固件包失败!", zap.Error(err))
+		response.FailWithMessage("下载固件包失败:"+err.Error(), c)
+		return
+	}
+	defer download.Close()
+
+	c.Header("Content-Disposition", buildAttachmentDisposition(download.FileName))
+	c.Header("Content-Type", download.ContentType)
+	if download.Size > 0 {
+		c.Header("Content-Length", int64ToString(download.Size))
+	}
+	c.DataFromReader(http.StatusOK, download.Size, download.ContentType, download.Reader, nil)
 }
 
 // ChangeFirmwareVersionStatus 更新固件版本状态

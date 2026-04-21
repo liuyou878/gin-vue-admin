@@ -12,5 +12,9 @@ func (r *PublicFirmwareDownloadRouter) InitPublicFirmwareDownloadRouter(Router *
 			"getPublicFirmwareDownloadPage",
 			publicFirmwareApi.GetPublicFirmwareDownloadPage,
 		)
+		publicFirmwareRouter.GET(
+			"downloadFirmwarePackage",
+			publicFirmwareApi.DownloadFirmwarePackage,
+		)
 	}
 }

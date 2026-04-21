@@ -60,6 +60,14 @@ type PublicFirmwareDownloadSearch struct {
 	ModelID    uint `json:"modelId" form:"modelId"`       // 设备型号ID
 }
 
+type DownloadFirmwarePackageRequest struct {
+	FirmwareID uint `json:"firmwareId" form:"firmwareId"` // 固件版本ID
+}
+
+type DownloadFirmwareLogPackageRequest struct {
+	LogID uint `json:"logId" form:"logId"` // 固件日志ID
+}
+
 type SetFirmwareTagsRequest struct {
 	FirmwareID uint   `json:"firmwareId" binding:"required"` // 固件版本ID
 	TagIDs     []uint `json:"tagIds" binding:"required"`     // 标签ID列表

@@ -1,9 +1,16 @@
 package device
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"html"
+	"io"
+	"mime"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -18,6 +25,7 @@ import (
 	exampleModel "github.com/flipped-aurora/gin-vue-admin/server/model/example"
 	emailUtils "github.com/flipped-aurora/gin-vue-admin/server/plugin/email/utils"
 	"github.com/flipped-aurora/gin-vue-admin/server/utils/upload"
+	"github.com/minio/minio-go/v7"
 	"gorm.io/gorm"
 )
 
@@ -1047,6 +1055,212 @@ func resolveFirmwareLogPackageFile(tx *gorm.DB, log deviceModel.FirmwareVersionL
 		}
 	}
 	return exampleModel.ExaFileUploadAndDownload{}, errors.New("未找到安装包文件记录")
+}
+
+type firmwarePackageDownload struct {
+	Reader      io.ReadCloser
+	Size        int64
+	ContentType string
+	FileName    string
+}
+
+func (d *firmwarePackageDownload) Close() error {
+	if d == nil || d.Reader == nil {
+		return nil
+	}
+	return d.Reader.Close()
+}
+
+func (s *FirmwareVersionService) OpenFirmwarePackageDownload(firmwareID uint) (*firmwarePackageDownload, error) {
+	var firmware deviceModel.FirmwareVersion
+	if err := global.GVA_DB.Where("id = ?", firmwareID).First(&firmware).Error; err != nil {
+		return nil, err
+	}
+	return openFirmwarePackageDownload(global.GVA_DB, firmware)
+}
+
+func (s *FirmwareVersionService) OpenPublicFirmwarePackageDownload(firmwareID uint) (*firmwarePackageDownload, error) {
+	var firmware deviceModel.FirmwareVersion
+	if err := global.GVA_DB.Where("id = ?", firmwareID).First(&firmware).Error; err != nil {
+		return nil, err
+	}
+	if firmware.PublishStatus != "published" {
+		return nil, errors.New("只有已发布固件支持公开下载")
+	}
+	return openFirmwarePackageDownload(global.GVA_DB, firmware)
+}
+
+func (s *FirmwareVersionService) OpenFirmwareLogPackageDownload(logID uint) (*firmwarePackageDownload, error) {
+	var log deviceModel.FirmwareVersionLog
+	if err := global.GVA_DB.Where("id = ?", logID).First(&log).Error; err != nil {
+		return nil, err
+	}
+	return openFirmwareLogPackageDownload(global.GVA_DB, log)
+}
+
+func openFirmwarePackageDownload(tx *gorm.DB, firmware deviceModel.FirmwareVersion) (*firmwarePackageDownload, error) {
+	fileRecord, err := resolveFirmwarePackageFile(tx, firmware)
+	if err != nil {
+		return nil, err
+	}
+	fileName := strings.TrimSpace(firmware.PackageName)
+	if fileName == "" {
+		fileName = strings.TrimSpace(fileRecord.Name)
+	}
+	return openFileRecordDownload(fileRecord, firmware.PackageURL, fileName)
+}
+
+func openFirmwareLogPackageDownload(tx *gorm.DB, log deviceModel.FirmwareVersionLog) (*firmwarePackageDownload, error) {
+	fileRecord, err := resolveFirmwareLogPackageFile(tx, log)
+	if err != nil {
+		return nil, err
+	}
+	fileName := strings.TrimSpace(log.PackageName)
+	if fileName == "" {
+		fileName = strings.TrimSpace(fileRecord.Name)
+	}
+	return openFileRecordDownload(fileRecord, log.PackageURL, fileName)
+}
+
+func openFileRecordDownload(fileRecord exampleModel.ExaFileUploadAndDownload, fallbackURL, fallbackName string) (*firmwarePackageDownload, error) {
+	switch global.GVA_CONFIG.System.OssType {
+	case "local":
+		return openLocalPackageDownload(fileRecord, fallbackName)
+	case "minio":
+		if download, err := openMinioPackageDownload(fileRecord, fallbackName); err == nil {
+			return download, nil
+		}
+	}
+	download, err := openHTTPPackageDownload(strings.TrimSpace(fileRecord.Url), strings.TrimSpace(fileRecord.Name))
+	if err == nil {
+		if strings.TrimSpace(fallbackName) != "" {
+			download.FileName = strings.TrimSpace(fallbackName)
+		}
+		return download, nil
+	}
+	if strings.TrimSpace(fallbackURL) != "" {
+		return openHTTPPackageDownload(strings.TrimSpace(fallbackURL), fallbackName)
+	}
+	return nil, err
+}
+
+func openLocalPackageDownload(fileRecord exampleModel.ExaFileUploadAndDownload, fallbackName string) (*firmwarePackageDownload, error) {
+	key := strings.TrimSpace(fileRecord.Key)
+	if key == "" {
+		key = filepath.Base(strings.TrimSpace(fileRecord.Url))
+	}
+	if key == "" {
+		return nil, errors.New("未找到本地文件路径")
+	}
+	fullPath := filepath.Join(global.GVA_CONFIG.Local.StorePath, key)
+	file, err := os.Open(fullPath)
+	if err != nil {
+		return nil, err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return nil, err
+	}
+	fileName := strings.TrimSpace(fallbackName)
+	if fileName == "" {
+		fileName = strings.TrimSpace(fileRecord.Name)
+	}
+	contentType := mime.TypeByExtension(strings.ToLower(filepath.Ext(fileName)))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	return &firmwarePackageDownload{
+		Reader:      file,
+		Size:        info.Size(),
+		ContentType: contentType,
+		FileName:    fileName,
+	}, nil
+}
+
+func openMinioPackageDownload(fileRecord exampleModel.ExaFileUploadAndDownload, fallbackName string) (*firmwarePackageDownload, error) {
+	key := strings.TrimSpace(fileRecord.Key)
+	if key == "" {
+		return nil, errors.New("未找到 MinIO 文件键")
+	}
+	client, err := upload.GetMinio(
+		global.GVA_CONFIG.Minio.Endpoint,
+		global.GVA_CONFIG.Minio.AccessKeyId,
+		global.GVA_CONFIG.Minio.AccessKeySecret,
+		global.GVA_CONFIG.Minio.BucketName,
+		global.GVA_CONFIG.Minio.UseSSL,
+	)
+	if err != nil {
+		return nil, err
+	}
+	object, err := client.Client.GetObject(
+		context.Background(),
+		global.GVA_CONFIG.Minio.BucketName,
+		key,
+		minio.GetObjectOptions{},
+	)
+	if err != nil {
+		return nil, err
+	}
+	stat, err := object.Stat()
+	if err != nil {
+		object.Close()
+		return nil, err
+	}
+	fileName := strings.TrimSpace(fallbackName)
+	if fileName == "" {
+		fileName = strings.TrimSpace(fileRecord.Name)
+	}
+	contentType := strings.TrimSpace(stat.ContentType)
+	if contentType == "" {
+		contentType = mime.TypeByExtension(strings.ToLower(filepath.Ext(fileName)))
+	}
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	return &firmwarePackageDownload{
+		Reader:      object,
+		Size:        stat.Size,
+		ContentType: contentType,
+		FileName:    fileName,
+	}, nil
+}
+
+func openHTTPPackageDownload(rawURL, fallbackName string) (*firmwarePackageDownload, error) {
+	if strings.TrimSpace(rawURL) == "" {
+		return nil, errors.New("未找到文件下载地址")
+	}
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		resp.Body.Close()
+		return nil, fmt.Errorf("下载文件失败, HTTP状态码: %d", resp.StatusCode)
+	}
+	fileName := strings.TrimSpace(fallbackName)
+	if fileName == "" {
+		if parsedURL, parseErr := url.Parse(rawURL); parseErr == nil {
+			fileName = filepath.Base(parsedURL.Path)
+		}
+	}
+	contentType := strings.TrimSpace(resp.Header.Get("Content-Type"))
+	if contentType == "" {
+		contentType = mime.TypeByExtension(strings.ToLower(filepath.Ext(fileName)))
+	}
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	return &firmwarePackageDownload{
+		Reader:      resp.Body,
+		Size:        resp.ContentLength,
+		ContentType: contentType,
+		FileName:    fileName,
+	}, nil
 }
 
 // GetPublicFirmwareDownloadPage 获取公开固件下载页数据
