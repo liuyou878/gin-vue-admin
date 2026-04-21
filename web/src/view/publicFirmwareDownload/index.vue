@@ -299,14 +299,16 @@
       ElMessage.warning('当前上传包没有可下载的安装包')
       return
     }
-    const iframe = document.createElement('iframe')
-    iframe.style.display = 'none'
-    iframe.referrerPolicy = 'no-referrer'
-    iframe.src = `${getBaseUrl()}/firmwarePublic/downloadFirmwarePackage?firmwareId=${firmwareId}`
-    document.body.appendChild(iframe)
+    const anchor = document.createElement('a')
+    anchor.style.display = 'none'
+    anchor.href = `${getBaseUrl()}/firmwarePublic/downloadFirmwarePackage?firmwareId=${firmwareId}`
+    anchor.rel = 'noopener noreferrer'
+    anchor.setAttribute('download', '')
+    document.body.appendChild(anchor)
+    anchor.click()
     window.setTimeout(() => {
-      iframe.remove()
-    }, 60000)
+      anchor.remove()
+    }, 0)
     ElMessage.info('已发起下载，请查看浏览器下载列表')
   }
 

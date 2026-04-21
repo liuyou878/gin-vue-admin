@@ -1914,19 +1914,21 @@
     const { href } = router.resolve({ name: 'PublicFirmwareDownload' })
     window.open(href, '_blank', 'noopener,noreferrer')
   }
-  const triggerIframeDownload = (downloadUrl) => {
+  const triggerBrowserDownload = (downloadUrl) => {
     if (!downloadUrl) {
       ElMessage.warning('当前没有可下载的安装包')
       return
     }
-    const iframe = document.createElement('iframe')
-    iframe.style.display = 'none'
-    iframe.referrerPolicy = 'no-referrer'
-    iframe.src = downloadUrl
-    document.body.appendChild(iframe)
+    const anchor = document.createElement('a')
+    anchor.style.display = 'none'
+    anchor.href = downloadUrl
+    anchor.rel = 'noopener noreferrer'
+    anchor.setAttribute('download', '')
+    document.body.appendChild(anchor)
+    anchor.click()
     window.setTimeout(() => {
-      iframe.remove()
-    }, 60000)
+      anchor.remove()
+    }, 0)
     ElMessage.info('已发起下载，请查看浏览器下载列表')
   }
   const downloadPackage = (row) => {
@@ -1935,7 +1937,7 @@
       ElMessage.warning('未找到可下载的固件记录')
       return
     }
-    triggerIframeDownload(
+    triggerBrowserDownload(
       `${getBaseUrl()}/firmwareVersion/downloadFirmwarePackage?firmwareId=${firmware.ID}`
     )
   }
@@ -1958,7 +1960,7 @@
       ElMessage.warning('未找到可下载的安装包记录')
       return
     }
-    triggerIframeDownload(
+    triggerBrowserDownload(
       `${getBaseUrl()}/firmwareVersionLog/downloadFirmwareLogPackage?logId=${row.ID}`
     )
   }
