@@ -52,17 +52,17 @@ export function findFirstAccessibleRouteName(routes) {
 }
 
 export function resolveDefaultRouterName(_configuredDefaultRouter, routes) {
-  const firstRouteName = findFirstAccessibleRouteName(routes)
-  if (firstRouteName) {
-    return firstRouteName
-  }
-
   const routerName = String(_configuredDefaultRouter || '')
   if (routerName) {
     const matchedRoute = findRouteByName(routes, routerName)
     if (matchedRoute) {
       return routerName
     }
+  }
+
+  const firstRouteName = findFirstAccessibleRouteName(routes)
+  if (firstRouteName) {
+    return firstRouteName
   }
 
   return null

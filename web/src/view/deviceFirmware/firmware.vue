@@ -191,14 +191,19 @@
         <el-table-column label="操作" min-width="300" fixed="right">
           <template #default="scope">
             <el-button
-              v-if="firmwareOf(scope.row).publishStatus !== 'voided' && btnAuth.edit"
+              v-if="
+                firmwareOf(scope.row).publishStatus !== 'voided' && btnAuth.edit
+              "
               type="info"
               link
               @click="openFirmwareDialog(scope.row)"
               >编辑信息</el-button
             >
             <el-button
-              v-if="canEditFirmwarePackage(firmwareOf(scope.row)) && btnAuth.updatePackage"
+              v-if="
+                canEditFirmwarePackage(firmwareOf(scope.row)) &&
+                btnAuth.updatePackage
+              "
               type="warning"
               link
               @click="openPackageUpdateDialog(scope.row)"
@@ -212,7 +217,10 @@
               >开始测试</el-button
             >
             <el-button
-              v-if="canSubmitTestResult(firmwareOf(scope.row)) && btnAuth.submitTestResult"
+              v-if="
+                canSubmitTestResult(firmwareOf(scope.row)) &&
+                btnAuth.submitTestResult
+              "
               type="success"
               link
               @click="openTestResultDialog(scope.row)"
@@ -233,7 +241,10 @@
               >发布</el-button
             >
             <el-button
-              v-if="canSetCurrentRelease(firmwareOf(scope.row)) && btnAuth.setRecommended"
+              v-if="
+                canSetCurrentRelease(firmwareOf(scope.row)) &&
+                btnAuth.setRecommended
+              "
               type="success"
               link
               @click="setCurrentRelease(scope.row)"
@@ -261,16 +272,27 @@
               >移除</el-button
             >
             <el-button
-              v-if="canDeleteRelation(firmwareOf(scope.row)) && btnAuth.deleteRelation"
+              v-if="
+                canDeleteRelation(firmwareOf(scope.row)) &&
+                btnAuth.deleteRelation
+              "
               type="danger"
               link
               @click="deleteRelation(scope.row)"
               >移除</el-button
             >
-            <el-button v-if="btnAuth.viewLog" type="info" link @click="openLogDrawer(scope.row)"
+            <el-button
+              v-if="btnAuth.viewLog"
+              type="info"
+              link
+              @click="openLogDrawer(scope.row)"
               >日志</el-button
             >
-            <el-button v-if="btnAuth.download" type="primary" link @click="downloadPackage(scope.row)"
+            <el-button
+              v-if="btnAuth.download"
+              type="primary"
+              link
+              @click="downloadPackage(scope.row)"
               >下载</el-button
             >
           </template>
@@ -432,30 +454,40 @@
         /></el-form-item>
         <template v-if="firmwareDialogType === 'create'">
           <el-form-item label="通知用户">
-            <el-select
-              v-model="firmwareForm.notifyUserIds"
-              multiple
-              filterable
-              clearable
-              collapse-tags
-              collapse-tags-tooltip
-              style="width: 100%"
-              placeholder="可多选系统用户，自动读取用户邮箱"
-              :loading="notifyUserLoading"
-            >
-              <el-option
-                v-for="item in notifyUserOptions"
-                :key="item.ID"
-                :label="item.optionLabel"
-                :value="item.ID"
+            <div class="notify-user-row">
+              <el-select
+                v-model="firmwareForm.notifyUserIds"
+                multiple
+                filterable
+                clearable
+                collapse-tags
+                collapse-tags-tooltip
+                style="flex: 1"
+                placeholder="可多选系统用户，自动读取用户邮箱"
+                :loading="notifyUserLoading"
               >
-                <div class="notify-user-option">
-                  <span>{{ item.name }}</span>
-                  <span class="notify-user-email">{{ item.email }}</span>
-                </div>
-              </el-option>
-            </el-select>
-            <!-- <div class="notify-user-tip">新增固件通知会直接使用上面的版本说明</div> -->
+                <el-option
+                  v-for="item in notifyUserOptions"
+                  :key="item.ID"
+                  :label="item.optionLabel"
+                  :value="item.ID"
+                >
+                  <div class="notify-user-option">
+                    <span>{{ item.name }}</span>
+                    <span class="notify-user-email">{{ item.email }}</span>
+                  </div>
+                </el-option>
+              </el-select>
+              <el-button
+                @click="toggleSelectAllNotifyUsers(firmwareForm.notifyUserIds)"
+              >
+                {{
+                  isNotifyAllSelected(firmwareForm.notifyUserIds)
+                    ? '取消全选'
+                    : '全选'
+                }}
+              </el-button>
+            </div>
           </el-form-item>
           <el-form-item label="补充邮箱">
             <el-input
@@ -525,29 +557,42 @@
           />
         </el-form-item>
         <el-form-item label="通知用户">
-          <el-select
-            v-model="packageUpdateForm.notifyUserIds"
-            multiple
-            filterable
-            clearable
-            collapse-tags
-            collapse-tags-tooltip
-            style="width: 100%"
-            placeholder="可多选系统用户，自动读取用户邮箱"
-            :loading="notifyUserLoading"
-          >
-            <el-option
-              v-for="item in notifyUserOptions"
-              :key="item.ID"
-              :label="item.optionLabel"
-              :value="item.ID"
+          <div class="notify-user-row">
+            <el-select
+              v-model="packageUpdateForm.notifyUserIds"
+              multiple
+              filterable
+              clearable
+              collapse-tags
+              collapse-tags-tooltip
+              class="flex-1"
+              placeholder="可多选系统用户，自动读取用户邮箱"
+              :loading="notifyUserLoading"
             >
-              <div class="notify-user-option">
-                <span>{{ item.name }}</span>
-                <span class="notify-user-email">{{ item.email }}</span>
-              </div>
-            </el-option>
-          </el-select>
+              <el-option
+                v-for="item in notifyUserOptions"
+                :key="item.ID"
+                :label="item.optionLabel"
+                :value="item.ID"
+              >
+                <div class="notify-user-option">
+                  <span>{{ item.name }}</span>
+                  <span class="notify-user-email">{{ item.email }}</span>
+                </div>
+              </el-option>
+            </el-select>
+            <el-button
+              @click="
+                toggleSelectAllNotifyUsers(packageUpdateForm.notifyUserIds)
+              "
+            >
+              {{
+                isNotifyAllSelected(packageUpdateForm.notifyUserIds)
+                  ? '取消全选'
+                  : '全选'
+              }}
+            </el-button>
+          </div>
           <div class="notify-user-tip">更新包通知会使用上面的操作说明</div>
         </el-form-item>
         <el-form-item label="补充邮箱">
@@ -614,30 +659,40 @@
           />
         </el-form-item>
         <el-form-item label="通知用户">
-          <el-select
-            v-model="testResultForm.notifyUserIds"
-            multiple
-            filterable
-            clearable
-            collapse-tags
-            collapse-tags-tooltip
-            style="width: 100%"
-            placeholder="可多选系统用户，自动读取用户邮箱"
-            :loading="notifyUserLoading"
-          >
-            <el-option
-              v-for="item in notifyUserOptions"
-              :key="item.ID"
-              :label="item.optionLabel"
-              :value="item.ID"
+          <div class="notify-user-row">
+            <el-select
+              v-model="testResultForm.notifyUserIds"
+              multiple
+              filterable
+              clearable
+              collapse-tags
+              collapse-tags-tooltip
+              class="flex-1"
+              placeholder="可多选系统用户，自动读取用户邮箱"
+              :loading="notifyUserLoading"
             >
-              <div class="notify-user-option">
-                <span>{{ item.name }}</span>
-                <span class="notify-user-email">{{ item.email }}</span>
-              </div>
-            </el-option>
-          </el-select>
-          <!-- <div class="notify-user-tip">只展示已填写邮箱的系统用户</div> -->
+              <el-option
+                v-for="item in notifyUserOptions"
+                :key="item.ID"
+                :label="item.optionLabel"
+                :value="item.ID"
+              >
+                <div class="notify-user-option">
+                  <span>{{ item.name }}</span>
+                  <span class="notify-user-email">{{ item.email }}</span>
+                </div>
+              </el-option>
+            </el-select>
+            <el-button
+              @click="toggleSelectAllNotifyUsers(testResultForm.notifyUserIds)"
+            >
+              {{
+                isNotifyAllSelected(testResultForm.notifyUserIds)
+                  ? '取消全选'
+                  : '全选'
+              }}
+            </el-button>
+          </div>
         </el-form-item>
         <el-form-item label="补充邮箱">
           <el-input
@@ -678,30 +733,42 @@
           />
         </el-form-item>
         <el-form-item label="通知用户">
-          <el-select
-            v-model="actionNotifyForm.notifyUserIds"
-            multiple
-            filterable
-            clearable
-            collapse-tags
-            collapse-tags-tooltip
-            style="width: 100%"
-            placeholder="可多选系统用户，自动读取用户邮箱"
-            :loading="notifyUserLoading"
-          >
-            <el-option
-              v-for="item in notifyUserOptions"
-              :key="item.ID"
-              :label="item.optionLabel"
-              :value="item.ID"
+          <div class="notify-user-row">
+            <el-select
+              v-model="actionNotifyForm.notifyUserIds"
+              multiple
+              filterable
+              clearable
+              collapse-tags
+              collapse-tags-tooltip
+              class="flex-1"
+              placeholder="可多选系统用户，自动读取用户邮箱"
+              :loading="notifyUserLoading"
             >
-              <div class="notify-user-option">
-                <span>{{ item.name }}</span>
-                <span class="notify-user-email">{{ item.email }}</span>
-              </div>
-            </el-option>
-          </el-select>
-          <!-- <div class="notify-user-tip">只展示已填写邮箱的系统用户</div> -->
+              <el-option
+                v-for="item in notifyUserOptions"
+                :key="item.ID"
+                :label="item.optionLabel"
+                :value="item.ID"
+              >
+                <div class="notify-user-option">
+                  <span>{{ item.name }}</span>
+                  <span class="notify-user-email">{{ item.email }}</span>
+                </div>
+              </el-option>
+            </el-select>
+            <el-button
+              @click="
+                toggleSelectAllNotifyUsers(actionNotifyForm.notifyUserIds)
+              "
+            >
+              {{
+                isNotifyAllSelected(actionNotifyForm.notifyUserIds)
+                  ? '取消全选'
+                  : '全选'
+              }}
+            </el-button>
+          </div>
         </el-form-item>
         <el-form-item label="补充邮箱">
           <el-input
@@ -1295,6 +1362,20 @@
     !firmware?.ID ||
     (firmware?.publishStatus === 'unpublished' &&
       ['pending_test', 'test_failed'].includes(firmware?.status))
+  const toggleSelectAllNotifyUsers = (arr) => {
+    if (arr.length === notifyUserOptions.value.length) {
+      arr.splice(0, arr.length)
+    } else {
+      arr.splice(
+        0,
+        arr.length,
+        ...notifyUserOptions.value.map((item) => item.ID)
+      )
+    }
+  }
+  const isNotifyAllSelected = (arr) =>
+    notifyUserOptions.value.length > 0 &&
+    arr.length === notifyUserOptions.value.length
   const normalizeEmails = (value) => {
     const emailSet = new Set()
     ;(value || '')
@@ -2073,6 +2154,13 @@
   .upload-tip {
     color: #909399;
     font-size: 13px;
+  }
+
+  .notify-user-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
   .notify-user-option {
