@@ -85,8 +85,12 @@
                     >
                       {{ formatPackageSize(item.packageSize) }}
                     </span>
-                    <el-tag v-if="item.isRecommended" type="success">推荐版</el-tag>
-                    <el-tag v-if="item.firmware?.isLatest" type="danger">最新版</el-tag>
+                    <el-tag v-if="item.isRecommended" type="success"
+                      >推荐版</el-tag
+                    >
+                    <el-tag v-if="item.firmware?.isLatest" type="danger"
+                      >最新版</el-tag
+                    >
                     <el-tag
                       v-if="!item.isRecommended && !item.firmware?.isLatest"
                       type="info"
@@ -192,8 +196,12 @@
       if (recommendedA !== recommendedB) {
         return recommendedA ? -1 : 1
       }
-      const timeA = new Date(a?.operateAt || a?.firmware?.uploadedAt || 0).getTime()
-      const timeB = new Date(b?.operateAt || b?.firmware?.uploadedAt || 0).getTime()
+      const timeA = new Date(
+        a?.operateAt || a?.firmware?.uploadedAt || 0
+      ).getTime()
+      const timeB = new Date(
+        b?.operateAt || b?.firmware?.uploadedAt || 0
+      ).getTime()
       if (timeA !== timeB) return timeB - timeA
       return (b?.logId || 0) - (a?.logId || 0)
     })
@@ -309,7 +317,7 @@
     window.setTimeout(() => {
       anchor.remove()
     }, 0)
-    ElMessage.info('已发起下载，请查看浏览器下载列表')
+    ElMessage.info('已发起下载，完成后会弹起下载列表')
   }
 
   const formatPackageSize = (size) => {
@@ -873,4 +881,3 @@
     }
   }
 </style>
-

@@ -734,7 +734,10 @@
               <span>当前状态：{{ logStatusLabel(item) }}</span>
             </div>
             <div class="timeline-card-content">{{ item.content || '-' }}</div>
-            <div v-if="timelineCanViewPackage(item)" class="timeline-card-footer">
+            <div
+              v-if="timelineCanViewPackage(item)"
+              class="timeline-card-footer"
+            >
               <span>包名：{{ timelinePackageName(item) }}</span>
               <span v-if="timelinePackageSize(item) > 0">
                 大小：{{ formatPackageSize(timelinePackageSize(item)) }}
@@ -1889,7 +1892,7 @@
         }
       )
       await ElMessageBox.confirm(
-        '请再次确认，移除后该版本将从列表中隐藏，但型号绑定关系会保留。',
+        '请再次确认，移除后该版本将从列表中隐藏。',
         '二次确认',
         {
           type: 'warning',
@@ -1929,7 +1932,7 @@
     window.setTimeout(() => {
       anchor.remove()
     }, 0)
-    ElMessage.info('已发起下载，请查看浏览器下载列表')
+    ElMessage.info('已发起下载，完成后会弹起下载列表')
   }
   const downloadPackage = (row) => {
     const firmware = firmwareOf(row)
@@ -1938,7 +1941,9 @@
       return
     }
     triggerBrowserDownload(
-      `${getBaseUrl()}/firmwareVersion/downloadFirmwarePackage?firmwareId=${firmware.ID}`
+      `${getBaseUrl()}/firmwareVersion/downloadFirmwarePackage?firmwareId=${
+        firmware.ID
+      }`
     )
   }
   const packageHistoryActions = new Set(['upload', 'fix_upload'])
@@ -1961,7 +1966,9 @@
       return
     }
     triggerBrowserDownload(
-      `${getBaseUrl()}/firmwareVersionLog/downloadFirmwareLogPackage?logId=${row.ID}`
+      `${getBaseUrl()}/firmwareVersionLog/downloadFirmwareLogPackage?logId=${
+        row.ID
+      }`
     )
   }
 
