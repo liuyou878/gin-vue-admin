@@ -105,10 +105,17 @@
           </div> -->
         </div>
         <div class="gva-btn-list">
-          <el-button plain @click="openPublicFirmwareDownloadPage"
+          <el-button
+            v-if="btnAuth.viewPublic"
+            plain
+            @click="openPublicFirmwareDownloadPage"
             >公开下载页</el-button
           >
-          <el-button type="primary" icon="plus" @click="openFirmwareDialog()"
+          <el-button
+            v-if="btnAuth.add"
+            type="primary"
+            icon="plus"
+            @click="openFirmwareDialog()"
             >新增固件</el-button
           >
         </div>
@@ -184,86 +191,86 @@
         <el-table-column label="操作" min-width="300" fixed="right">
           <template #default="scope">
             <el-button
-              v-if="firmwareOf(scope.row).publishStatus !== 'voided'"
+              v-if="firmwareOf(scope.row).publishStatus !== 'voided' && btnAuth.edit"
               type="info"
               link
               @click="openFirmwareDialog(scope.row)"
               >编辑信息</el-button
             >
             <el-button
-              v-if="canEditFirmwarePackage(firmwareOf(scope.row))"
+              v-if="canEditFirmwarePackage(firmwareOf(scope.row)) && btnAuth.updatePackage"
               type="warning"
               link
               @click="openPackageUpdateDialog(scope.row)"
               >更新包</el-button
             >
             <el-button
-              v-if="canStartTesting(firmwareOf(scope.row))"
+              v-if="canStartTesting(firmwareOf(scope.row)) && btnAuth.startTest"
               type="warning"
               link
               @click="openActionNotifyDialog(scope.row, 'startTest')"
               >开始测试</el-button
             >
             <el-button
-              v-if="canSubmitTestResult(firmwareOf(scope.row))"
+              v-if="canSubmitTestResult(firmwareOf(scope.row)) && btnAuth.submitTestResult"
               type="success"
               link
               @click="openTestResultDialog(scope.row)"
               >测试结果</el-button
             >
             <el-button
-              v-if="canRejectRelease(firmwareOf(scope.row))"
+              v-if="canRejectRelease(firmwareOf(scope.row)) && btnAuth.reject"
               type="danger"
               link
               @click="openActionNotifyDialog(scope.row, 'rejectRelease')"
               >驳回</el-button
             >
             <el-button
-              v-if="canPublish(firmwareOf(scope.row))"
+              v-if="canPublish(firmwareOf(scope.row)) && btnAuth.publish"
               type="success"
               link
               @click="openActionNotifyDialog(scope.row, 'publish')"
               >发布</el-button
             >
             <el-button
-              v-if="canSetCurrentRelease(firmwareOf(scope.row))"
+              v-if="canSetCurrentRelease(firmwareOf(scope.row)) && btnAuth.setRecommended"
               type="success"
               link
               @click="setCurrentRelease(scope.row)"
               >设为当前推荐</el-button
             >
             <el-button
-              v-if="canVoid(firmwareOf(scope.row))"
+              v-if="canVoid(firmwareOf(scope.row)) && btnAuth.voidRelease"
               type="danger"
               link
               @click="openActionNotifyDialog(scope.row, 'voidRelease')"
               >下架</el-button
             >
             <el-button
-              v-if="canOnShelf(firmwareOf(scope.row))"
+              v-if="canOnShelf(firmwareOf(scope.row)) && btnAuth.onShelf"
               type="success"
               link
               @click="openActionNotifyDialog(scope.row, 'onShelfRelease')"
               >上架</el-button
             >
             <el-button
-              v-if="canRemoveFirmware(firmwareOf(scope.row))"
+              v-if="canRemoveFirmware(firmwareOf(scope.row)) && btnAuth.remove"
               type="danger"
               link
               @click="removeFirmware(scope.row)"
               >移除</el-button
             >
             <el-button
-              v-if="canDeleteRelation(firmwareOf(scope.row))"
+              v-if="canDeleteRelation(firmwareOf(scope.row)) && btnAuth.deleteRelation"
               type="danger"
               link
               @click="deleteRelation(scope.row)"
               >移除</el-button
             >
-            <el-button type="info" link @click="openLogDrawer(scope.row)"
+            <el-button v-if="btnAuth.viewLog" type="info" link @click="openLogDrawer(scope.row)"
               >日志</el-button
             >
-            <el-button type="primary" link @click="downloadPackage(scope.row)"
+            <el-button v-if="btnAuth.download" type="primary" link @click="downloadPackage(scope.row)"
               >下载</el-button
             >
           </template>
@@ -779,6 +786,7 @@
   import { deleteFile } from '@/api/fileUploadAndDownload'
   import { getUserList } from '@/api/user'
   import { formatDate, getBaseUrl } from '@/utils/format'
+  import { useBtnAuth } from '@/utils/btnAuth'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
@@ -788,6 +796,7 @@
 
   const router = useRouter()
   const userStore = useUserStore()
+  const btnAuth = useBtnAuth()
   const categoryOptions = ref([])
   const modelOptions = ref([])
   const firmwareOptions = ref([])
