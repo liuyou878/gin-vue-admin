@@ -164,11 +164,11 @@
   const out = ref(false)
 
   const form = reactive({
-    adminPassword: '123456',
+    adminPassword: '',
     dbType: 'mysql',
     host: '127.0.0.1',
     port: '3306',
-    userName: 'root',
+    userName: '',
     password: '',
     dbName: 'gva',
     dbPath: ''
@@ -178,12 +178,12 @@
     switch (val) {
       case 'mysql':
         Object.assign(form, {
-          adminPassword: '123456',
+          adminPassword: '',
           reAdminPassword: '',
           dbType: 'mysql',
           host: '127.0.0.1',
           port: '3306',
-          userName: 'root',
+          userName: '',
           password: '',
           dbName: 'gva',
           dbPath: ''
@@ -191,11 +191,11 @@
         break
       case 'pgsql':
         Object.assign(form, {
-          adminPassword: '123456',
+          adminPassword: '',
           dbType: 'pgsql',
           host: '127.0.0.1',
           port: '5432',
-          userName: 'postgres',
+          userName: '',
           password: '',
           dbName: 'gva',
           dbPath: '',
@@ -204,11 +204,11 @@
         break
       case 'oracle':
         Object.assign(form, {
-          adminPassword: '123456',
+          adminPassword: '',
           dbType: 'oracle',
           host: '127.0.0.1',
           port: '1521',
-          userName: 'oracle',
+          userName: '',
           password: '',
           dbName: 'gva',
           dbPath: ''
@@ -216,11 +216,11 @@
         break
       case 'mssql':
         Object.assign(form, {
-          adminPassword: '123456',
+          adminPassword: '',
           dbType: 'mssql',
           host: '127.0.0.1',
           port: '1433',
-          userName: 'mssql',
+          userName: '',
           password: '',
           dbName: 'gva',
           dbPath: ''
@@ -228,7 +228,7 @@
         break
       case 'sqlite':
         Object.assign(form, {
-          adminPassword: '123456',
+          adminPassword: '',
           dbType: 'sqlite',
           host: '',
           port: '',
@@ -240,11 +240,11 @@
         break
       default:
         Object.assign(form, {
-          adminPassword: '123456',
+          adminPassword: '',
           dbType: 'mysql',
           host: '127.0.0.1',
           port: '3306',
-          userName: 'root',
+          userName: '',
           password: '',
           dbName: 'gva',
           dbPath: ''
