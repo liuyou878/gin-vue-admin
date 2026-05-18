@@ -121,8 +121,8 @@
     </el-drawer>
 
     <!-- Item picker dialog -->
-    <el-dialog v-model="showItemPicker" title="选择检测项" width="500px" destroy-on-close>
-      <el-table :data="allItems" border @selection-change="onPickerSelection" ref="pickerTable" max-height="400">
+    <el-dialog v-model="showItemPicker" title="选择检测项" width="500px" destroy-on-close @opened="onPickerOpened">
+      <el-table :data="allItems" border @selection-change="onPickerSelection" ref="pickerTableRef" max-height="400" row-key="ID">
         <el-table-column type="selection" width="55" />
         <el-table-column prop="name" label="名称" />
         <el-table-column label="类型" width="100">
@@ -159,6 +159,7 @@ const allItems = ref([])
 const selectedItems = ref([])
 const showItemPicker = ref(false)
 const pickerSelected = ref([])
+const pickerTableRef = ref(null)
 
 const searchInfo = reactive({ name: '', model: '', page: 1, pageSize: 30 })
 const formData = reactive({ ID: 0, name: '', productName: '', model: '', firmwareVersion: '', status: 1 })
@@ -211,14 +212,27 @@ const openDialog = async (type, row) => {
 
 const onPickerSelection = (val) => { pickerSelected.value = val }
 
-const confirmPicker = () => {
-  for (const row of pickerSelected.value) {
-    if (!selectedItems.value.find((s) => s.itemID === row.ID)) {
-      selectedItems.value.push({
-        itemID: row.ID, name: row.name, resultType: row.resultType, unit: row.unit || '', sort: 0
-      })
+const onPickerOpened = () => {
+  // Pre-select rows already in selectedItems
+  const existingIDs = new Set(selectedItems.value.map(s => s.itemID))
+  allItems.value.forEach(row => {
+    if (existingIDs.has(row.ID)) {
+      pickerTableRef.value?.toggleRowSelection(row, true)
     }
-  }
+  })
+}
+
+const confirmPicker = () => {
+  // Full sync: checked items are in, unchecked are out
+  const newSelected = []
+  pickerSelected.value.forEach(row => {
+    const existing = selectedItems.value.find(s => s.itemID === row.ID)
+    newSelected.push({
+      itemID: row.ID, name: row.name, resultType: row.resultType, unit: row.unit || '',
+      sort: existing ? existing.sort : 0
+    })
+  })
+  selectedItems.value = newSelected
   renumberItems()
   showItemPicker.value = false
 }
