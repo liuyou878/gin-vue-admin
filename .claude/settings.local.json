@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Read(//d/afg/code.zip/code/code/detectTask/**)",
+      "Bash(ls -la \"D:/afg/activiti-vue/\")",
+      "Read(//d/afg/activiti-vue/**)"
+    ]
+  }
+}
