@@ -85,27 +85,33 @@
           <el-button size="small" @click="showItemPicker = true">从池中选择检测项</el-button>
         </div>
 
-        <el-table :data="selectedItems" border size="small" max-height="400">
-          <el-table-column label="排序" width="70">
-            <template #default="scope">
-              <el-input-number v-model="scope.row.sort" :min="1" size="small" controls-position="right" style="width:60px" />
-            </template>
-          </el-table-column>
-          <el-table-column prop="name" label="检测项名称" min-width="140" />
-          <el-table-column label="类型" width="100">
-            <template #default="scope">
-              <el-tag v-if="scope.row.resultType === 'pass_fail'" type="success" size="small">仅勾选</el-tag>
-              <el-tag v-else-if="scope.row.resultType === 'number'" type="primary" size="small">仅数值</el-tag>
-              <el-tag v-else type="warning" size="small">勾选+数值</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="unit" label="单位" width="60" />
-          <el-table-column label="操作" width="70">
-            <template #default="scope">
-              <el-button size="small" type="danger" link @click="removeItem(scope.$index)">移除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        <div class="drag-header">
+          <span class="drag-col-sort">排序</span>
+          <span class="drag-col-name">检测项名称</span>
+          <span class="drag-col-type">类型</span>
+          <span class="drag-col-unit">单位</span>
+          <span class="drag-col-action">操作</span>
+        </div>
+        <draggable v-model="selectedItems" item-key="itemID" handle=".drag-handle" @end="renumberItems">
+          <template #item="{ element, index }">
+            <div class="drag-row">
+              <span class="drag-col-sort">
+                <span class="drag-handle">⠿</span>
+                <span class="ml-1">{{ index + 1 }}</span>
+              </span>
+              <span class="drag-col-name">{{ element.name }}</span>
+              <span class="drag-col-type">
+                <el-tag v-if="element.resultType === 'pass_fail'" type="success" size="small">仅勾选</el-tag>
+                <el-tag v-else-if="element.resultType === 'number'" type="primary" size="small">仅数值</el-tag>
+                <el-tag v-else type="warning" size="small">勾选+数值</el-tag>
+              </span>
+              <span class="drag-col-unit">{{ element.unit || '-' }}</span>
+              <span class="drag-col-action">
+                <el-button size="small" type="danger" link @click="removeItem(index)">移除</el-button>
+              </span>
+            </div>
+          </template>
+        </draggable>
       </el-form>
 
       <template #footer>
@@ -139,6 +145,7 @@
 import { ref, reactive, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatDate } from '@/utils/format'
+import draggable from 'vuedraggable'
 import { getTemplateList, createTemplate, deleteTemplate, updateTemplate, findTemplate } from '@/plugin/inspection/api/template'
 import { getItemList } from '@/plugin/inspection/api/inspection_item'
 
@@ -207,20 +214,20 @@ const onPickerSelection = (val) => { pickerSelected.value = val }
 const confirmPicker = () => {
   for (const row of pickerSelected.value) {
     if (!selectedItems.value.find((s) => s.itemID === row.ID)) {
-      const maxSort = selectedItems.value.length > 0 ? Math.max(...selectedItems.value.map((s) => s.sort)) : 0
       selectedItems.value.push({
-        itemID: row.ID,
-        name: row.name,
-        resultType: row.resultType,
-        unit: row.unit || '',
-        sort: maxSort + 1
+        itemID: row.ID, name: row.name, resultType: row.resultType, unit: row.unit || '', sort: 0
       })
     }
   }
+  renumberItems()
   showItemPicker.value = false
 }
 
-const removeItem = (index) => { selectedItems.value.splice(index, 1) }
+const removeItem = (index) => { selectedItems.value.splice(index, 1); renumberItems() }
+
+const renumberItems = () => {
+  selectedItems.value.forEach((item, i) => { item.sort = i + 1 })
+}
 
 const submitForm = async () => {
   const valid = await formRef.value?.validate().catch(() => false)
@@ -261,3 +268,19 @@ const onDelete = (id) => {
 
 getList()
 </script>
+
+<style scoped>
+.drag-header, .drag-row {
+  display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid #eee;
+}
+.drag-header { font-weight: 600; color: #606266; background: #f5f7fa; border-radius: 4px 4px 0 0; }
+.drag-row { background: #fff; }
+.drag-row:hover { background: #f5f7fa; }
+.drag-handle { cursor: grab; color: #909399; font-size: 18px; user-select: none; }
+.drag-handle:active { cursor: grabbing; }
+.drag-col-sort  { width: 80px; display: flex; align-items: center; }
+.drag-col-name  { flex: 1; }
+.drag-col-type  { width: 100px; }
+.drag-col-unit  { width: 60px; }
+.drag-col-action { width: 70px; }
+</style>
