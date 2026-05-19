@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/afg/Serial_Alpha/src/View/A30config/wifi/**)",
+      "Read(//d/afg/Serial_Alpha/src/script/Connector/Wifi/**)",
+      "Read(//d/afg/Serial_Alpha/src/components/Serial/Dev/**)",
+      "Read(//d/afg/Serial_Alpha/src/script/Connector/**)"
+    ]
+  }
+}

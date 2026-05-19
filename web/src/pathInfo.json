@@ -86,5 +86,10 @@
   "/src/plugin/announcement/form/info.vue": "InfoForm",
   "/src/plugin/announcement/view/info.vue": "Info",
   "/src/plugin/email/view/index.vue": "Email",
-  "/src/plugin/inspection/view/inspection_item.vue": "Inspection_item"
+  "/src/plugin/inspection/view/inspection_item.vue": "Inspection_item",
+  "/src/plugin/inspection/view/inspect_detail.vue": "Inspect_detail",
+  "/src/plugin/inspection/view/production_order.vue": "Production_order",
+  "/src/plugin/inspection/view/template.vue": "Template",
+  "/src/plugin/inspection/view/work_order.vue": "Work_order",
+  "/src/plugin/inspection/view/work_order_redirect.vue": "Work_order_redirect"
 }
