@@ -13,4 +13,5 @@ func Router(engine *gin.Engine) {
 	router.Router.InspectionItem.Init(private)
 	router.Router.Template.Init(private)
 	router.Router.ProductionOrder.Init(private)
+	router.Router.WorkOrder.Init(private)
 }

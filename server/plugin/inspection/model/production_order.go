@@ -19,6 +19,8 @@ type ProductionOrder struct {
 	InstrumentCategory string                `json:"instrumentCategory" gorm:"column:instrument_category;size:50;comment:仪器类别"`
 	BatchNumber        string                `json:"batchNumber" gorm:"column:batch_number;size:100;comment:生产批次号"`
 	Status             int                   `json:"status" gorm:"column:status;default:1;comment:状态(1=待检测,2=检测中,3=已完成)"`
+	InspectorID        *uint                 `json:"inspectorID" gorm:"column:inspector_id;comment:检测人ID"`
+	InspectionDate     *time.Time            `json:"inspectionDate" gorm:"column:inspection_date;comment:检测日期"`
 	SubmitDate         *time.Time            `json:"submitDate" gorm:"column:submit_date;comment:提交日期"`
 	Remark             string                `json:"remark" gorm:"column:remark;size:500;comment:备注"`
 	Devices            []ProductionOrderDevice `json:"devices" gorm:"foreignKey:ProductionOrderID"`
@@ -38,6 +40,7 @@ type ProductionOrderDevice struct {
 	ProductionOrderID uint   `json:"productionOrderID" gorm:"column:production_order_id;index;not null;comment:生产订单ID"`
 	SN                string `json:"sn" gorm:"column:sn;size:100;not null;comment:机身码"`
 	LineNumber        int    `json:"lineNumber" gorm:"column:line_number;default:0;comment:行号"`
+	Status            string `json:"status" gorm:"column:status;size:20;default:pending;comment:设备状态(pending/pass/fail)"`
 }
 
 func (ProductionOrderDevice) TableName() string {

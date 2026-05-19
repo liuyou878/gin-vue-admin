@@ -25,6 +25,10 @@ func Api(ctx context.Context) {
 		{Path: "/productionOrder/updateProductionOrder", Description: "更新生产订单", ApiGroup: "生产订单", Method: "PUT"},
 		{Path: "/productionOrder/findProductionOrder", Description: "查询生产订单详情", ApiGroup: "生产订单", Method: "GET"},
 		{Path: "/productionOrder/getProductionOrderList", Description: "获取生产订单列表", ApiGroup: "生产订单", Method: "GET"},
+		{Path: "/workOrder/startInspection", Description: "开始检测", ApiGroup: "检测工单", Method: "POST"},
+		{Path: "/workOrder/saveResults", Description: "保存检测结果", ApiGroup: "检测工单", Method: "POST"},
+		{Path: "/workOrder/completeInspection", Description: "完成检测", ApiGroup: "检测工单", Method: "POST"},
+		{Path: "/workOrder/getInspectionDetail", Description: "获取检测详情", ApiGroup: "检测工单", Method: "GET"},
 	}
 	utils.RegisterApis(entities...)
 }

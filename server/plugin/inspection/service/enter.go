@@ -6,4 +6,5 @@ type service struct {
 	InspectionItem  inspectionItem
 	Template        templateSvc
 	ProductionOrder productionOrderSvc
+	WorkOrder       workOrderSvc
 }
