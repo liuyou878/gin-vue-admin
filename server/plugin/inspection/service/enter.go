@@ -3,6 +3,7 @@ package service
 var Service = new(service)
 
 type service struct {
-	InspectionItem inspectionItem
-	Template       templateSvc
+	InspectionItem  inspectionItem
+	Template        templateSvc
+	ProductionOrder productionOrderSvc
 }

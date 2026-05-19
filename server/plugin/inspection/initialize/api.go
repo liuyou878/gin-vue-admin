@@ -20,6 +20,11 @@ func Api(ctx context.Context) {
 		{Path: "/inspectionTemplate/updateTemplate", Description: "更新检测模板", ApiGroup: "检测模板", Method: "PUT"},
 		{Path: "/inspectionTemplate/findTemplate", Description: "查询模板详情", ApiGroup: "检测模板", Method: "GET"},
 		{Path: "/inspectionTemplate/getTemplateList", Description: "获取模板列表", ApiGroup: "检测模板", Method: "GET"},
+		{Path: "/productionOrder/createProductionOrder", Description: "创建生产订单", ApiGroup: "生产订单", Method: "POST"},
+		{Path: "/productionOrder/deleteProductionOrder", Description: "删除生产订单", ApiGroup: "生产订单", Method: "DELETE"},
+		{Path: "/productionOrder/updateProductionOrder", Description: "更新生产订单", ApiGroup: "生产订单", Method: "PUT"},
+		{Path: "/productionOrder/findProductionOrder", Description: "查询生产订单详情", ApiGroup: "生产订单", Method: "GET"},
+		{Path: "/productionOrder/getProductionOrderList", Description: "获取生产订单列表", ApiGroup: "生产订单", Method: "GET"},
 	}
 	utils.RegisterApis(entities...)
 }

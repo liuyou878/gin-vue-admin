@@ -15,6 +15,8 @@ func Gorm(ctx context.Context) {
 		new(model.InspectionItem),
 		new(model.InspectionTemplate),
 		new(model.InspectionTemplateItem),
+		new(model.ProductionOrder),
+		new(model.ProductionOrderDevice),
 	)
 	if err != nil {
 		err = errors.Wrap(err, "检测插件表注册失败!")
