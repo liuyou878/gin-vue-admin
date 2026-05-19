@@ -13,11 +13,12 @@ var WorkOrder = new(workOrderSvc)
 
 type workOrderSvc struct{}
 
-func (s *workOrderSvc) StartInspection(req *request.StartInspection, inspectorID uint) error {
+func (s *workOrderSvc) StartInspection(req *request.StartInspection, inspectorID uint, inspectorName string) error {
 	now := time.Now()
 	return global.GVA_DB.Model(&model.ProductionOrder{}).Where("id = ? AND status = 1", req.ID).Updates(map[string]interface{}{
 		"status":          2,
 		"inspector_id":    inspectorID,
+		"inspector_name":  inspectorName,
 		"inspection_date": &now,
 	}).Error
 }

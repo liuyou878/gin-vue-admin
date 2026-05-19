@@ -27,7 +27,7 @@ func (a *workOrderApi) StartInspection(c *gin.Context) {
 		return
 	}
 	claims, _ := utils.GetClaims(c)
-	if err := serviceWorkOrder.StartInspection(&req, claims.BaseClaims.ID); err != nil {
+	if err := serviceWorkOrder.StartInspection(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
 		response.FailWithMessage("操作失败: "+err.Error(), c)
 		return
 	}

@@ -31,9 +31,12 @@
       <el-table-column label="模板" min-width="120">
         <template #default="b">{{ b.row.template?.name || '-' }}</template>
       </el-table-column>
-      <el-table-column prop="deviceCount" label="SN数" width="70" />
+      <el-table-column prop="deviceCount" label="总数" width="60" />
+      <el-table-column label="合格/不合格" width="100">
+        <template #default="f">{{ f.row.passCount || 0 }} / {{ f.row.failCount || 0 }}</template>
+      </el-table-column>
       <el-table-column label="检测人" width="100">
-        <template #default="c">{{ c.row.inspectorID || '-' }}</template>
+        <template #default="c">{{ c.row.inspectorName || '-' }}</template>
       </el-table-column>
       <el-table-column prop="CreatedAt" label="创建时间" width="160">
         <template #default="d">{{ formatDate(d.row.CreatedAt) }}</template>

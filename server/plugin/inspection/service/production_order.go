@@ -60,14 +60,14 @@ func (s *productionOrderSvc) DeleteProductionOrder(id string) error {
 func (s *productionOrderSvc) UpdateProductionOrder(req *request.UpdateProductionOrder) error {
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		updates := map[string]interface{}{
-			"mo_number":            req.MONumber,
+			"mo_number":           req.MONumber,
 			"template_id":         req.TemplateID,
-			"product_name":         req.ProductName,
-			"model":                req.Model,
-			"firmware_version":     req.FirmwareVersion,
-			"instrument_category":  req.InstrumentCategory,
-			"batch_number":         req.BatchNumber,
-			"remark":               req.Remark,
+			"product_name":        req.ProductName,
+			"model":               req.Model,
+			"firmware_version":    req.FirmwareVersion,
+			"instrument_category": req.InstrumentCategory,
+			"batch_number":        req.BatchNumber,
+			"remark":              req.Remark,
 		}
 		if req.Status != nil {
 			updates["status"] = *req.Status
@@ -105,6 +105,11 @@ func (s *productionOrderSvc) FindProductionOrder(id string) (model.ProductionOrd
 	err = global.GVA_DB.Where("production_order_id = ?", id).Order("line_number asc").Find(&devices).Error
 	po.Devices = devices
 	po.DeviceCount = len(devices)
+	var pass, fail int64
+	global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = 'pass'", id).Count(&pass)
+	global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = 'fail'", id).Count(&fail)
+	po.PassCount = int(pass)
+	po.FailCount = int(fail)
 	return po, err
 }
 
@@ -128,10 +133,14 @@ func (s *productionOrderSvc) GetProductionOrderList(search request.ProductionOrd
 	}
 	err = db.Limit(search.PageSize).Offset(search.PageSize * (search.Page - 1)).Order("id desc").Find(&list).Error
 	for i := range list {
-		var count int64
-		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ?", list[i].ID).Count(&count)
+		var count, pass, fail int64
+		deviceDB := global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ?", list[i].ID)
+		deviceDB.Count(&count)
 		list[i].DeviceCount = int(count)
-		// Preload template name
+		deviceDB.Where("status = 'pass'").Count(&pass)
+		list[i].PassCount = int(pass)
+		deviceDB.Where("status = 'fail'").Count(&fail)
+		list[i].FailCount = int(fail)
 		if list[i].TemplateID != nil {
 			var tmpl model.InspectionTemplate
 			if global.GVA_DB.Where("id = ?", *list[i].TemplateID).First(&tmpl).Error == nil {

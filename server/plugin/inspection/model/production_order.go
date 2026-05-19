@@ -20,11 +20,14 @@ type ProductionOrder struct {
 	BatchNumber        string                `json:"batchNumber" gorm:"column:batch_number;size:100;comment:生产批次号"`
 	Status             int                   `json:"status" gorm:"column:status;default:1;comment:状态(1=待检测,2=检测中,3=已完成)"`
 	InspectorID        *uint                 `json:"inspectorID" gorm:"column:inspector_id;comment:检测人ID"`
+	InspectorName      string                `json:"inspectorName" gorm:"column:inspector_name;size:100;comment:检测人姓名"`
 	InspectionDate     *time.Time            `json:"inspectionDate" gorm:"column:inspection_date;comment:检测日期"`
 	SubmitDate         *time.Time            `json:"submitDate" gorm:"column:submit_date;comment:提交日期"`
 	Remark             string                `json:"remark" gorm:"column:remark;size:500;comment:备注"`
 	Devices            []ProductionOrderDevice `json:"devices" gorm:"foreignKey:ProductionOrderID"`
 	DeviceCount        int                   `json:"deviceCount" gorm:"-"`
+	PassCount          int                   `json:"passCount" gorm:"-"`
+	FailCount          int                   `json:"failCount" gorm:"-"`
 }
 
 func (ProductionOrder) TableName() string {
