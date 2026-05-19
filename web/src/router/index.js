@@ -25,6 +25,15 @@ const routes = [
     component: () => import('@/view/example/upload/scanUpload.vue')
   },
   {
+    path: '/inspectWorkOrder',
+    name: 'InspectWorkOrder',
+    meta: {
+      title: '检测工单',
+      client: true
+    },
+    component: () => import('@/plugin/inspection/view/work_order.vue')
+  },
+  {
     path: '/publicFirmwareDownload',
     name: 'PublicFirmwareDownload',
     meta: {

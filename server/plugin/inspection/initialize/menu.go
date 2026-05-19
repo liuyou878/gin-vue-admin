@@ -15,7 +15,7 @@ func Menu(ctx context.Context) {
 	}
 	child1 := model.SysBaseMenu{
 		ParentId: 0, Path: "inspectionWorkOrder", Name: "inspectionWorkOrder", Hidden: false,
-		Component: "plugin/inspection/view/work_order.vue", Sort: 1,
+		Component: "plugin/inspection/view/work_order_redirect.vue", Sort: 1,
 		Meta: model.Meta{Title: "检测工单", Icon: "document"},
 	}
 	child2 := model.SysBaseMenu{
