@@ -843,6 +843,15 @@ func buildFirmwareActionMailPayload(tx *gorm.DB, firmwareID uint, opts firmwareA
 	writeRow("操作人", escapeText(opts.Operator))
 	writeRow("说明", escapeText(opts.Content))
 	builder.WriteString(`</table>`)
+	if opts.Action == "publish" && strings.TrimSpace(global.GVA_CONFIG.System.WebURL) != "" {
+		webURL := strings.TrimSpace(global.GVA_CONFIG.System.WebURL)
+		downloadURL := webURL + "/#/publicFirmwareDownload"
+		builder.WriteString(`<div style="margin-top: 20px; padding: 14px 18px; border-radius: 12px; background: #eff6ff; border: 1px solid #bfdbfe;">`)
+		builder.WriteString(`<div style="font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 6px;">公开下载页</div>`)
+		builder.WriteString(`<div style="font-size: 13px; color: #475569; margin-bottom: 8px;">可以前往公开下载页下载该版本：</div>`)
+		builder.WriteString(`<a href="` + downloadURL + `" style="color: #2563eb; font-size: 13px; word-break: break-all;">` + downloadURL + `</a>`)
+		builder.WriteString(`</div>`)
+	}
 	builder.WriteString(`<div style="margin-top: 16px; color: #6b7280; font-size: 12px;">该邮件由固件流程管理自动发送</div>`)
 	builder.WriteString(`</div>`)
 
