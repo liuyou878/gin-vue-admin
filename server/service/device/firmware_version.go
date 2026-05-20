@@ -846,6 +846,11 @@ func buildFirmwareActionMailPayload(tx *gorm.DB, firmwareID uint, opts firmwareA
 	if opts.Action == "publish" && strings.TrimSpace(global.GVA_CONFIG.System.WebURL) != "" {
 		webURL := strings.TrimSpace(global.GVA_CONFIG.System.WebURL)
 		downloadURL := webURL + "/#/publicFirmwareDownload"
+		if len(rels) > 0 {
+			categoryID := rels[0].Model.CategoryID
+			modelID := rels[0].ModelID
+			downloadURL += fmt.Sprintf("?categoryId=%d&modelId=%d", categoryID, modelID)
+		}
 		builder.WriteString(`<div style="margin-top: 20px; padding: 14px 18px; border-radius: 12px; background: #eff6ff; border: 1px solid #bfdbfe;">`)
 		builder.WriteString(`<div style="font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 6px;">公开下载页</div>`)
 		builder.WriteString(`<div style="font-size: 13px; color: #475569; margin-bottom: 8px;">可以前往公开下载页下载该版本：</div>`)

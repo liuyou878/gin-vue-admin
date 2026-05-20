@@ -71,7 +71,7 @@ email:
     from: 1452970202@qq.com
     host: smtp.qq.com
     secret: egklqflqksrpbaaf
-    nickname: test
+    nickname: Alpha固件新版本通知
     port: 465
     is-ssl: true
     is-loginauth: false
@@ -237,6 +237,7 @@ system:
     use-mongo: false
     use-strict-auth: false
     disable-auto-migrate: false
+    web-url: http://8.166.114.226:8081
 tencent-cos:
     bucket: xxxxx-10005608
     region: ap-shanghai
