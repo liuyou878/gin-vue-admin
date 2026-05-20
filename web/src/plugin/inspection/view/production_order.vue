@@ -49,7 +49,7 @@
       </el-table-column>
       <el-table-column label="操作" width="220" fixed="right">
         <template #default="s5">
-          <el-button v-if="s5.row.status===0" size="small" type="primary" @click="confirmOrder(s5.row)">确认</el-button>
+          <el-button v-if="s5.row.status===0" size="small" type="primary" :disabled="!s5.row.templateID" @click="confirmOrder(s5.row)">确认</el-button>
           <el-button size="small" type="primary" link @click="viewDetail(s5.row)">设备</el-button>
           <el-button v-if="s5.row.status===0" size="small" type="primary" link @click="editOrder(s5.row)">编辑</el-button>
           <el-button v-if="s5.row.status===0" size="small" type="danger" link @click="onDelete(s5.row.ID)">删除</el-button>
@@ -164,6 +164,7 @@ const getList = async () => {
 const resetSearch = () => { searchInfo.moNumber = ''; searchInfo.model = ''; searchInfo.instrumentCategory = ''; searchInfo.status = null; searchInfo.page = 1; getList() }
 
 const confirmOrder = async (row) => {
+  if (!row.templateID) { ElMessage.warning('请先编辑选择检测模板'); return }
   await ElMessageBox.confirm('确认该生产订单，设为待检测？', '提示', { type: 'info' })
   await updateProductionOrder({ ID: row.ID, moNumber: row.moNumber, status: 1 })
   ElMessage.success('已确认，进入待检测'); getList()
