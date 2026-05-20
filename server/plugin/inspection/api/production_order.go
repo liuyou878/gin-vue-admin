@@ -1,8 +1,11 @@
 package api
 
 import (
+	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/common/response"
+	"github.com/flipped-aurora/gin-vue-admin/server/plugin/inspection/model"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/inspection/model/request"
+	"github.com/flipped-aurora/gin-vue-admin/server/utils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -10,9 +13,32 @@ var ProductionOrder = new(productionOrderApi)
 
 type productionOrderApi struct{}
 
+// SubmitDeviceData 生产工具提交全量数据
+// @Tags     ProductionOrder
+// @Summary  生产工具提交全量数据(SN+注册码+GETALL)
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.SubmitDeviceData true "提交数据"
+// @Success  200 {object} response.Response{msg=string} "提交成功"
+// @Router   /productionOrder/submitDeviceData [post]
+func (a *productionOrderApi) SubmitDeviceData(c *gin.Context) {
+	var req request.SubmitDeviceData
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	claims, _ := utils.GetClaims(c)
+	if err := serviceProductionOrder.SubmitDeviceData(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
+		response.FailWithMessage("提交失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("提交成功", c)
+}
+
 // CreateProductionOrder 创建生产订单
 // @Tags     ProductionOrder
-// @Summary  创建生产订单（含 SN 列表）
+// @Summary  创建生产订单
 // @Security ApiKeyAuth
 // @accept   application/json
 // @Produce  application/json
@@ -74,7 +100,7 @@ func (a *productionOrderApi) UpdateProductionOrder(c *gin.Context) {
 
 // FindProductionOrder 查询生产订单详情
 // @Tags     ProductionOrder
-// @Summary  查询生产订单详情（含 SN 列表）
+// @Summary  查询生产订单详情(含批次+设备)
 // @Security ApiKeyAuth
 // @accept   application/json
 // @Produce  application/json
@@ -122,4 +148,53 @@ func (a *productionOrderApi) GetProductionOrderList(c *gin.Context) {
 		Page:     search.Page,
 		PageSize: search.PageSize,
 	}, "查询成功", c)
+}
+
+// AssignBatch 分配设备到批次
+// @Tags     ProductionOrder
+// @Summary  分配SN到批次
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.AssignBatch true "分配信息"
+// @Success  200 {object} response.Response{msg=string} "分配成功"
+// @Router   /productionOrder/assignBatch [post]
+func (a *productionOrderApi) AssignBatch(c *gin.Context) {
+	var req request.AssignBatch
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if err := serviceProductionOrder.AssignBatch(&req); err != nil {
+		response.FailWithMessage("分配失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("分配成功", c)
+}
+
+// CreateBatch 创建批次
+// @Tags     ProductionOrder
+// @Summary  创建生产批次
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.CreateBatch true "批次信息"
+// @Success  200 {object} response.Response{msg=string} "创建成功"
+// @Router   /productionOrder/createBatch [post]
+func (a *productionOrderApi) CreateBatch(c *gin.Context) {
+	var req request.CreateBatch
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	batch := &model.ProductionBatch{
+		ProductionOrderID: req.ProductionOrderID,
+		BatchNumber:       req.BatchNumber,
+		Status:            0,
+	}
+	if err := global.GVA_DB.Create(batch).Error; err != nil {
+		response.FailWithMessage("创建失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("创建成功", c)
 }

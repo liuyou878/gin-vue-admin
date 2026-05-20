@@ -17,6 +17,7 @@ func Gorm(ctx context.Context) {
 		new(model.InspectionTemplateItem),
 		new(model.ProductionOrder),
 		new(model.ProductionOrderDevice),
+		new(model.ProductionBatch),
 		new(model.InspectionDeviceResult),
 	)
 	if err != nil {

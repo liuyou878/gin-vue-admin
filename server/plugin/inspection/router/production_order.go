@@ -12,9 +12,12 @@ type productionOrderRouter struct{}
 func (r *productionOrderRouter) Init(private *gin.RouterGroup) {
 	{
 		group := private.Group("productionOrder").Use(middleware.OperationRecord())
+		group.POST("submitDeviceData", apiProductionOrder.SubmitDeviceData)
 		group.POST("createProductionOrder", apiProductionOrder.CreateProductionOrder)
 		group.DELETE("deleteProductionOrder", apiProductionOrder.DeleteProductionOrder)
 		group.PUT("updateProductionOrder", apiProductionOrder.UpdateProductionOrder)
+		group.POST("assignBatch", apiProductionOrder.AssignBatch)
+		group.POST("createBatch", apiProductionOrder.CreateBatch)
 	}
 	{
 		group := private.Group("productionOrder")
