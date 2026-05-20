@@ -319,3 +319,12 @@ export const findFirmwareVersionLog = (params) => {
     params
   })
 }
+
+export const downloadDeveloperLog = (params) => {
+  return service({
+    url: '/firmwareVersion/downloadDeveloperLog',
+    method: 'get',
+    params,
+    responseType: 'blob'
+  })
+}

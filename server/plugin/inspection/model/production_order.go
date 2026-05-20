@@ -25,9 +25,10 @@ type ProductionOrder struct {
 	InspectorName      string               `json:"inspectorName" gorm:"column:inspector_name;size:100;comment:检测人姓名"`
 	InspectionDate     *time.Time           `json:"inspectionDate" gorm:"column:inspection_date;comment:检测日期"`
 	SubmitDate         *time.Time           `json:"submitDate" gorm:"column:submit_date;comment:提交日期"`
-	Remark             string               `json:"remark" gorm:"column:remark;size:500;comment:备注"`
-	Batches            []ProductionBatch    `json:"batches" gorm:"foreignKey:ProductionOrderID"`
-	DeviceCount        int                  `json:"deviceCount" gorm:"-"`
+	Remark             string                  `json:"remark" gorm:"column:remark;size:500;comment:备注"`
+	Batches            []ProductionBatch       `json:"batches" gorm:"foreignKey:ProductionOrderID"`
+	Devices            []ProductionOrderDevice `json:"devices" gorm:"-"`
+	DeviceCount        int                     `json:"deviceCount" gorm:"-"`
 	PassCount          int                  `json:"passCount" gorm:"-"`
 	FailCount          int                  `json:"failCount" gorm:"-"`
 }

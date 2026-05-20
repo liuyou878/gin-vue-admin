@@ -28,6 +28,7 @@ func (r *FirmwareVersionRouter) InitFirmwareVersionRouter(PrivateRouter *gin.Rou
 	{
 		firmwareVersionRouterWithoutRecord.GET("findFirmwareVersion", firmwareVersionApi.FindFirmwareVersion)       // 获取固件版本详情
 		firmwareVersionRouterWithoutRecord.GET("getFirmwareVersionList", firmwareVersionApi.GetFirmwareVersionList) // 获取固件版本列表
+			firmwareVersionRouterWithoutRecord.GET("downloadDeveloperLog", firmwareVersionApi.DownloadDeveloperLog)     // 下载更新日志
 	}
 	{
 		publicFirmwareVersionRouter.GET("downloadFirmwarePackage", firmwareVersionApi.DownloadFirmwarePackage) // 下载固件包

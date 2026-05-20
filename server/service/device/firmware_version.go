@@ -298,6 +298,11 @@ func (s *FirmwareVersionService) UpdateFirmwareVersion(firmware deviceModel.Firm
 			"uploaded_by":     firmware.UploadedBy,
 			"uploaded_at":     firmware.UploadedAt,
 			"remark":          firmware.Remark,
+			"log_file_id":     firmware.LogFileID,
+			"log_file_name":   firmware.LogFileName,
+			"log_file_size":   firmware.LogFileSize,
+			"log_uploaded_by": firmware.LogUploadedBy,
+			"log_uploaded_at": firmware.LogUploadedAt,
 		}
 		if err := tx.Model(&deviceModel.FirmwareVersion{}).Where("id = ?", firmware.ID).Updates(updates).Error; err != nil {
 			return err
@@ -1098,6 +1103,25 @@ func (s *FirmwareVersionService) OpenFirmwareLogPackageDownload(logID uint) (*fi
 	return openFirmwareLogPackageDownload(global.GVA_DB, log)
 }
 
+func (s *FirmwareVersionService) OpenDeveloperLogDownload(firmwareID uint) (*firmwarePackageDownload, error) {
+	var firmware deviceModel.FirmwareVersion
+	if err := global.GVA_DB.Where("id = ?", firmwareID).First(&firmware).Error; err != nil {
+		return nil, err
+	}
+	return openDeveloperLogDownload(global.GVA_DB, firmware)
+}
+
+func (s *FirmwareVersionService) OpenPublicDeveloperLogDownload(firmwareID uint) (*firmwarePackageDownload, error) {
+	var firmware deviceModel.FirmwareVersion
+	if err := global.GVA_DB.Where("id = ?", firmwareID).First(&firmware).Error; err != nil {
+		return nil, err
+	}
+	if firmware.PublishStatus != "published" {
+		return nil, errors.New("只有已发布固件的更新日志支持公开下载")
+	}
+	return openDeveloperLogDownload(global.GVA_DB, firmware)
+}
+
 func openFirmwarePackageDownload(tx *gorm.DB, firmware deviceModel.FirmwareVersion) (*firmwarePackageDownload, error) {
 	fileRecord, err := resolveFirmwarePackageFile(tx, firmware)
 	if err != nil {
@@ -1120,6 +1144,28 @@ func openFirmwareLogPackageDownload(tx *gorm.DB, log deviceModel.FirmwareVersion
 		fileName = strings.TrimSpace(fileRecord.Name)
 	}
 	return openFileRecordDownload(fileRecord, log.PackageURL, fileName)
+}
+
+func resolveDeveloperLogFile(tx *gorm.DB, firmware deviceModel.FirmwareVersion) (exampleModel.ExaFileUploadAndDownload, error) {
+	if firmware.LogFileID > 0 {
+		var fileRecord exampleModel.ExaFileUploadAndDownload
+		if err := tx.Where("id = ?", firmware.LogFileID).First(&fileRecord).Error; err == nil {
+			return fileRecord, nil
+		}
+	}
+	return exampleModel.ExaFileUploadAndDownload{}, errors.New("未找到更新日志文件记录")
+}
+
+func openDeveloperLogDownload(tx *gorm.DB, firmware deviceModel.FirmwareVersion) (*firmwarePackageDownload, error) {
+	fileRecord, err := resolveDeveloperLogFile(tx, firmware)
+	if err != nil {
+		return nil, err
+	}
+	fileName := strings.TrimSpace(firmware.LogFileName)
+	if fileName == "" {
+		fileName = strings.TrimSpace(fileRecord.Name)
+	}
+	return openFileRecordDownload(fileRecord, "", fileName)
 }
 
 func openFileRecordDownload(fileRecord exampleModel.ExaFileUploadAndDownload, fallbackURL, fallbackName string) (*firmwarePackageDownload, error) {

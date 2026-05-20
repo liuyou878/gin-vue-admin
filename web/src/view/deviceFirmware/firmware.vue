@@ -295,6 +295,13 @@
               @click="downloadPackage(scope.row)"
               >下载</el-button
             >
+            <el-button
+              v-if="firmwareOf(scope.row).logFileName && btnAuth.download"
+              type="primary"
+              link
+              @click="downloadDevLog(scope.row)"
+              >下载更新日志</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -419,6 +426,32 @@
         <!-- <el-form-item label="安装包地址"
           ><el-input v-model="firmwareForm.packageUrl" readonly
         /></el-form-item> -->
+        <el-form-item label="更新日志">
+          <div class="upload-row">
+            <el-upload
+              :action="firmwareUploadAction"
+              :headers="firmwareUploadHeaders"
+              :show-file-list="false"
+              :before-upload="beforeLogUpload"
+              :on-success="handleLogUploadSuccess"
+              :on-error="handleLogUploadError"
+            >
+              <el-button type="primary" :loading="logUploading"
+                >上传日志</el-button
+              >
+            </el-upload>
+            <el-button
+              v-if="firmwareForm.logFileId"
+              type="danger"
+              plain
+              @click="clearLogFile"
+              >删除日志</el-button
+            >
+            <span class="upload-file-name">
+              {{ logUploadName || firmwareForm.logFileName || '未选择' }}
+            </span>
+          </div>
+        </el-form-item>
         <el-form-item
           v-if="
             !(
@@ -882,6 +915,8 @@
   const currentActionType = ref('startTest')
   const firmwareUploading = ref(false)
   const firmwareUploadName = ref('')
+  const logUploading = ref(false)
+  const logUploadName = ref('')
   const packageUpdateUploading = ref(false)
   const packageUpdateUploadName = ref('')
   const firmwareSubmitting = ref(false)
@@ -934,6 +969,9 @@
     publishStatus: 'unpublished',
     releaseNote: '',
     uploadedBy: '',
+    logFileId: undefined,
+    logFileName: '',
+    logFileSize: 0,
     notifyUserIds: [],
     notifyTo: ''
   })
@@ -1606,6 +1644,50 @@
     firmwareUploadName.value = ''
     ElMessage.success('固件包已删除')
   }
+  const beforeLogUpload = (file) => {
+    if (!file?.name) {
+      ElMessage.error('未读取到文件名，请重新选择文件')
+      return false
+    }
+    logUploading.value = true
+    logUploadName.value = file.name
+    return true
+  }
+  const handleLogUploadSuccess = (res) => {
+    logUploading.value = false
+    const file = res?.data?.file
+    if (!file?.url) {
+      ElMessage.error('上传成功，但未返回文件地址')
+      return
+    }
+    firmwareForm.value.logFileId = file.ID || file.id || undefined
+    firmwareForm.value.logFileName = file.name || logUploadName.value
+    firmwareForm.value.logFileSize = file.size || 0
+    ElMessage.success('更新日志上传成功')
+  }
+  const handleLogUploadError = () => {
+    logUploading.value = false
+    ElMessage.error('更新日志上传失败')
+  }
+  const clearLogFile = () => {
+    firmwareForm.value.logFileId = undefined
+    firmwareForm.value.logFileName = ''
+    firmwareForm.value.logFileSize = 0
+    logUploadName.value = ''
+    ElMessage.info('已清除更新日志')
+  }
+  const downloadDevLog = (row) => {
+    const firmware = firmwareOf(row)
+    if (!firmware?.ID) {
+      ElMessage.warning('未找到可下载的更新日志')
+      return
+    }
+    triggerBrowserDownload(
+      `${getBaseUrl()}/firmwareVersion/downloadDeveloperLog?firmwareId=${
+        firmware.ID
+      }`
+    )
+  }
   const openPackageUpdateDialog = async (row) => {
     await ensureNotifyUserOptionsLoaded()
     const firmware = firmwareOf(row)
@@ -1682,6 +1764,8 @@
     firmwareDialogType.value = row?.ID ? 'update' : 'create'
     firmwareUploadName.value = ''
     firmwareUploading.value = false
+    logUploadName.value = ''
+    logUploading.value = false
     if (row?.ID) {
       const firmware = firmwareOf(row)
       const res = await findFirmwareVersion({ ID: firmware.ID })
@@ -1714,6 +1798,9 @@
         publishStatus: 'unpublished',
         releaseNote: '',
         uploadedBy: defaultUploadedBy(),
+        logFileId: undefined,
+        logFileName: '',
+        logFileSize: 0,
         notifyUserIds: [],
         notifyTo: ''
       }

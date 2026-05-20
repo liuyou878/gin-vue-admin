@@ -64,6 +64,10 @@ type DownloadFirmwarePackageRequest struct {
 	FirmwareID uint `json:"firmwareId" form:"firmwareId"` // 固件版本ID
 }
 
+type DownloadDeveloperLogRequest struct {
+	FirmwareID uint `json:"firmwareId" form:"firmwareId"` // 固件版本ID
+}
+
 type DownloadFirmwareLogPackageRequest struct {
 	LogID uint `json:"logId" form:"logId"` // 固件日志ID
 }

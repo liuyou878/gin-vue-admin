@@ -130,6 +130,15 @@
                     </div>
                     <div
                       class="meta-item compact-meta"
+                      v-if="item.firmware?.logFileName"
+                    >
+                      <span>更新日志附件</span>
+                      <strong>
+                        <a class="log-dl" @click.prevent="downloadDevLog(item)">下载</a>
+                      </strong>
+                    </div>
+                    <div
+                      class="meta-item compact-meta"
                       v-if="item.firmware?.checksum"
                     >
                       <span>校验值</span>
@@ -310,6 +319,25 @@
     const anchor = document.createElement('a')
     anchor.style.display = 'none'
     anchor.href = `${getBaseUrl()}/firmwarePublic/downloadFirmwarePackage?firmwareId=${firmwareId}`
+    anchor.rel = 'noopener noreferrer'
+    anchor.setAttribute('download', '')
+    document.body.appendChild(anchor)
+    anchor.click()
+    window.setTimeout(() => {
+      anchor.remove()
+    }, 0)
+    ElMessage.info('已发起下载，完成后会弹起下载列表')
+  }
+
+  const downloadDevLog = (item) => {
+    const firmwareId = Number(item?.firmware?.ID || 0)
+    if (!firmwareId) {
+      ElMessage.warning('当前版本没有可下载的更新日志')
+      return
+    }
+    const anchor = document.createElement('a')
+    anchor.style.display = 'none'
+    anchor.href = `${getBaseUrl()}/firmwarePublic/downloadDeveloperLog?firmwareId=${firmwareId}`
     anchor.rel = 'noopener noreferrer'
     anchor.setAttribute('download', '')
     document.body.appendChild(anchor)
@@ -597,6 +625,18 @@
     color: #334155;
     line-height: 1.8;
     white-space: pre-wrap;
+  }
+
+  .log-dl {
+    color: #3b82f6;
+    cursor: pointer;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .log-dl:hover {
+    color: #1d4ed8;
+    text-decoration: underline;
   }
 
   .version-list-panel {

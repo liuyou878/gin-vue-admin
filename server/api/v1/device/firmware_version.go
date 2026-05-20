@@ -130,6 +130,33 @@ func (a *FirmwareVersionApi) DownloadFirmwarePackage(c *gin.Context) {
 	c.DataFromReader(http.StatusOK, download.Size, download.ContentType, download.Reader, nil)
 }
 
+// DownloadDeveloperLog 下载固件更新日志
+func (a *FirmwareVersionApi) DownloadDeveloperLog(c *gin.Context) {
+	var req deviceReq.DownloadDeveloperLogRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if req.FirmwareID == 0 {
+		response.FailWithMessage("固件版本ID不能为空", c)
+		return
+	}
+	download, err := firmwareVersionService.OpenDeveloperLogDownload(req.FirmwareID)
+	if err != nil {
+		global.GVA_LOG.Error("下载更新日志失败!", zap.Error(err))
+		response.FailWithMessage("下载更新日志失败:"+err.Error(), c)
+		return
+	}
+	defer download.Close()
+
+	c.Header("Content-Disposition", buildAttachmentDisposition(download.FileName))
+	c.Header("Content-Type", download.ContentType)
+	if download.Size > 0 {
+		c.Header("Content-Length", int64ToString(download.Size))
+	}
+	c.DataFromReader(http.StatusOK, download.Size, download.ContentType, download.Reader, nil)
+}
+
 // ChangeFirmwareVersionStatus 更新固件版本状态
 func (a *FirmwareVersionApi) ChangeFirmwareVersionStatus(c *gin.Context) {
 	var req deviceReq.ChangeFirmwareVersionStatusRequest
