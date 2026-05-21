@@ -76,6 +76,24 @@ func (a *productionOrderApi) DeleteProductionOrder(c *gin.Context) {
 	response.OkWithMessage("删除成功", c)
 }
 
+// ForceDeleteProductionOrder 强制删除生产订单
+// @Tags     ProductionOrder
+// @Summary  强制删除生产订单（用于清理已确认/测试数据）
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    id query string true "订单ID"
+// @Success  200 {object} response.Response{msg=string} "删除成功"
+// @Router   /productionOrder/forceDeleteProductionOrder [delete]
+func (a *productionOrderApi) ForceDeleteProductionOrder(c *gin.Context) {
+	id := c.Query("id")
+	if err := serviceProductionOrder.ForceDeleteProductionOrder(id); err != nil {
+		response.FailWithMessage("删除失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("删除成功", c)
+}
+
 // UpdateProductionOrder 更新生产订单
 // @Tags     ProductionOrder
 // @Summary  更新生产订单
@@ -148,6 +166,76 @@ func (a *productionOrderApi) GetProductionOrderList(c *gin.Context) {
 		Page:     search.Page,
 		PageSize: search.PageSize,
 	}, "查询成功", c)
+}
+
+// GetSubmittedDeviceList 获取生产工具提交设备列表
+// @Tags     ProductionOrder
+// @Summary  获取生产工具提交设备列表
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    page query int false "页码"
+// @Param    pageSize query int false "每页数量"
+// @Param    moNumber query string false "MO号"
+// @Param    batchNumber query string false "批次号"
+// @Param    sn query string false "SN"
+// @Param    model query string false "型号"
+// @Success  200 {object} response.Response{data=response.PageResult,msg=string} "查询成功"
+// @Router   /productionOrder/getSubmittedDeviceList [get]
+func (a *productionOrderApi) GetSubmittedDeviceList(c *gin.Context) {
+	var search request.SubmittedDeviceSearch
+	if err := c.ShouldBindQuery(&search); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	list, total, err := serviceProductionOrder.GetSubmittedDeviceList(search)
+	if err != nil {
+		response.FailWithMessage("查询失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithDetailed(response.PageResult{
+		List:     list,
+		Total:    total,
+		Page:     search.Page,
+		PageSize: search.PageSize,
+	}, "查询成功", c)
+}
+
+// FindSubmittedDevice 查询生产工具提交设备详情
+// @Tags     ProductionOrder
+// @Summary  查询生产工具提交设备详情（含GETALL原文）
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    id query string true "设备ID"
+// @Success  200 {object} response.Response{data=model.ProductionOrderDevice,msg=string} "查询成功"
+// @Router   /productionOrder/findSubmittedDevice [get]
+func (a *productionOrderApi) FindSubmittedDevice(c *gin.Context) {
+	id := c.Query("id")
+	device, err := serviceProductionOrder.FindSubmittedDevice(id)
+	if err != nil {
+		response.FailWithMessage("查询失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithData(device, c)
+}
+
+// DeleteSubmittedDevice 删除生产工具提交设备记录
+// @Tags     ProductionOrder
+// @Summary  删除生产工具提交设备记录
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    id query string true "设备ID"
+// @Success  200 {object} response.Response{msg=string} "删除成功"
+// @Router   /productionOrder/deleteSubmittedDevice [delete]
+func (a *productionOrderApi) DeleteSubmittedDevice(c *gin.Context) {
+	id := c.Query("id")
+	if err := serviceProductionOrder.DeleteSubmittedDevice(id); err != nil {
+		response.FailWithMessage("删除失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("删除成功", c)
 }
 
 // AssignBatch 分配设备到批次

@@ -16,6 +16,8 @@ type CreateProductionOrder struct {
 	ProductName        string   `json:"productName"`
 	Model              string   `json:"model"`
 	FirmwareVersion    string   `json:"firmwareVersion"`
+	MainboardFirmwareVersion string `json:"mainboardFirmwareVersion"`
+	PNCode             string   `json:"pnCode"`
 	InstrumentCategory string   `json:"instrumentCategory"`
 	BatchNumber        string   `json:"batchNumber"`
 	Remark             string   `json:"remark"`
@@ -29,6 +31,8 @@ type UpdateProductionOrder struct {
 	ProductName        string `json:"productName"`
 	Model              string `json:"model"`
 	FirmwareVersion    string `json:"firmwareVersion"`
+	MainboardFirmwareVersion string `json:"mainboardFirmwareVersion"`
+	PNCode             string `json:"pnCode"`
 	InstrumentCategory string `json:"instrumentCategory"`
 	Status             *int   `json:"status"`
 	Remark             string `json:"remark"`
@@ -36,16 +40,22 @@ type UpdateProductionOrder struct {
 
 // SubmitDeviceData 生产工具提交全量数据
 type SubmitDeviceData struct {
-	MONumber           string           `json:"moNumber" binding:"required"`
-	BatchNumber        string           `json:"batchNumber"`
-	DeviceType         string           `json:"deviceType" binding:"required"`
-	InstrumentCategory string           `json:"instrumentCategory"`
-	SNs                []string         `json:"sns" binding:"required,min=1"`
-	PNCode             string           `json:"pnCode"`
-	TimeLicense        string           `json:"timeLicense"`
-	RegionLicense      string           `json:"regionLicense"`
-	NtripCode          string           `json:"ntripCode"`
-	DeviceInfo         string           `json:"deviceInfo"`
+	MONumber           string             `json:"moNumber" binding:"required"`
+	BatchNumber        string             `json:"batchNumber"`
+	InstrumentCategory string             `json:"instrumentCategory"`
+	Devices            []SubmitDeviceItem `json:"devices" binding:"required,min=1"`
+}
+
+type SubmitDeviceItem struct {
+	SN              string `json:"sn" binding:"required"`
+	Model           string `json:"model"`
+	PNCode          string `json:"pnCode"`
+	FirmwareVersion string `json:"firmwareVersion"`
+	MainboardFirmwareVersion string `json:"mainboardFirmwareVersion"`
+	TimeLicense     string `json:"timeLicense"`
+	RegionLicense   string `json:"regionLicense"`
+	NtripCode       string `json:"ntripCode"`
+	DeviceInfo      string `json:"deviceInfo"`
 }
 
 // AssignBatch 分配序列号到批次
@@ -58,4 +68,12 @@ type AssignBatch struct {
 type CreateBatch struct {
 	ProductionOrderID uint   `json:"productionOrderID" binding:"required"`
 	BatchNumber       string `json:"batchNumber" binding:"required"`
+}
+
+type SubmittedDeviceSearch struct {
+	MONumber    string `json:"moNumber" form:"moNumber"`
+	BatchNumber string `json:"batchNumber" form:"batchNumber"`
+	SN          string `json:"sn" form:"sn"`
+	Model       string `json:"model" form:"model"`
+	request.PageInfo
 }

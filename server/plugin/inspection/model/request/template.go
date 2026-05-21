@@ -12,7 +12,6 @@ type CreateTemplate struct {
 	Name            string                 `json:"name" binding:"required"`
 	ProductName     string                 `json:"productName"`
 	Model           string                 `json:"model"`
-	FirmwareVersion string                 `json:"firmwareVersion"`
 	Items           []TemplateItemSort     `json:"items"`
 }
 
@@ -21,7 +20,6 @@ type UpdateTemplate struct {
 	Name            string                 `json:"name" binding:"required"`
 	ProductName     string                 `json:"productName"`
 	Model           string                 `json:"model"`
-	FirmwareVersion string                 `json:"firmwareVersion"`
 	Status          *int                   `json:"status"`
 	Items           []TemplateItemSort     `json:"items"`
 }

@@ -77,7 +77,6 @@ func seedDefaultTemplate(ctx context.Context) {
 		Name:            "G3X标准检测",
 		ProductName:     "GNSS接收机（RTK）",
 		Model:           "G3X",
-		FirmwareVersion: "UM980-11833",
 		Status:          1,
 	}
 	if err := global.GVA_DB.WithContext(ctx).Create(&tmpl).Error; err != nil {

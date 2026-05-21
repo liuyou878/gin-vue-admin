@@ -34,6 +34,28 @@ func (a *workOrderApi) StartInspection(c *gin.Context) {
 	response.OkWithMessage("已开始检测", c)
 }
 
+// AssignBatchTemplate 为批次选择模板并生成待检测工单
+// @Tags     WorkOrder
+// @Summary  为批次选择模板并生成待检测工单
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.AssignBatchTemplate true "批次模板信息"
+// @Success  200 {object} response.Response{msg=string} "操作成功"
+// @Router   /workOrder/assignBatchTemplate [post]
+func (a *workOrderApi) AssignBatchTemplate(c *gin.Context) {
+	var req request.AssignBatchTemplate
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if err := serviceWorkOrder.AssignBatchTemplate(&req); err != nil {
+		response.FailWithMessage("操作失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("已生成待检测工单", c)
+}
+
 // SaveResults 保存检测结果
 // @Tags     WorkOrder
 // @Summary  保存检测结果
@@ -95,4 +117,36 @@ func (a *workOrderApi) GetInspectionDetail(c *gin.Context) {
 		return
 	}
 	response.OkWithData(data, c)
+}
+
+// GetInspectionBatchList 获取检测批次列表
+// @Tags     WorkOrder
+// @Summary  获取检测批次列表
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    page query int false "页码"
+// @Param    pageSize query int false "每页数量"
+// @Param    moNumber query string false "MO号"
+// @Param    model query string false "型号"
+// @Param    status query int false "状态"
+// @Success  200 {object} response.Response{data=response.PageResult,msg=string} "查询成功"
+// @Router   /workOrder/getInspectionBatchList [get]
+func (a *workOrderApi) GetInspectionBatchList(c *gin.Context) {
+	var search request.InspectionBatchSearch
+	if err := c.ShouldBindQuery(&search); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	list, total, err := serviceWorkOrder.GetInspectionBatchList(search)
+	if err != nil {
+		response.FailWithMessage("查询失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithDetailed(response.PageResult{
+		List:     list,
+		Total:    total,
+		Page:     search.Page,
+		PageSize: search.PageSize,
+	}, "查询成功", c)
 }

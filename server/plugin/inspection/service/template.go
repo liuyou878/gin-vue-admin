@@ -17,7 +17,6 @@ func (s *templateSvc) CreateTemplate(req *request.CreateTemplate) error {
 			Name:            req.Name,
 			ProductName:     req.ProductName,
 			Model:           req.Model,
-			FirmwareVersion: req.FirmwareVersion,
 			Status:          1,
 		}
 		if err := tx.Create(&tmpl).Error; err != nil {
@@ -49,10 +48,9 @@ func (s *templateSvc) DeleteTemplate(id string) error {
 func (s *templateSvc) UpdateTemplate(req *request.UpdateTemplate) error {
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		updates := map[string]interface{}{
-			"name":             req.Name,
-			"product_name":     req.ProductName,
-			"model":            req.Model,
-			"firmware_version": req.FirmwareVersion,
+			"name":         req.Name,
+			"product_name": req.ProductName,
+			"model":        req.Model,
 		}
 		if req.Status != nil {
 			updates["status"] = *req.Status

@@ -191,27 +191,44 @@ const calcDeviceStatus = (dev) => {
   dev.results.forEach(r => { if (r._checked === true) p = true; else if (r._checked === false) f = true; else u = true })
   dev._status = f ? 'fail' : (!u && p ? 'pass' : 'pending')
 }
-const saveResults = async () => {
+
+const buildSavePayload = () => {
   const ds = [], dr = []
   detail.value.devices.forEach(dev => {
     ds.push({ deviceID: dev.ID, status: dev._status || 'pending' })
     dev.results.forEach(r => dr.push({ deviceID: dev.ID, itemID: r.itemID, passResult: r._checked, numberResult: (r._numVal !== undefined && r._numVal !== null && r._numVal !== '') ? Number(r._numVal) : null, remark: r.remark || '' }))
   })
-  const res = await apiSaveResults({ productionOrderID: detail.value.order.ID, deviceStatuses: ds, deviceResults: dr })
-  if (res.code === 0) ElMessage.success('保存成功')
+  return { batchID: detail.value.order.ID, deviceStatuses: ds, deviceResults: dr }
+}
+
+const saveResults = async (silent = false) => {
+  const res = await apiSaveResults(buildSavePayload())
+  if (res.code === 0) {
+    if (!silent) ElMessage.success('保存成功')
+    return true
+  }
+  return false
 }
 const onComplete = async () => {
   await ElMessageBox.confirm('确定完成该工单的检测？', '提示', { type: 'info' })
+  const saved = await saveResults(true)
+  if (!saved) {
+    ElMessage.error('完成前保存检测结果失败')
+    return
+  }
   const res = await completeInspection({ ID: detail.value.order.ID })
-  if (res.code === 0) { ElMessage.success('检测完成'); window.location.hash = '/inspectWorkOrder' }
+  if (res.code === 0) {
+    ElMessage.success('检测完成')
+    window.location.hash = '/inspectWorkOrder'
+  }
 }
 const prevItem = () => { if (currentItemIndex.value > 0) currentItemIndex.value-- }
 const nextItem = () => { if (currentItemIndex.value < detail.value.templateItems.length - 1) currentItemIndex.value++ }
 
 const loadDetail = async () => {
-  const orderId = route.query.orderId
-  if (!orderId) return
-  const res = await getInspectionDetail({ id: orderId })
+  const batchId = route.query.batchId
+  if (!batchId) return
+  const res = await getInspectionDetail({ id: batchId })
   if (res.code === 0) {
     const data = res.data
     data.devices.forEach(dev => {

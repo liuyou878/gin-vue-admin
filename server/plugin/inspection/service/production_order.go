@@ -1,7 +1,10 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
@@ -14,6 +17,27 @@ var ProductionOrder = new(productionOrderSvc)
 
 type productionOrderSvc struct{}
 
+type submitDeviceInfoPayload struct {
+	FirmwareVersion string `json:"firmwareVersion"`
+	MainboardFirmwareVersion string `json:"mainboardFirmwareVersion"`
+	Device          struct {
+		FirmwareVersion          string `json:"firmwareVersion"`
+		MainboardFirmwareVersion string `json:"mainboardFirmwareVersion"`
+	} `json:"device"`
+}
+
+type normalizedSubmitDevice struct {
+	SN              string
+	Model           string
+	PNCode          string
+	FirmwareVersion string
+	MainboardFirmwareVersion string
+	TimeLicense     string
+	RegionLicense   string
+	NtripCode       string
+	DeviceInfo      string
+}
+
 func (s *productionOrderSvc) CreateProductionOrder(req *request.CreateProductionOrder) error {
 	now := time.Now()
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
@@ -23,6 +47,8 @@ func (s *productionOrderSvc) CreateProductionOrder(req *request.CreateProduction
 			ProductName:        req.ProductName,
 			Model:              req.Model,
 			FirmwareVersion:    req.FirmwareVersion,
+			MainboardFirmwareVersion: req.MainboardFirmwareVersion,
+			PNCode:             req.PNCode,
 			InstrumentCategory: req.InstrumentCategory,
 			Status:             0,
 			SubmitDate:         &now,
@@ -57,43 +83,68 @@ func (s *productionOrderSvc) DeleteProductionOrder(id string) error {
 		if po.Status >= 1 {
 			return errors.New("已确认的订单不允许删除")
 		}
-		if err := tx.Where("production_order_id = ?", id).Delete(&model.ProductionBatch{}).Error; err != nil {
+		return tx.Unscoped().Delete(&po).Error
+	})
+}
+
+func (s *productionOrderSvc) ForceDeleteProductionOrder(id string) error {
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var po model.ProductionOrder
+		if err := tx.Where("id = ?", id).First(&po).Error; err != nil {
 			return err
 		}
-		return tx.Where("production_order_id = ?", id).Delete(&model.ProductionOrderDevice{}).Error
+		return tx.Unscoped().Delete(&po).Error
 	})
 }
 
 func (s *productionOrderSvc) UpdateProductionOrder(req *request.UpdateProductionOrder) error {
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var po model.ProductionOrder
+		if err := tx.Where("id = ?", req.ID).First(&po).Error; err != nil {
+			return err
+		}
+
+		if req.Status != nil && *req.Status != po.Status {
+			return errors.New("生产订单状态不支持在此页面直接修改，请到批次流程中处理")
+		}
+
 		updates := map[string]interface{}{
-			"mo_number":           req.MONumber,
-			"template_id":         req.TemplateID,
-			"product_name":        req.ProductName,
-			"model":               req.Model,
-			"firmware_version":    req.FirmwareVersion,
+			"mo_number": req.MONumber,
+			"product_name": req.ProductName,
+			"model": req.Model,
+			"firmware_version": req.FirmwareVersion,
+			"mainboard_firmware_version": req.MainboardFirmwareVersion,
+			"pn_code": req.PNCode,
 			"instrument_category": req.InstrumentCategory,
-			"remark":              req.Remark,
+			"remark": req.Remark,
 		}
 		if req.Status != nil {
 			updates["status"] = *req.Status
 		}
-		return tx.Model(&model.ProductionOrder{}).Where("id = ?", req.ID).Updates(updates).Error
+		if err := tx.Model(&model.ProductionOrder{}).Where("id = ?", req.ID).Updates(updates).Error; err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 func (s *productionOrderSvc) FindProductionOrder(id string) (model.ProductionOrder, error) {
 	var po model.ProductionOrder
-	err := global.GVA_DB.Preload("Template").Preload("Batches.Devices").Where("id = ?", id).First(&po).Error
+	err := global.GVA_DB.Preload("Template").Preload("Batches.Template").Preload("Batches.Devices").Where("id = ?", id).First(&po).Error
 	if err != nil {
 		return po, err
 	}
-	var unbatched []model.ProductionOrderDevice
-	global.GVA_DB.Where("production_order_id = ? AND batch_id IS NULL", id).Order("line_number asc").Find(&unbatched)
-	po.DeviceCount = len(unbatched)
-	for _, b := range po.Batches {
-		po.DeviceCount += len(b.Devices)
+	var devices []model.ProductionOrderDevice
+	if err := global.GVA_DB.Where("production_order_id = ?", id).Order("line_number asc").Find(&devices).Error; err != nil {
+		return po, err
 	}
+	po.Devices = devices
+	fillOrderHeaderFromDevices(&po, devices)
+	po.DeviceCount = len(devices)
+	for i := range po.Batches {
+		po.Batches[i].DeviceCount = len(po.Batches[i].Devices)
+	}
+	fillBatchSummary(&po)
 	var pass, fail int64
 	global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = 'pass'", id).Count(&pass)
 	global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = 'fail'", id).Count(&fail)
@@ -136,38 +187,150 @@ func (s *productionOrderSvc) GetProductionOrderList(search request.ProductionOrd
 				list[i].Template = &tmpl
 			}
 		}
+		var batches []model.ProductionBatch
+		if err := global.GVA_DB.Where("production_order_id = ?", list[i].ID).Order("id asc").Find(&batches).Error; err == nil {
+			list[i].Batches = batches
+			fillBatchSummary(&list[i])
+		}
+		if needsOrderHeaderFallback(&list[i]) {
+			var firstDevice model.ProductionOrderDevice
+			if err := global.GVA_DB.Where("production_order_id = ?", list[i].ID).Order("line_number asc, id asc").First(&firstDevice).Error; err == nil {
+				fillOrderHeaderFromDevices(&list[i], []model.ProductionOrderDevice{firstDevice})
+			}
+		}
 	}
 	return list, total, err
+}
+
+func (s *productionOrderSvc) GetSubmittedDeviceList(search request.SubmittedDeviceSearch) (list []model.SubmittedDeviceListItem, total int64, err error) {
+	db := global.GVA_DB.Table("production_order_devices AS pod").
+		Select("pod.id, pod.production_order_id, pod.batch_id, po.mo_number, pb.batch_number, pod.sn, pod.model, po.instrument_category, pod.pn_code, pod.firmware_version, pod.mainboard_firmware_version, pod.time_license, pod.region_license, pod.ntrip_code, pod.status, po.submitter_name, po.submit_date, pod.created_at").
+		Joins("JOIN production_orders po ON po.id = pod.production_order_id").
+		Joins("LEFT JOIN production_batches pb ON pb.id = pod.batch_id")
+
+	if search.MONumber != "" {
+		db = db.Where("po.mo_number LIKE ?", "%"+search.MONumber+"%")
+	}
+	if search.BatchNumber != "" {
+		db = db.Where("pb.batch_number LIKE ?", "%"+search.BatchNumber+"%")
+	}
+	if search.SN != "" {
+		db = db.Where("pod.sn LIKE ?", "%"+search.SN+"%")
+	}
+	if search.Model != "" {
+		db = db.Where("pod.model LIKE ?", "%"+search.Model+"%")
+	}
+
+	err = db.Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	err = db.Order("pod.id desc").Limit(search.PageSize).Offset(search.PageSize * (search.Page - 1)).Scan(&list).Error
+	return list, total, err
+}
+
+func (s *productionOrderSvc) FindSubmittedDevice(id string) (model.ProductionOrderDevice, error) {
+	var device model.ProductionOrderDevice
+	err := global.GVA_DB.Preload("Batch").Preload("ProductionOrder").Where("id = ?", id).First(&device).Error
+	return device, err
+}
+
+func (s *productionOrderSvc) DeleteSubmittedDevice(id string) error {
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var device model.ProductionOrderDevice
+		if err := tx.Where("id = ?", id).First(&device).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Unscoped().Where("production_order_device_id = ?", device.ID).Delete(&model.InspectionDeviceResult{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Delete(&device).Error; err != nil {
+			return err
+		}
+
+		if device.BatchID != nil {
+			var batchDeviceCount int64
+			if err := tx.Model(&model.ProductionOrderDevice{}).Where("batch_id = ?", *device.BatchID).Count(&batchDeviceCount).Error; err != nil {
+				return err
+			}
+			if batchDeviceCount == 0 {
+				if err := tx.Unscoped().Delete(&model.ProductionBatch{}, "id = ?", *device.BatchID).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		var orderDeviceCount int64
+		if err := tx.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ?", device.ProductionOrderID).Count(&orderDeviceCount).Error; err != nil {
+			return err
+		}
+		if orderDeviceCount == 0 {
+			if err := tx.Unscoped().Delete(&model.ProductionOrder{}, "id = ?", device.ProductionOrderID).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 }
 
 // SubmitDeviceData 生产工具提交全量数据
 func (s *productionOrderSvc) SubmitDeviceData(req *request.SubmitDeviceData, submitterID uint, submitterName string) error {
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
-		// Find or create production order
+		devices := normalizeSubmitDevices(req)
+		if len(devices) == 0 {
+			return errors.New("至少需要提交一台设备")
+		}
+
 		var po model.ProductionOrder
-		err := tx.Where("mo_number = ?", req.MONumber).First(&po).Error
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				now := time.Now()
-				po = model.ProductionOrder{
-					MONumber:           req.MONumber,
-					ProductName:        req.DeviceType,
-					Model:              req.DeviceType,
-					InstrumentCategory: req.InstrumentCategory,
-					Status:             0,
-					SubmitterID:        &submitterID,
-					SubmitterName:      submitterName,
-					SubmitDate:         &now,
-				}
-				if err := tx.Create(&po).Error; err != nil {
-					return err
-				}
-			} else {
+		err := tx.Unscoped().Where("mo_number = ?", req.MONumber).First(&po).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if err == nil && po.DeletedAt.Valid {
+			if err := tx.Unscoped().Delete(&po).Error; err != nil {
+				return err
+			}
+			err = gorm.ErrRecordNotFound
+		}
+
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			now := time.Now()
+			header := buildOrderHeaderFromSubmit(req, devices[0])
+			po = model.ProductionOrder{
+				MONumber:           req.MONumber,
+				ProductName:        header.ProductName,
+				Model:              header.Model,
+				FirmwareVersion:    header.FirmwareVersion,
+				MainboardFirmwareVersion: header.MainboardFirmwareVersion,
+				PNCode:             header.PNCode,
+				InstrumentCategory: header.InstrumentCategory,
+				Status:             0,
+				SubmitterID:        &submitterID,
+				SubmitterName:      submitterName,
+				SubmitDate:         &now,
+			}
+			if err := tx.Create(&po).Error; err != nil {
+				return err
+			}
+		} else {
+			if po.Status != 0 {
+				return fmt.Errorf("生产订单 %s 已确认或已进入检测流程，不允许继续提交设备数据", req.MONumber)
+			}
+			updates := map[string]interface{}{
+				"submitter_id":   submitterID,
+				"submitter_name": submitterName,
+				"submit_date":    time.Now(),
+			}
+			for key, value := range fillMissingOrderHeaderFromSubmit(&po, req, devices[0]) {
+				updates[key] = value
+			}
+			if err := tx.Model(&po).Updates(updates).Error; err != nil {
 				return err
 			}
 		}
 
-		// Create batch if provided
 		var batchID *uint
 		if req.BatchNumber != "" {
 			var batch model.ProductionBatch
@@ -187,27 +350,49 @@ func (s *productionOrderSvc) SubmitDeviceData(req *request.SubmitDeviceData, sub
 			batchID = &batch.ID
 		}
 
-		// Insert devices
-		for i, sn := range req.SNs {
-			if sn == "" {
+		for i, item := range devices {
+			if item.SN == "" {
 				continue
 			}
 			var existing model.ProductionOrderDevice
-			if err := tx.Where("sn = ?", sn).First(&existing).Error; err == nil {
-				continue // Skip duplicates
+			if err := tx.Where("sn = ?", item.SN).First(&existing).Error; err == nil {
+				if existing.ProductionOrderID != po.ID {
+					return fmt.Errorf("SN %s 已存在于其他生产订单中", item.SN)
+				}
+				updates := map[string]interface{}{
+					"model":            item.Model,
+					"pn_code":          item.PNCode,
+					"time_license":     item.TimeLicense,
+					"region_license":   item.RegionLicense,
+					"ntrip_code":       item.NtripCode,
+					"line_number":      i + 1,
+					"device_info":      item.DeviceInfo,
+					"firmware_version": firstNonEmpty(item.FirmwareVersion, extractFirmwareVersion(item.DeviceInfo)),
+					"mainboard_firmware_version": firstNonEmpty(item.MainboardFirmwareVersion, extractMainboardFirmwareVersion(item.DeviceInfo)),
+				}
+				if batchID != nil {
+					updates["batch_id"] = *batchID
+				}
+				if err := tx.Model(&existing).Updates(updates).Error; err != nil {
+					return err
+				}
+				continue
+			} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
 			}
 			device := model.ProductionOrderDevice{
 				ProductionOrderID: po.ID,
 				BatchID:           batchID,
-				SN:                sn,
-				Model:             req.DeviceType,
-				PNCode:            req.PNCode,
-				FirmwareVersion:   req.DeviceInfo, // will be parsed from deviceInfo JSON if needed
-				TimeLicense:       req.TimeLicense,
-				RegionLicense:     req.RegionLicense,
-				NtripCode:         req.NtripCode,
+				SN:                item.SN,
+				Model:             item.Model,
+				PNCode:            item.PNCode,
+				FirmwareVersion:   firstNonEmpty(item.FirmwareVersion, extractFirmwareVersion(item.DeviceInfo)),
+				MainboardFirmwareVersion: firstNonEmpty(item.MainboardFirmwareVersion, extractMainboardFirmwareVersion(item.DeviceInfo)),
+				TimeLicense:       item.TimeLicense,
+				RegionLicense:     item.RegionLicense,
+				NtripCode:         item.NtripCode,
 				LineNumber:        i + 1,
-				DeviceInfo:        req.DeviceInfo,
+				DeviceInfo:        item.DeviceInfo,
 			}
 			if err := tx.Create(&device).Error; err != nil {
 				return err
@@ -236,4 +421,201 @@ func (s *productionOrderSvc) AssignBatch(req *request.AssignBatch) error {
 		}
 		return nil
 	})
+}
+
+func extractFirmwareVersion(deviceInfo string) string {
+	if deviceInfo == "" {
+		return ""
+	}
+
+	var payload submitDeviceInfoPayload
+	if err := json.Unmarshal([]byte(deviceInfo), &payload); err != nil {
+		return ""
+	}
+	if payload.Device.FirmwareVersion != "" {
+		return payload.Device.FirmwareVersion
+	}
+	return payload.FirmwareVersion
+}
+
+func normalizeSubmitDevices(req *request.SubmitDeviceData) []normalizedSubmitDevice {
+	devices := make([]normalizedSubmitDevice, 0)
+	for _, item := range req.Devices {
+		sn := strings.TrimSpace(item.SN)
+		if sn == "" {
+			continue
+		}
+		sn = strings.TrimSpace(sn)
+		devices = append(devices, normalizedSubmitDevice{
+			SN:              sn,
+			Model:           item.Model,
+			PNCode:          item.PNCode,
+			FirmwareVersion: item.FirmwareVersion,
+			MainboardFirmwareVersion: item.MainboardFirmwareVersion,
+			TimeLicense:     item.TimeLicense,
+			RegionLicense:   item.RegionLicense,
+			NtripCode:       item.NtripCode,
+			DeviceInfo:      item.DeviceInfo,
+		})
+	}
+	return devices
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func buildOrderHeaderFromSubmit(req *request.SubmitDeviceData, device normalizedSubmitDevice) model.ProductionOrder {
+	modelName := firstNonEmpty(device.Model, extractModelFromDeviceInfo(device.DeviceInfo))
+	return model.ProductionOrder{
+		ProductName:        modelName,
+		Model:              modelName,
+		FirmwareVersion:    firstNonEmpty(device.FirmwareVersion, extractFirmwareVersion(device.DeviceInfo)),
+		MainboardFirmwareVersion: firstNonEmpty(device.MainboardFirmwareVersion, extractMainboardFirmwareVersion(device.DeviceInfo)),
+		PNCode:             firstNonEmpty(device.PNCode, extractPNCodeFromDeviceInfo(device.DeviceInfo)),
+		InstrumentCategory: strings.TrimSpace(req.InstrumentCategory),
+	}
+}
+
+func fillMissingOrderHeaderFromSubmit(order *model.ProductionOrder, req *request.SubmitDeviceData, device normalizedSubmitDevice) map[string]interface{} {
+	header := buildOrderHeaderFromSubmit(req, device)
+	updates := map[string]interface{}{}
+	if strings.TrimSpace(order.ProductName) == "" && header.ProductName != "" {
+		updates["product_name"] = header.ProductName
+	}
+	if strings.TrimSpace(order.Model) == "" && header.Model != "" {
+		updates["model"] = header.Model
+	}
+	if strings.TrimSpace(order.FirmwareVersion) == "" && header.FirmwareVersion != "" {
+		updates["firmware_version"] = header.FirmwareVersion
+	}
+	if strings.TrimSpace(order.MainboardFirmwareVersion) == "" && header.MainboardFirmwareVersion != "" {
+		updates["mainboard_firmware_version"] = header.MainboardFirmwareVersion
+	}
+	if strings.TrimSpace(order.PNCode) == "" && header.PNCode != "" {
+		updates["pn_code"] = header.PNCode
+	}
+	if strings.TrimSpace(order.InstrumentCategory) == "" && header.InstrumentCategory != "" {
+		updates["instrument_category"] = header.InstrumentCategory
+	}
+	return updates
+}
+
+func needsOrderHeaderFallback(order *model.ProductionOrder) bool {
+	return strings.TrimSpace(order.ProductName) == "" ||
+		strings.TrimSpace(order.Model) == "" ||
+		strings.TrimSpace(order.FirmwareVersion) == "" ||
+		strings.TrimSpace(order.MainboardFirmwareVersion) == "" ||
+		strings.TrimSpace(order.PNCode) == ""
+}
+
+func fillOrderHeaderFromDevices(order *model.ProductionOrder, devices []model.ProductionOrderDevice) {
+	if len(devices) == 0 {
+		return
+	}
+	for _, device := range devices {
+		if strings.TrimSpace(order.ProductName) == "" {
+			order.ProductName = firstNonEmpty(device.Model, extractModelFromDeviceInfo(device.DeviceInfo))
+		}
+		if strings.TrimSpace(order.Model) == "" {
+			order.Model = firstNonEmpty(device.Model, extractModelFromDeviceInfo(device.DeviceInfo))
+		}
+		if strings.TrimSpace(order.FirmwareVersion) == "" {
+			order.FirmwareVersion = firstNonEmpty(device.FirmwareVersion, extractFirmwareVersion(device.DeviceInfo))
+		}
+		if strings.TrimSpace(order.MainboardFirmwareVersion) == "" {
+			order.MainboardFirmwareVersion = firstNonEmpty(device.MainboardFirmwareVersion, extractMainboardFirmwareVersion(device.DeviceInfo))
+		}
+		if strings.TrimSpace(order.PNCode) == "" {
+			order.PNCode = firstNonEmpty(device.PNCode, extractPNCodeFromDeviceInfo(device.DeviceInfo))
+		}
+		if !needsOrderHeaderFallback(order) {
+			return
+		}
+	}
+}
+
+func extractModelFromDeviceInfo(deviceInfo string) string {
+	if deviceInfo == "" {
+		return ""
+	}
+
+	var payload struct {
+		Model  string `json:"model"`
+		Device struct {
+			FullType string `json:"fullType"`
+			Model    string `json:"model"`
+		} `json:"device"`
+	}
+	if err := json.Unmarshal([]byte(deviceInfo), &payload); err != nil {
+		return ""
+	}
+	return firstNonEmpty(payload.Device.FullType, payload.Device.Model, payload.Model)
+}
+
+func extractPNCodeFromDeviceInfo(deviceInfo string) string {
+	if deviceInfo == "" {
+		return ""
+	}
+
+	var payload struct {
+		PNCode string `json:"pnCode"`
+		Device struct {
+			PN string `json:"pn"`
+		} `json:"device"`
+	}
+	if err := json.Unmarshal([]byte(deviceInfo), &payload); err != nil {
+		return ""
+	}
+	return firstNonEmpty(payload.PNCode, payload.Device.PN)
+}
+
+func extractMainboardFirmwareVersion(deviceInfo string) string {
+	if deviceInfo == "" {
+		return ""
+	}
+
+	var payload struct {
+		MainboardFirmwareVersion string `json:"mainboardFirmwareVersion"`
+		Device                   struct {
+			MainboardFirmwareVersion string `json:"mainboardFirmwareVersion"`
+		} `json:"device"`
+	}
+	if err := json.Unmarshal([]byte(deviceInfo), &payload); err != nil {
+		return ""
+	}
+	return firstNonEmpty(payload.Device.MainboardFirmwareVersion, payload.MainboardFirmwareVersion)
+}
+
+func fillBatchSummary(order *model.ProductionOrder) {
+	order.BatchCount = len(order.Batches)
+	if len(order.Batches) == 0 {
+		order.BatchSummary = "-"
+		return
+	}
+	if len(order.Batches) == 1 {
+		order.BatchSummary = order.Batches[0].BatchNumber
+		return
+	}
+
+	names := make([]string, 0, len(order.Batches))
+	for _, batch := range order.Batches {
+		if batch.BatchNumber != "" {
+			names = append(names, batch.BatchNumber)
+		}
+	}
+	if len(names) == 0 {
+		order.BatchSummary = fmt.Sprintf("多批次(%d)", len(order.Batches))
+		return
+	}
+	if len(names) <= 2 {
+		order.BatchSummary = strings.Join(names, ", ")
+		return
+	}
+	order.BatchSummary = fmt.Sprintf("%s 等%d个批次", names[0], len(order.Batches))
 }

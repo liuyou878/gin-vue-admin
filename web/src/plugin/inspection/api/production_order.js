@@ -8,6 +8,10 @@ export const deleteProductionOrder = (params) => {
   return service({ url: '/productionOrder/deleteProductionOrder', method: 'delete', params })
 }
 
+export const forceDeleteProductionOrder = (params) => {
+  return service({ url: '/productionOrder/forceDeleteProductionOrder', method: 'delete', params })
+}
+
 export const updateProductionOrder = (data) => {
   return service({ url: '/productionOrder/updateProductionOrder', method: 'put', data })
 }
@@ -18,4 +22,16 @@ export const findProductionOrder = (params) => {
 
 export const getProductionOrderList = (params) => {
   return service({ url: '/productionOrder/getProductionOrderList', method: 'get', params })
+}
+
+export const getSubmittedDeviceList = (params) => {
+  return service({ url: '/productionOrder/getSubmittedDeviceList', method: 'get', params })
+}
+
+export const findSubmittedDevice = (params) => {
+  return service({ url: '/productionOrder/findSubmittedDevice', method: 'get', params })
+}
+
+export const deleteSubmittedDevice = (params) => {
+  return service({ url: '/productionOrder/deleteSubmittedDevice', method: 'delete', params })
 }

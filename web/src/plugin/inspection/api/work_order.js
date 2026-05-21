@@ -1,7 +1,15 @@
 import service from '@/utils/request'
 
+export const assignBatchTemplate = (data) => {
+  return service({ url: '/workOrder/assignBatchTemplate', method: 'post', data })
+}
+
 export const startInspection = (data) => {
   return service({ url: '/workOrder/startInspection', method: 'post', data })
+}
+
+export const getInspectionBatchList = (params) => {
+  return service({ url: '/workOrder/getInspectionBatchList', method: 'get', params })
 }
 
 export const saveResults = (data) => {

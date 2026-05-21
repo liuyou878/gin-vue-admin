@@ -7,7 +7,6 @@ type InspectionTemplate struct {
 	Name             string `json:"name" gorm:"column:name;comment:模板名称;size:100;not null"`
 	ProductName      string `json:"productName" gorm:"column:product_name;comment:产品名称;size:100"`
 	Model            string `json:"model" gorm:"column:model;comment:适用型号;size:100"`
-	FirmwareVersion  string `json:"firmwareVersion" gorm:"column:firmware_version;comment:主板固件版本;size:100"`
 	Status           int    `json:"status" gorm:"column:status;comment:状态(1=启用,2=停用);default:1"`
 	TemplateItems    []InspectionTemplateItem `json:"templateItems" gorm:"foreignKey:TemplateID"`
 	ItemCount        int    `json:"itemCount" gorm:"-"`

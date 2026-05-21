@@ -15,6 +15,8 @@ func (r *productionOrderRouter) Init(private *gin.RouterGroup) {
 		group.POST("submitDeviceData", apiProductionOrder.SubmitDeviceData)
 		group.POST("createProductionOrder", apiProductionOrder.CreateProductionOrder)
 		group.DELETE("deleteProductionOrder", apiProductionOrder.DeleteProductionOrder)
+		group.DELETE("forceDeleteProductionOrder", apiProductionOrder.ForceDeleteProductionOrder)
+		group.DELETE("deleteSubmittedDevice", apiProductionOrder.DeleteSubmittedDevice)
 		group.PUT("updateProductionOrder", apiProductionOrder.UpdateProductionOrder)
 		group.POST("assignBatch", apiProductionOrder.AssignBatch)
 		group.POST("createBatch", apiProductionOrder.CreateBatch)
@@ -23,5 +25,7 @@ func (r *productionOrderRouter) Init(private *gin.RouterGroup) {
 		group := private.Group("productionOrder")
 		group.GET("findProductionOrder", apiProductionOrder.FindProductionOrder)
 		group.GET("getProductionOrderList", apiProductionOrder.GetProductionOrderList)
+		group.GET("getSubmittedDeviceList", apiProductionOrder.GetSubmittedDeviceList)
+		group.GET("findSubmittedDevice", apiProductionOrder.FindSubmittedDevice)
 	}
 }

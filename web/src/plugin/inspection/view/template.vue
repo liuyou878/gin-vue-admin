@@ -23,8 +23,7 @@
       <el-table-column prop="ID" label="ID" width="80" />
       <el-table-column prop="name" label="模板名称" min-width="140" />
       <el-table-column prop="productName" label="产品名称" min-width="140" />
-      <el-table-column prop="model" label="型号" width="100" />
-      <el-table-column prop="firmwareVersion" label="固件版本" width="130" />
+      <el-table-column prop="model" label="模板型号" width="120" />
       <el-table-column label="状态" width="80">
         <template #default="scope">
           <el-tag :type="scope.row.status === 1 ? 'success' : 'info'">
@@ -69,11 +68,8 @@
         <el-form-item label="产品名称" prop="productName">
           <el-input v-model="formData.productName" placeholder="如 GNSS接收机（RTK）" />
         </el-form-item>
-        <el-form-item label="型号" prop="model">
+        <el-form-item label="模板型号" prop="model">
           <el-input v-model="formData.model" placeholder="如 G3X" />
-        </el-form-item>
-        <el-form-item label="固件版本" prop="firmwareVersion">
-          <el-input v-model="formData.firmwareVersion" placeholder="如 UM980-11833" />
         </el-form-item>
         <el-form-item v-if="dialogType === 'update'" label="状态">
           <el-switch v-model="formData.status" :active-value="1" :inactive-value="2" active-text="启用" inactive-text="停用" />
@@ -162,7 +158,7 @@ const pickerSelected = ref([])
 const pickerTableRef = ref(null)
 
 const searchInfo = reactive({ name: '', model: '', page: 1, pageSize: 30 })
-const formData = reactive({ ID: 0, name: '', productName: '', model: '', firmwareVersion: '', status: 1 })
+const formData = reactive({ ID: 0, name: '', productName: '', model: '', status: 1 })
 
 const rules = { name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }] }
 
@@ -189,7 +185,6 @@ const openDialog = async (type, row) => {
     formData.name = row.name
     formData.productName = row.productName || ''
     formData.model = row.model || ''
-    formData.firmwareVersion = row.firmwareVersion || ''
     formData.status = row.status
     const res = await findTemplate({ id: row.ID })
     if (res.code === 0 && res.data.templateItems) {
@@ -203,7 +198,7 @@ const openDialog = async (type, row) => {
     }
   } else {
     formData.ID = 0; formData.name = ''; formData.productName = ''; formData.model = ''
-    formData.firmwareVersion = ''; formData.status = 1
+    formData.status = 1
     selectedItems.value = []
   }
   drawerVisible.value = true
@@ -252,7 +247,6 @@ const submitForm = async () => {
     name: formData.name,
     productName: formData.productName,
     model: formData.model,
-    firmwareVersion: formData.firmwareVersion,
     items: selectedItems.value.map((s) => ({ itemID: s.itemID, sort: s.sort }))
   }
 
