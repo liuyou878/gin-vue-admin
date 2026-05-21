@@ -524,6 +524,22 @@
               >
                 {{ batchStatusLabel(batch.status) }}
               </el-tag>
+              <el-button
+                size="small"
+                type="success"
+                link
+                @click="onExportBatchExcel(batch)"
+              >
+                导出Excel
+              </el-button>
+              <el-button
+                size="small"
+                type="primary"
+                link
+                @click="openBatchPrint(batch)"
+              >
+                打印
+              </el-button>
             </div>
           </div>
           <el-table :data="batch.devices" border size="small" class="mt-1">
@@ -628,7 +644,10 @@
     getDeviceStatusLogs
   } from '@/plugin/inspection/api/production_order'
   import { getTemplateList } from '@/plugin/inspection/api/template'
-  import { assignOrderTemplate } from '@/plugin/inspection/api/work_order'
+  import {
+    assignOrderTemplate,
+    exportInspectionExcel
+  } from '@/plugin/inspection/api/work_order'
 
   const loading = ref(false)
   const tableData = ref([])
@@ -742,6 +761,38 @@
       (template) => template.ID === dispatchForm.templateID
     )
   )
+
+  const ensureBatchPrintable = (batch) => {
+    if (!batch?.template && !batch?.templateID) {
+      ElMessage.warning('请先派检并绑定检测模板，再打印或导出')
+      return false
+    }
+    return true
+  }
+
+  const openBatchPrint = (batch) => {
+    if (!ensureBatchPrintable(batch)) return
+    const url = `${window.location.origin}${window.location.pathname}#/inspectPrint?batchId=${batch.ID}`
+    window.open(url, '_blank')
+  }
+
+  const downloadBlob = (blob, filename) => {
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+  }
+
+  const onExportBatchExcel = async (batch) => {
+    if (!ensureBatchPrintable(batch)) return
+    const res = await exportInspectionExcel({ id: batch.ID })
+    const filename = `${detailOrder.value?.moNumber || 'MO'}-${batch.batchNumber || batch.ID}-检测工单.xlsx`
+    downloadBlob(res.data || res, filename)
+  }
 
   const getList = async () => {
     loading.value = true
