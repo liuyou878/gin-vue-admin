@@ -77,10 +77,13 @@ type CreateBatch struct {
 }
 
 type SubmittedDeviceSearch struct {
-	MONumber    string `json:"moNumber" form:"moNumber"`
-	BatchNumber string `json:"batchNumber" form:"batchNumber"`
-	SN          string `json:"sn" form:"sn"`
-	Model       string `json:"model" form:"model"`
+	ProductionOrderID uint   `json:"productionOrderID" form:"productionOrderID"`
+	MONumber          string `json:"moNumber" form:"moNumber"`
+	BatchNumber       string `json:"batchNumber" form:"batchNumber"`
+	SN                string `json:"sn" form:"sn"`
+	Model             string `json:"model" form:"model"`
+	Status            string `json:"status" form:"status"`
+	Statuses          string `json:"statuses" form:"statuses"`
 	request.PageInfo
 }
 

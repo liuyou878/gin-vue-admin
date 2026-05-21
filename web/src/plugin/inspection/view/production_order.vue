@@ -68,30 +68,46 @@
         }}</template>
       </el-table-column>
       <el-table-column prop="submitterName" label="提交人" width="100" />
-      <el-table-column prop="deviceCount" label="设备数" width="80" />
+      <el-table-column label="设备数" width="80">
+        <template #default="scope">
+          <button class="count-link" @click="openDeviceDialog(scope.row, 'all')">
+            {{ scope.row.deviceCount || 0 }}
+          </button>
+        </template>
+      </el-table-column>
       <el-table-column label="合格数" width="90">
         <template #default="scope">
-          <span class="count-pass">{{ scope.row.passCount || 0 }}</span>
+          <button class="count-link count-pass" @click="openDeviceDialog(scope.row, 'pass')">
+            {{ scope.row.passCount || 0 }}
+          </button>
         </template>
       </el-table-column>
       <el-table-column label="不合格数" width="100">
         <template #default="scope">
-          <span class="count-fail">{{ scope.row.failCount || 0 }}</span>
+          <button class="count-link count-fail" @click="openDeviceDialog(scope.row, 'fail')">
+            {{ scope.row.failCount || 0 }}
+          </button>
         </template>
       </el-table-column>
       <el-table-column label="返工数" width="90">
         <template #default="scope">
-          <span class="count-return">{{ scope.row.reworkCount || 0 }}</span>
+          <button class="count-link count-return" @click="openDeviceDialog(scope.row, 'rework')">
+            {{ scope.row.reworkCount || 0 }}
+          </button>
         </template>
       </el-table-column>
       <el-table-column label="待复检" width="90">
         <template #default="scope">
-          <span class="count-recheck">{{ scope.row.recheckCount || 0 }}</span>
+          <button class="count-link count-recheck" @click="openDeviceDialog(scope.row, 'recheck')">
+            {{ scope.row.recheckCount || 0 }}
+          </button>
         </template>
       </el-table-column>
       <el-table-column label="异常数" width="90">
         <template #default="scope">
-          <span class="count-abnormal">{{ scope.row.abnormalCount || 0 }}</span>
+          <button class="count-link count-abnormal" @click="openDeviceDialog(scope.row, 'abnormal')">
+            {{ scope.row.abnormalCount || 0 }}
+          </button>
         </template>
       </el-table-column>
       <el-table-column label="合格率" width="100">
@@ -641,6 +657,13 @@
         <el-empty v-else description="暂无状态日志" />
       </template>
     </el-drawer>
+
+    <ProductionOrderDeviceDialog
+      v-model="deviceDialogVisible"
+      :order="deviceDialogOrder"
+      :filter-type="deviceDialogFilter"
+      @changed="getList"
+    />
   </div>
 </template>
 
@@ -663,6 +686,7 @@
     assignOrderTemplate,
     exportInspectionExcel
   } from '@/plugin/inspection/api/work_order'
+  import ProductionOrderDeviceDialog from '@/plugin/inspection/components/ProductionOrderDeviceDialog.vue'
 
   const loading = ref(false)
   const tableData = ref([])
@@ -680,6 +704,9 @@
   const logVisible = ref(false)
   const logDevice = ref(null)
   const statusLogs = ref([])
+  const deviceDialogVisible = ref(false)
+  const deviceDialogOrder = ref(null)
+  const deviceDialogFilter = ref('all')
   const dispatchForm = reactive({
     templateID: null,
     instrumentCategory: ''
@@ -746,6 +773,12 @@
     const total = Number(deviceCount || 0)
     if (!total) return '-'
     return `${((Number(passCount || 0) / total) * 100).toFixed(1)}%`
+  }
+
+  const openDeviceDialog = (row, filterType = 'all') => {
+    deviceDialogOrder.value = row
+    deviceDialogFilter.value = filterType
+    deviceDialogVisible.value = true
   }
 
   const unbatchedDevices = computed(() => {

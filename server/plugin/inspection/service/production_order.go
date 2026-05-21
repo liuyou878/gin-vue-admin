@@ -217,6 +217,9 @@ func (s *productionOrderSvc) GetSubmittedDeviceList(search request.SubmittedDevi
 		Joins("JOIN production_orders po ON po.id = pod.production_order_id").
 		Joins("LEFT JOIN production_batches pb ON pb.id = pod.batch_id")
 
+	if search.ProductionOrderID > 0 {
+		db = db.Where("pod.production_order_id = ?", search.ProductionOrderID)
+	}
 	if search.MONumber != "" {
 		db = db.Where("po.mo_number LIKE ?", "%"+search.MONumber+"%")
 	}
@@ -228,6 +231,12 @@ func (s *productionOrderSvc) GetSubmittedDeviceList(search request.SubmittedDevi
 	}
 	if search.Model != "" {
 		db = db.Where("pod.model LIKE ?", "%"+search.Model+"%")
+	}
+	if search.Status != "" {
+		db = db.Where("pod.status = ?", search.Status)
+	}
+	if search.Statuses != "" {
+		db = db.Where("pod.status IN ?", splitDeviceStatuses(search.Statuses))
 	}
 
 	err = db.Count(&total).Error
