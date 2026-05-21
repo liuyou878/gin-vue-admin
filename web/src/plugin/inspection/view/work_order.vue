@@ -4,6 +4,7 @@
       <el-tabs v-model="activeTab" @tab-change="onTabChange">
         <el-tab-pane label="待检测" name="pending" />
         <el-tab-pane label="检测中" name="inspecting" />
+        <el-tab-pane label="待复检" name="recheck" />
         <el-tab-pane label="已完成" name="completed" />
       </el-tabs>
       <div class="search-bar">
@@ -70,6 +71,16 @@
             <span class="count-fail">{{ s3.row.failCount || 0 }}</span>
           </template>
         </el-table-column>
+        <el-table-column label="返工数" width="90">
+          <template #default="s3">
+            <span class="count-return">{{ s3.row.reworkCount || 0 }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="待复检" width="90">
+          <template #default="s3">
+            <span class="count-recheck">{{ s3.row.recheckCount || 0 }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="合格率" width="100">
           <template #default="s3">
             {{ passRateLabel(s3.row.passCount, s3.row.deviceCount) }}
@@ -90,6 +101,14 @@
               @click="onStartInspect(s6.row)"
               >开始检测</el-button
             >
+            <el-button
+              v-else-if="activeTab === 'recheck'"
+              size="small"
+              type="warning"
+              @click="onRecheckAction(s6.row)"
+            >
+              {{ s6.row.recheckingCount > 0 ? '继续复检' : '开始复检' }}
+            </el-button>
             <el-button
               v-else
               size="small"
@@ -125,7 +144,8 @@
   import { formatDate } from '@/utils/format'
   import {
     getInspectionBatchList,
-    startInspection
+    startInspection,
+    startRecheck
   } from '@/plugin/inspection/api/work_order'
 
   const loading = ref(false)
@@ -153,11 +173,13 @@
 
   const getList = async () => {
     loading.value = true
-    const statusMap = { pending: 1, inspecting: 2, completed: 3 }
+    const statusMap = { pending: 1, inspecting: 2, completed: 3, recheck: 3 }
+    const deviceStatusMap = { recheck: 'pending_recheck,rechecking' }
     try {
       const res = await getInspectionBatchList({
         ...searchInfo,
-        status: statusMap[activeTab.value]
+        status: statusMap[activeTab.value],
+        deviceStatus: deviceStatusMap[activeTab.value]
       })
       if (res.code === 0) {
         tableData.value = res.data.list
@@ -187,6 +209,19 @@
     const res = await startInspection({ ID: row.ID })
     if (res.code === 0) {
       ElMessage.success('已开始检测')
+      getList()
+      openDetail(row)
+    }
+  }
+  const onRecheckAction = async (row) => {
+    if (row.recheckingCount > 0) {
+      openDetail(row)
+      return
+    }
+    await ElMessageBox.confirm('确定开始复检？开始后检测端才能录入复检结果。', '提示', { type: 'info' })
+    const res = await startRecheck({ ID: row.ID })
+    if (res.code === 0) {
+      ElMessage.success('已开始复检')
       getList()
       openDetail(row)
     }
@@ -227,6 +262,14 @@
   }
   .count-fail {
     color: #dc2626;
+    font-weight: 600;
+  }
+  .count-return {
+    color: #d97706;
+    font-weight: 600;
+  }
+  .count-recheck {
+    color: #2563eb;
     font-weight: 600;
   }
   .pagination-wrap {

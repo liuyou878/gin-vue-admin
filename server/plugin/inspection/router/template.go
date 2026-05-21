@@ -13,6 +13,7 @@ func (r *templateRouter) Init(private *gin.RouterGroup) {
 	{
 		group := private.Group("inspectionTemplate").Use(middleware.OperationRecord())
 		group.POST("createTemplate", apiTemplate.CreateTemplate)
+		group.POST("copyTemplate", apiTemplate.CopyTemplate)
 		group.DELETE("deleteTemplate", apiTemplate.DeleteTemplate)
 		group.PUT("updateTemplate", apiTemplate.UpdateTemplate)
 	}

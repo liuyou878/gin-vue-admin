@@ -72,6 +72,28 @@ func (a *templateApi) UpdateTemplate(c *gin.Context) {
 	response.OkWithMessage("更新成功", c)
 }
 
+// CopyTemplate 复制检测模板
+// @Tags     InspectionTemplate
+// @Summary  复制检测模板
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.CopyTemplate true "复制模板信息"
+// @Success  200 {object} response.Response{msg=string} "复制成功"
+// @Router   /inspectionTemplate/copyTemplate [post]
+func (a *templateApi) CopyTemplate(c *gin.Context) {
+	var req request.CopyTemplate
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if err := serviceTemplate.CopyTemplate(&req); err != nil {
+		response.FailWithMessage("复制失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("复制成功", c)
+}
+
 // FindTemplate 查询模板详情
 // @Tags     InspectionTemplate
 // @Summary  查询模板详情(含检测项列表)

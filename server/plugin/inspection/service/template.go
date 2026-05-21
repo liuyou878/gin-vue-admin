@@ -1,6 +1,9 @@
 package service
 
 import (
+	"errors"
+	"strings"
+
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/inspection/model"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/inspection/model/request"
@@ -13,11 +16,14 @@ type templateSvc struct{}
 
 func (s *templateSvc) CreateTemplate(req *request.CreateTemplate) error {
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		if err := ensureTemplateNameAvailable(tx, req.Name, 0); err != nil {
+			return err
+		}
 		tmpl := model.InspectionTemplate{
-			Name:            req.Name,
-			ProductName:     req.ProductName,
-			Model:           req.Model,
-			Status:          1,
+			Name:        req.Name,
+			ProductName: req.ProductName,
+			Model:       req.Model,
+			Status:      1,
 		}
 		if err := tx.Create(&tmpl).Error; err != nil {
 			return err
@@ -47,6 +53,9 @@ func (s *templateSvc) DeleteTemplate(id string) error {
 
 func (s *templateSvc) UpdateTemplate(req *request.UpdateTemplate) error {
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		if err := ensureTemplateNameAvailable(tx, req.Name, req.ID); err != nil {
+			return err
+		}
 		updates := map[string]interface{}{
 			"name":         req.Name,
 			"product_name": req.ProductName,
@@ -73,6 +82,65 @@ func (s *templateSvc) UpdateTemplate(req *request.UpdateTemplate) error {
 		}
 		return nil
 	})
+}
+
+func (s *templateSvc) CopyTemplate(req *request.CopyTemplate) error {
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		if err := ensureTemplateNameAvailable(tx, req.Name, 0); err != nil {
+			return err
+		}
+
+		var source model.InspectionTemplate
+		if err := tx.Where("id = ?", req.ID).First(&source).Error; err != nil {
+			return errors.New("原模板不存在")
+		}
+
+		var sourceItems []model.InspectionTemplateItem
+		if err := tx.Where("template_id = ?", req.ID).Order("sort asc").Find(&sourceItems).Error; err != nil {
+			return err
+		}
+
+		target := model.InspectionTemplate{
+			Name:        strings.TrimSpace(req.Name),
+			ProductName: source.ProductName,
+			Model:       source.Model,
+			Status:      1,
+		}
+		if err := tx.Create(&target).Error; err != nil {
+			return err
+		}
+
+		for _, item := range sourceItems {
+			if err := tx.Create(&model.InspectionTemplateItem{
+				TemplateID: target.ID,
+				ItemID:     item.ItemID,
+				Sort:       item.Sort,
+			}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func ensureTemplateNameAvailable(tx *gorm.DB, name string, excludeID uint) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return errors.New("请输入模板名称")
+	}
+
+	var count int64
+	db := tx.Model(&model.InspectionTemplate{}).Where("name = ?", name)
+	if excludeID > 0 {
+		db = db.Where("id <> ?", excludeID)
+	}
+	if err := db.Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return errors.New("模板名称已存在")
+	}
+	return nil
 }
 
 func (s *templateSvc) FindTemplate(id string) (model.InspectionTemplate, error) {

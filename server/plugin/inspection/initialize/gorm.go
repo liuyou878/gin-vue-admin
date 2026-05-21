@@ -19,6 +19,7 @@ func Gorm(ctx context.Context) {
 		new(model.ProductionOrderDevice),
 		new(model.ProductionBatch),
 		new(model.InspectionDeviceResult),
+		new(model.ProductionOrderDeviceStatusLog),
 	)
 	if err != nil {
 		err = errors.Wrap(err, "检测插件表注册失败!")

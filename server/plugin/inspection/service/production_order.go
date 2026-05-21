@@ -18,41 +18,41 @@ var ProductionOrder = new(productionOrderSvc)
 type productionOrderSvc struct{}
 
 type submitDeviceInfoPayload struct {
-	FirmwareVersion string `json:"firmwareVersion"`
+	FirmwareVersion          string `json:"firmwareVersion"`
 	MainboardFirmwareVersion string `json:"mainboardFirmwareVersion"`
-	Device          struct {
+	Device                   struct {
 		FirmwareVersion          string `json:"firmwareVersion"`
 		MainboardFirmwareVersion string `json:"mainboardFirmwareVersion"`
 	} `json:"device"`
 }
 
 type normalizedSubmitDevice struct {
-	SN              string
-	Model           string
-	PNCode          string
-	FirmwareVersion string
+	SN                       string
+	Model                    string
+	PNCode                   string
+	FirmwareVersion          string
 	MainboardFirmwareVersion string
-	TimeLicense     string
-	RegionLicense   string
-	NtripCode       string
-	DeviceInfo      string
+	TimeLicense              string
+	RegionLicense            string
+	NtripCode                string
+	DeviceInfo               string
 }
 
 func (s *productionOrderSvc) CreateProductionOrder(req *request.CreateProductionOrder) error {
 	now := time.Now()
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		po := model.ProductionOrder{
-			MONumber:           req.MONumber,
-			TemplateID:         req.TemplateID,
-			ProductName:        req.ProductName,
-			Model:              req.Model,
-			FirmwareVersion:    req.FirmwareVersion,
+			MONumber:                 req.MONumber,
+			TemplateID:               req.TemplateID,
+			ProductName:              req.ProductName,
+			Model:                    req.Model,
+			FirmwareVersion:          req.FirmwareVersion,
 			MainboardFirmwareVersion: req.MainboardFirmwareVersion,
-			PNCode:             req.PNCode,
-			InstrumentCategory: req.InstrumentCategory,
-			Status:             0,
-			SubmitDate:         &now,
-			Remark:             req.Remark,
+			PNCode:                   req.PNCode,
+			InstrumentCategory:       req.InstrumentCategory,
+			Status:                   0,
+			SubmitDate:               &now,
+			Remark:                   req.Remark,
 		}
 		if err := tx.Create(&po).Error; err != nil {
 			return err
@@ -109,14 +109,14 @@ func (s *productionOrderSvc) UpdateProductionOrder(req *request.UpdateProduction
 		}
 
 		updates := map[string]interface{}{
-			"mo_number": req.MONumber,
-			"product_name": req.ProductName,
-			"model": req.Model,
-			"firmware_version": req.FirmwareVersion,
+			"mo_number":                  req.MONumber,
+			"product_name":               req.ProductName,
+			"model":                      req.Model,
+			"firmware_version":           req.FirmwareVersion,
 			"mainboard_firmware_version": req.MainboardFirmwareVersion,
-			"pn_code": req.PNCode,
-			"instrument_category": req.InstrumentCategory,
-			"remark": req.Remark,
+			"pn_code":                    req.PNCode,
+			"instrument_category":        req.InstrumentCategory,
+			"remark":                     req.Remark,
 		}
 		if req.Status != nil {
 			updates["status"] = *req.Status
@@ -204,7 +204,7 @@ func (s *productionOrderSvc) GetProductionOrderList(search request.ProductionOrd
 
 func (s *productionOrderSvc) GetSubmittedDeviceList(search request.SubmittedDeviceSearch) (list []model.SubmittedDeviceListItem, total int64, err error) {
 	db := global.GVA_DB.Table("production_order_devices AS pod").
-		Select("pod.id, pod.production_order_id, pod.batch_id, po.mo_number, pb.batch_number, pod.sn, pod.model, po.instrument_category, pod.pn_code, pod.firmware_version, pod.mainboard_firmware_version, pod.time_license, pod.region_license, pod.ntrip_code, pod.status, po.submitter_name, po.submit_date, pod.created_at").
+		Select("pod.id, pod.production_order_id, pod.batch_id, po.mo_number, pb.batch_number, pod.sn, pod.model, po.instrument_category, pod.pn_code, pod.firmware_version, pod.mainboard_firmware_version, pod.time_license, pod.region_license, pod.ntrip_code, pod.status, pod.return_reason, pod.return_at, pod.return_by_name, po.submitter_name, po.submit_date, pod.created_at").
 		Joins("JOIN production_orders po ON po.id = pod.production_order_id").
 		Joins("LEFT JOIN production_batches pb ON pb.id = pod.batch_id")
 
@@ -227,6 +227,51 @@ func (s *productionOrderSvc) GetSubmittedDeviceList(search request.SubmittedDevi
 	}
 	err = db.Order("pod.id desc").Limit(search.PageSize).Offset(search.PageSize * (search.Page - 1)).Scan(&list).Error
 	return list, total, err
+}
+
+func (s *productionOrderSvc) ConfirmReworkDone(req *request.ConfirmReworkDone, operatorID uint, operatorName string) error {
+	ids := make([]uint, 0, len(req.DeviceIDs)+1)
+	if req.DeviceID > 0 {
+		ids = append(ids, req.DeviceID)
+	}
+	ids = append(ids, req.DeviceIDs...)
+	if len(ids) == 0 {
+		return errors.New("请选择返工设备")
+	}
+
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var devices []model.ProductionOrderDevice
+		if err := tx.Where("id IN ?", ids).Find(&devices).Error; err != nil {
+			return err
+		}
+		if len(devices) != len(ids) {
+			return errors.New("部分设备不存在")
+		}
+		for _, device := range devices {
+			if device.Status != "rework" {
+				return fmt.Errorf("设备 %s 不是返工中，不能确认返工完成", device.SN)
+			}
+		}
+
+		for _, device := range devices {
+			if req.Remark != "" {
+				if err := tx.Model(&device).Update("return_reason", req.Remark).Error; err != nil {
+					return err
+				}
+				device.ReturnReason = req.Remark
+			}
+			if err := updateDeviceStatusWithLog(tx, device, "pending_recheck", firstNonEmpty(req.Remark, "生产确认返工完成"), operatorID, operatorName); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (s *productionOrderSvc) GetDeviceStatusLogs(deviceID string) ([]model.ProductionOrderDeviceStatusLog, error) {
+	var logs []model.ProductionOrderDeviceStatusLog
+	err := global.GVA_DB.Where("production_order_device_id = ?", deviceID).Order("id asc").Find(&logs).Error
+	return logs, err
 }
 
 func (s *productionOrderSvc) FindSubmittedDevice(id string) (model.ProductionOrderDevice, error) {
@@ -299,23 +344,23 @@ func (s *productionOrderSvc) SubmitDeviceData(req *request.SubmitDeviceData, sub
 			now := time.Now()
 			header := buildOrderHeaderFromSubmit(req, devices[0])
 			po = model.ProductionOrder{
-				MONumber:           req.MONumber,
-				ProductName:        header.ProductName,
-				Model:              header.Model,
-				FirmwareVersion:    header.FirmwareVersion,
+				MONumber:                 req.MONumber,
+				ProductName:              header.ProductName,
+				Model:                    header.Model,
+				FirmwareVersion:          header.FirmwareVersion,
 				MainboardFirmwareVersion: header.MainboardFirmwareVersion,
-				PNCode:             header.PNCode,
-				InstrumentCategory: header.InstrumentCategory,
-				Status:             0,
-				SubmitterID:        &submitterID,
-				SubmitterName:      submitterName,
-				SubmitDate:         &now,
+				PNCode:                   header.PNCode,
+				InstrumentCategory:       header.InstrumentCategory,
+				Status:                   0,
+				SubmitterID:              &submitterID,
+				SubmitterName:            submitterName,
+				SubmitDate:               &now,
 			}
 			if err := tx.Create(&po).Error; err != nil {
 				return err
 			}
 		} else {
-			if po.Status != 0 {
+			if po.Status != 0 && !submitOnlyReworkDevices(tx, po.ID, devices) {
 				return fmt.Errorf("生产订单 %s 已确认或已进入检测流程，不允许继续提交设备数据", req.MONumber)
 			}
 			updates := map[string]interface{}{
@@ -359,16 +404,25 @@ func (s *productionOrderSvc) SubmitDeviceData(req *request.SubmitDeviceData, sub
 				if existing.ProductionOrderID != po.ID {
 					return fmt.Errorf("SN %s 已存在于其他生产订单中", item.SN)
 				}
+				nextStatus := "pending"
+				if existing.Status == "rework" {
+					nextStatus = "pending_recheck"
+				}
 				updates := map[string]interface{}{
-					"model":            item.Model,
-					"pn_code":          item.PNCode,
-					"time_license":     item.TimeLicense,
-					"region_license":   item.RegionLicense,
-					"ntrip_code":       item.NtripCode,
-					"line_number":      i + 1,
-					"device_info":      item.DeviceInfo,
-					"firmware_version": firstNonEmpty(item.FirmwareVersion, extractFirmwareVersion(item.DeviceInfo)),
+					"model":                      item.Model,
+					"pn_code":                    item.PNCode,
+					"time_license":               item.TimeLicense,
+					"region_license":             item.RegionLicense,
+					"ntrip_code":                 item.NtripCode,
+					"line_number":                i + 1,
+					"device_info":                item.DeviceInfo,
+					"firmware_version":           firstNonEmpty(item.FirmwareVersion, extractFirmwareVersion(item.DeviceInfo)),
 					"mainboard_firmware_version": firstNonEmpty(item.MainboardFirmwareVersion, extractMainboardFirmwareVersion(item.DeviceInfo)),
+					"status":                     nextStatus,
+					"return_reason":              "",
+					"return_at":                  nil,
+					"return_by_id":               nil,
+					"return_by_name":             "",
 				}
 				if batchID != nil {
 					updates["batch_id"] = *batchID
@@ -376,23 +430,46 @@ func (s *productionOrderSvc) SubmitDeviceData(req *request.SubmitDeviceData, sub
 				if err := tx.Model(&existing).Updates(updates).Error; err != nil {
 					return err
 				}
+				if existing.Status != nextStatus {
+					reason := "生产工具更新设备数据"
+					if existing.Status == "rework" && nextStatus == "pending_recheck" {
+						reason = "生产工具重新提交返工设备"
+					}
+					updated := existing
+					updated.Model = item.Model
+					updated.PNCode = item.PNCode
+					updated.FirmwareVersion = firstNonEmpty(item.FirmwareVersion, extractFirmwareVersion(item.DeviceInfo))
+					updated.MainboardFirmwareVersion = firstNonEmpty(item.MainboardFirmwareVersion, extractMainboardFirmwareVersion(item.DeviceInfo))
+					updated.TimeLicense = item.TimeLicense
+					updated.RegionLicense = item.RegionLicense
+					updated.NtripCode = item.NtripCode
+					updated.LineNumber = i + 1
+					updated.DeviceInfo = item.DeviceInfo
+					if batchID != nil {
+						updated.BatchID = batchID
+					}
+					if err := updateDeviceStatusLogOnly(tx, updated, nextStatus, reason, submitterID, submitterName); err != nil {
+						return err
+					}
+				}
 				continue
 			} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 				return err
 			}
 			device := model.ProductionOrderDevice{
-				ProductionOrderID: po.ID,
-				BatchID:           batchID,
-				SN:                item.SN,
-				Model:             item.Model,
-				PNCode:            item.PNCode,
-				FirmwareVersion:   firstNonEmpty(item.FirmwareVersion, extractFirmwareVersion(item.DeviceInfo)),
+				ProductionOrderID:        po.ID,
+				BatchID:                  batchID,
+				SN:                       item.SN,
+				Model:                    item.Model,
+				PNCode:                   item.PNCode,
+				FirmwareVersion:          firstNonEmpty(item.FirmwareVersion, extractFirmwareVersion(item.DeviceInfo)),
 				MainboardFirmwareVersion: firstNonEmpty(item.MainboardFirmwareVersion, extractMainboardFirmwareVersion(item.DeviceInfo)),
-				TimeLicense:       item.TimeLicense,
-				RegionLicense:     item.RegionLicense,
-				NtripCode:         item.NtripCode,
-				LineNumber:        i + 1,
-				DeviceInfo:        item.DeviceInfo,
+				TimeLicense:              item.TimeLicense,
+				RegionLicense:            item.RegionLicense,
+				NtripCode:                item.NtripCode,
+				LineNumber:               i + 1,
+				DeviceInfo:               item.DeviceInfo,
+				Status:                   "pending",
 			}
 			if err := tx.Create(&device).Error; err != nil {
 				return err
@@ -423,6 +500,110 @@ func (s *productionOrderSvc) AssignBatch(req *request.AssignBatch) error {
 	})
 }
 
+func (s *productionOrderSvc) ScanAssignBatch(req *request.ScanAssignBatch) error {
+	sns := normalizeSNList(req.SNs)
+	if len(sns) == 0 {
+		return errors.New("请先扫码加入设备")
+	}
+
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var order model.ProductionOrder
+		if err := tx.Where("id = ?", req.ProductionOrderID).First(&order).Error; err != nil {
+			return errors.New("生产订单不存在")
+		}
+
+		batchNumber := strings.TrimSpace(req.BatchNumber)
+		if batchNumber == "" {
+			var err error
+			batchNumber, err = nextBatchNumber(tx, order)
+			if err != nil {
+				return err
+			}
+		}
+
+		var batch model.ProductionBatch
+		err := tx.Where("production_order_id = ? AND batch_number = ?", req.ProductionOrderID, batchNumber).First(&batch).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			batch = model.ProductionBatch{
+				ProductionOrderID: req.ProductionOrderID,
+				BatchNumber:       batchNumber,
+				Status:            0,
+			}
+			if err := tx.Create(&batch).Error; err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
+		if batch.Status != 0 {
+			return errors.New("该批次已派检或已进入检测流程，不能继续扫码加入设备")
+		}
+
+		for _, sn := range sns {
+			var device model.ProductionOrderDevice
+			if err := tx.Where("production_order_id = ? AND sn = ?", req.ProductionOrderID, sn).First(&device).Error; err != nil {
+				return fmt.Errorf("SN %s 不存在于当前生产订单", sn)
+			}
+			if device.BatchID != nil && *device.BatchID != batch.ID {
+				var oldBatch model.ProductionBatch
+				if err := tx.Where("id = ?", *device.BatchID).First(&oldBatch).Error; err == nil {
+					return fmt.Errorf("SN %s 已在批次 %s 中", sn, oldBatch.BatchNumber)
+				}
+				return fmt.Errorf("SN %s 已在其他批次中", sn)
+			}
+			if device.Status != "pending" {
+				return fmt.Errorf("SN %s 当前状态为 %s，不能加入生产批次", sn, device.Status)
+			}
+			if err := tx.Model(&device).Update("batch_id", batch.ID).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func nextBatchNumber(tx *gorm.DB, order model.ProductionOrder) (string, error) {
+	dateText := time.Now().Format("20060102")
+	prefix := fmt.Sprintf("%s-%s-", order.MONumber, dateText)
+	var count int64
+	if err := tx.Model(&model.ProductionBatch{}).
+		Where("production_order_id = ? AND batch_number LIKE ?", order.ID, prefix+"%").
+		Count(&count).Error; err != nil {
+		return "", err
+	}
+
+	for seq := int(count) + 1; seq < 1000; seq++ {
+		batchNumber := fmt.Sprintf("%s%02d", prefix, seq)
+		var exists int64
+		if err := tx.Model(&model.ProductionBatch{}).
+			Where("production_order_id = ? AND batch_number = ?", order.ID, batchNumber).
+			Count(&exists).Error; err != nil {
+			return "", err
+		}
+		if exists == 0 {
+			return batchNumber, nil
+		}
+	}
+	return "", errors.New("今日批次流水号已用完")
+}
+
+func normalizeSNList(sns []string) []string {
+	seen := map[string]struct{}{}
+	list := make([]string, 0, len(sns))
+	for _, sn := range sns {
+		value := strings.TrimSpace(sn)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		list = append(list, value)
+	}
+	return list
+}
+
 func extractFirmwareVersion(deviceInfo string) string {
 	if deviceInfo == "" {
 		return ""
@@ -447,18 +628,34 @@ func normalizeSubmitDevices(req *request.SubmitDeviceData) []normalizedSubmitDev
 		}
 		sn = strings.TrimSpace(sn)
 		devices = append(devices, normalizedSubmitDevice{
-			SN:              sn,
-			Model:           item.Model,
-			PNCode:          item.PNCode,
-			FirmwareVersion: item.FirmwareVersion,
+			SN:                       sn,
+			Model:                    item.Model,
+			PNCode:                   item.PNCode,
+			FirmwareVersion:          item.FirmwareVersion,
 			MainboardFirmwareVersion: item.MainboardFirmwareVersion,
-			TimeLicense:     item.TimeLicense,
-			RegionLicense:   item.RegionLicense,
-			NtripCode:       item.NtripCode,
-			DeviceInfo:      item.DeviceInfo,
+			TimeLicense:              item.TimeLicense,
+			RegionLicense:            item.RegionLicense,
+			NtripCode:                item.NtripCode,
+			DeviceInfo:               item.DeviceInfo,
 		})
 	}
 	return devices
+}
+
+func submitOnlyReworkDevices(tx *gorm.DB, productionOrderID uint, devices []normalizedSubmitDevice) bool {
+	if len(devices) == 0 {
+		return false
+	}
+	for _, item := range devices {
+		var existing model.ProductionOrderDevice
+		if err := tx.Where("production_order_id = ? AND sn = ?", productionOrderID, item.SN).First(&existing).Error; err != nil {
+			return false
+		}
+		if existing.Status != "rework" {
+			return false
+		}
+	}
+	return true
 }
 
 func firstNonEmpty(values ...string) string {
@@ -473,12 +670,12 @@ func firstNonEmpty(values ...string) string {
 func buildOrderHeaderFromSubmit(req *request.SubmitDeviceData, device normalizedSubmitDevice) model.ProductionOrder {
 	modelName := firstNonEmpty(device.Model, extractModelFromDeviceInfo(device.DeviceInfo))
 	return model.ProductionOrder{
-		ProductName:        modelName,
-		Model:              modelName,
-		FirmwareVersion:    firstNonEmpty(device.FirmwareVersion, extractFirmwareVersion(device.DeviceInfo)),
+		ProductName:              modelName,
+		Model:                    modelName,
+		FirmwareVersion:          firstNonEmpty(device.FirmwareVersion, extractFirmwareVersion(device.DeviceInfo)),
 		MainboardFirmwareVersion: firstNonEmpty(device.MainboardFirmwareVersion, extractMainboardFirmwareVersion(device.DeviceInfo)),
-		PNCode:             firstNonEmpty(device.PNCode, extractPNCodeFromDeviceInfo(device.DeviceInfo)),
-		InstrumentCategory: strings.TrimSpace(req.InstrumentCategory),
+		PNCode:                   firstNonEmpty(device.PNCode, extractPNCodeFromDeviceInfo(device.DeviceInfo)),
+		InstrumentCategory:       strings.TrimSpace(req.InstrumentCategory),
 	}
 }
 

@@ -35,3 +35,15 @@ export const findSubmittedDevice = (params) => {
 export const deleteSubmittedDevice = (params) => {
   return service({ url: '/productionOrder/deleteSubmittedDevice', method: 'delete', params })
 }
+
+export const confirmReworkDone = (data) => {
+  return service({ url: '/productionOrder/confirmReworkDone', method: 'post', data })
+}
+
+export const scanAssignBatch = (data) => {
+  return service({ url: '/productionOrder/scanAssignBatch', method: 'post', data })
+}
+
+export const getDeviceStatusLogs = (params) => {
+  return service({ url: '/productionOrder/getDeviceStatusLogs', method: 'get', params })
+}

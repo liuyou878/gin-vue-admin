@@ -4,8 +4,16 @@ export const assignBatchTemplate = (data) => {
   return service({ url: '/workOrder/assignBatchTemplate', method: 'post', data })
 }
 
+export const assignOrderTemplate = (data) => {
+  return service({ url: '/workOrder/assignOrderTemplate', method: 'post', data })
+}
+
 export const startInspection = (data) => {
   return service({ url: '/workOrder/startInspection', method: 'post', data })
+}
+
+export const startRecheck = (data) => {
+  return service({ url: '/workOrder/startRecheck', method: 'post', data })
 }
 
 export const getInspectionBatchList = (params) => {
@@ -18,6 +26,14 @@ export const saveResults = (data) => {
 
 export const completeInspection = (data) => {
   return service({ url: '/workOrder/completeInspection', method: 'post', data })
+}
+
+export const completeRecheck = (data) => {
+  return service({ url: '/workOrder/completeRecheck', method: 'post', data })
+}
+
+export const returnDevices = (data) => {
+  return service({ url: '/workOrder/returnDevices', method: 'post', data })
 }
 
 export const getInspectionDetail = (params) => {

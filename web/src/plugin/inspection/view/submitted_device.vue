@@ -33,6 +33,13 @@
       <el-table-column prop="timeLicense" label="时间码" min-width="140" show-overflow-tooltip />
       <el-table-column prop="regionLicense" label="围栏码" min-width="140" show-overflow-tooltip />
       <el-table-column prop="ntripCode" label="Ntrip状态" min-width="140" show-overflow-tooltip />
+      <el-table-column label="状态" width="100">
+        <template #default="scope">
+          <el-tag :type="statusTagType(scope.row.status)" size="small">
+            {{ statusLabel(scope.row.status) }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="submitterName" label="提交人" width="100" />
       <el-table-column prop="CreatedAt" label="提交时间" width="170">
         <template #default="scope">{{ formatDate(scope.row.CreatedAt) }}</template>
@@ -74,7 +81,14 @@
           <el-descriptions-item label="时间码">{{ detailData.timeLicense || '-' }}</el-descriptions-item>
           <el-descriptions-item label="围栏码">{{ detailData.regionLicense || '-' }}</el-descriptions-item>
           <el-descriptions-item label="Ntrip状态">{{ detailData.ntripCode || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="状态">{{ detailData.status || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="statusTagType(detailData.status)" size="small">
+              {{ statusLabel(detailData.status) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item v-if="detailData.returnReason" label="打回原因">{{ detailData.returnReason }}</el-descriptions-item>
+          <el-descriptions-item v-if="detailData.returnByName" label="打回人">{{ detailData.returnByName }}</el-descriptions-item>
+          <el-descriptions-item v-if="detailData.returnAt" label="打回时间">{{ formatDate(detailData.returnAt) }}</el-descriptions-item>
         </el-descriptions>
 
         <div class="mb-2 font-600">GETALL 原始内容</div>
@@ -119,6 +133,24 @@ const prettyDeviceInfo = computed(() => {
     return raw
   }
 })
+
+const statusLabel = (status) =>
+  ({
+    pending: '待检测',
+    pass: '合格',
+    fail: '不合格',
+    rework: '返工中',
+    pending_recheck: '待复检'
+  }[status] || status || '-')
+
+const statusTagType = (status) =>
+  ({
+    pass: 'success',
+    fail: 'danger',
+    rework: 'warning',
+    pending_recheck: 'primary',
+    pending: 'info'
+  }[status] || 'info')
 
 const getList = async () => {
   loading.value = true

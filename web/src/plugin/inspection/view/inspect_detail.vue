@@ -107,6 +107,7 @@
               <el-tag :type="deviceStatusTag(dev)" size="large">
                 {{ deviceStatusLabel(dev) }}
               </el-tag>
+              <el-tag v-if="dev._status === 'rework'" type="warning" size="small">已返工</el-tag>
             </div>
 
             <div v-if="currentItem" class="single-mode-actions">
@@ -246,9 +247,34 @@
         </div>
       </div>
 
-      <div class="detail-footer" v-if="detail.order.status === 2">
-        <el-button type="primary" size="large" @click="saveResults">保存进度</el-button>
-        <el-button type="success" size="large" @click="onComplete">完成检测</el-button>
+      <div class="detail-footer" v-if="detail.order.status === 2 || canReturnAfterComplete || hasRecheckingDevices">
+        <div v-if="canReturnAfterComplete && failDevices.length" class="return-panel">
+          <div class="return-panel-title">异常处理</div>
+          <div class="return-panel-desc">检测已完成，只显示最终不合格设备，可选择需要打回生产的 SN。</div>
+          <el-select
+            v-model="returnDeviceIDs"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            filterable
+            placeholder="选择不合格设备"
+            class="return-device-select"
+          >
+            <el-option
+              v-for="dev in failDevices"
+              :key="dev.ID"
+              :label="`${dev.lineNumber}. ${dev.sn}`"
+              :value="dev.ID"
+            />
+          </el-select>
+          <el-input v-model="returnReason" placeholder="打回原因" class="return-reason-input" />
+          <el-button type="warning" @click="onReturnDevices" :disabled="returnDeviceIDs.length === 0">打回生产</el-button>
+        </div>
+        <div class="footer-actions" v-if="detail.order.status === 2 || hasRecheckingDevices">
+          <el-button type="primary" size="large" @click="saveResults">保存进度</el-button>
+          <el-button v-if="detail.order.status === 2" type="success" size="large" @click="onComplete">完成检测</el-button>
+          <el-button v-if="hasRecheckingDevices" type="success" size="large" @click="onCompleteRecheck">完成复检</el-button>
+        </div>
       </div>
     </div>
   </div>
@@ -258,7 +284,7 @@
 import { ref, computed, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { saveResults as apiSaveResults, completeInspection, getInspectionDetail } from '@/plugin/inspection/api/work_order'
+import { saveResults as apiSaveResults, completeInspection, completeRecheck, getInspectionDetail, returnDevices as apiReturnDevices } from '@/plugin/inspection/api/work_order'
 
 const route = useRoute()
 
@@ -270,10 +296,16 @@ const currentDeviceIndex = ref(0)
 const currentSingleDeviceIndex = ref(0)
 const singleModeRowRefs = ref([])
 const detail = ref({ order: {}, devices: [], templateItems: [] })
+const returnDeviceIDs = ref([])
+const returnReason = ref('')
 
-const isReadonly = computed(() => detail.value.order.status === 3)
+const hasRecheckDevices = computed(() => detail.value.devices.some((dev) => (dev._status || dev.status) === 'pending_recheck'))
+const hasRecheckingDevices = computed(() => detail.value.devices.some((dev) => dev._startedRecheck || (dev._status || dev.status) === 'rechecking'))
+const isReadonly = computed(() => detail.value.order.status === 3 && !hasRecheckingDevices.value)
 const currentDevice = computed(() => detail.value.devices[currentDeviceIndex.value] || null)
 const currentItem = computed(() => detail.value.templateItems[currentItemIndex.value] || null)
+const failDevices = computed(() => detail.value.devices.filter((dev) => (dev._status || dev.status) === 'fail'))
+const canReturnAfterComplete = computed(() => detail.value.order.status === 3 && !hasRecheckDevices.value && !hasRecheckingDevices.value)
 const visibleDesktopItems = computed(() => {
   if (desktopViewMode.value === 'single') {
     const item = detail.value.templateItems[currentItemIndex.value]
@@ -300,9 +332,35 @@ const getRangeClass = (r) => {
   if (min != null || max != null) return 'in-range'
   return ''
 }
-const deviceStatusLabel = (d) => ({ pending: '待判定', pass: '通过', fail: '不通过' }[d._status || 'pending'])
-const deviceStatusTag = (d) => { const s = d._status || 'pending'; return s === 'pass' ? 'success' : s === 'fail' ? 'danger' : 'warning' }
-const deviceRowClass = (d) => { const s = d._status || 'pending'; return s === 'fail' ? 'row-fail' : s === 'pass' ? 'row-pass' : '' }
+const resultCompletedForStatus = (result) => {
+  if (!result) return false
+  if (result.resultType === 'number') {
+    return result._numVal !== undefined && result._numVal !== null && result._numVal !== ''
+  }
+  if (result.resultType === 'pass_fail') {
+    return result._checked === true || result._checked === false
+  }
+  return (result._checked === true || result._checked === false) &&
+    result._numVal !== undefined &&
+    result._numVal !== null &&
+    result._numVal !== ''
+}
+const deviceProgressText = (d) => {
+  const results = d.results || []
+  const total = results.length
+  if (!total) return ''
+  const done = results.filter(resultCompletedForStatus).length
+  return done > 0 && done < total ? ` ${done}/${total}` : ''
+}
+const deviceStatusLabel = (d) => {
+  const status = d._status || 'pending'
+  if (status === 'pending') {
+    return `待完成${deviceProgressText(d)}`
+  }
+  return ({ pending_recheck: '待复检', rechecking: '复检中', pass: '通过', fail: '不通过', rework: '返工中' }[status] || status)
+}
+const deviceStatusTag = (d) => { const s = d._status || 'pending'; return s === 'pass' ? 'success' : s === 'fail' ? 'danger' : s === 'rework' ? 'warning' : s === 'pending_recheck' ? 'primary' : s === 'rechecking' ? 'warning' : 'warning' }
+const deviceRowClass = (d) => { const s = d._status || 'pending'; return s === 'fail' ? 'row-fail' : s === 'pass' ? 'row-pass' : s === 'rework' ? 'row-rework' : s === 'pending_recheck' || s === 'rechecking' ? 'row-recheck' : '' }
 const toggleDeviceStatus = (d) => { const o = ['pending','pass','fail']; d._status = o[(o.indexOf(d._status||'pending') + 1) % 3] }
 const setPass = (dev, ri, val) => { dev.results[ri]._checked = val; calcDeviceStatus(dev) }
 const setSingleModeRowRef = (el, index) => {
@@ -348,18 +406,62 @@ const onNumChange = (dev, ri) => {
   calcDeviceStatus(dev)
 }
 const calcDeviceStatus = (dev) => {
+  if (dev._status === 'rework' || dev._status === 'pending_recheck') return
   let f = false, p = false, u = false
   dev.results.forEach(r => { if (r._checked === true) p = true; else if (r._checked === false) f = true; else u = true })
+  if (dev._startedRecheck && u) {
+    dev._status = 'rechecking'
+    return
+  }
   dev._status = f ? 'fail' : (!u && p ? 'pass' : 'pending')
 }
 
 const buildSavePayload = () => {
   const ds = [], dr = []
   detail.value.devices.forEach(dev => {
+    if (isReadonly.value) return
+    if (detail.value.order.status === 3 && !dev._startedRecheck) return
     ds.push({ deviceID: dev.ID, status: dev._status || 'pending' })
     dev.results.forEach(r => dr.push({ deviceID: dev.ID, itemID: r.itemID, passResult: r._checked, numberResult: (r._numVal !== undefined && r._numVal !== null && r._numVal !== '') ? Number(r._numVal) : null, remark: r.remark || '' }))
   })
   return { batchID: detail.value.order.ID, deviceStatuses: ds, deviceResults: dr }
+}
+
+const isResultCompleted = (result) => {
+  if (!result) return false
+  if (result.resultType === 'number') {
+    return result._numVal !== undefined && result._numVal !== null && result._numVal !== ''
+  }
+  if (result.resultType === 'pass_fail') {
+    return result._checked === true || result._checked === false
+  }
+  return (result._checked === true || result._checked === false) &&
+    result._numVal !== undefined &&
+    result._numVal !== null &&
+    result._numVal !== ''
+}
+
+const getIncompleteSummary = () => {
+  const missing = []
+  detail.value.devices.forEach((dev) => {
+    if (!shouldValidateDevice(dev)) return
+    dev.results.forEach((result) => {
+      if (!isResultCompleted(result)) {
+        missing.push(`${dev.sn} / ${result.itemName}`)
+      }
+    })
+  })
+  return missing
+}
+
+const shouldValidateDevice = (dev) => {
+  if (detail.value.order.status === 2) {
+    return (dev._status || dev.status) !== 'rework'
+  }
+  if (hasRecheckingDevices.value) {
+    return (dev._status || dev.status) === 'rechecking' || dev._startedRecheck
+  }
+  return false
 }
 
 const saveResults = async (silent = false) => {
@@ -370,17 +472,71 @@ const saveResults = async (silent = false) => {
   }
   return false
 }
+const onReturnDevices = async () => {
+  if (returnDeviceIDs.value.length === 0) {
+    ElMessage.warning('请先选择要打回的设备')
+    return
+  }
+  const selectable = new Set(failDevices.value.map((dev) => dev.ID))
+  const picked = returnDeviceIDs.value.filter((id) => selectable.has(id))
+  if (!picked.length) {
+    ElMessage.warning('只能打回不合格设备')
+    return
+  }
+  const res = await apiReturnDevices({
+    batchID: detail.value.order.ID,
+    deviceIDs: picked,
+    reason: returnReason.value || ''
+  })
+  if (res.code === 0) {
+    ElMessage.success('已打回生产')
+    returnDeviceIDs.value = []
+    returnReason.value = ''
+    await loadDetail()
+  }
+}
 const onComplete = async () => {
-  await ElMessageBox.confirm('确定完成该工单的检测？', '提示', { type: 'info' })
   const saved = await saveResults(true)
   if (!saved) {
     ElMessage.error('完成前保存检测结果失败')
     return
   }
+  const missing = getIncompleteSummary()
+  if (missing.length > 0) {
+    ElMessageBox.alert(
+      `还有 ${missing.length} 个检测项未完成，请全部完成后再提交。\n\n${missing.slice(0, 8).join('\n')}${missing.length > 8 ? '\n...' : ''}`,
+      '检测未完成',
+      { type: 'warning' }
+    )
+    return
+  }
+  await ElMessageBox.confirm('确定完成该工单的检测？完成后才能处理不合格设备打回生产。', '提示', { type: 'info' })
   const res = await completeInspection({ ID: detail.value.order.ID })
   if (res.code === 0) {
     ElMessage.success('检测完成')
-    window.location.hash = '/inspectWorkOrder'
+    await loadDetail()
+  }
+}
+const onCompleteRecheck = async () => {
+  const saved = await saveResults(true)
+  if (!saved) {
+    ElMessage.error('完成前保存复检结果失败')
+    return
+  }
+  const missing = getIncompleteSummary()
+  if (missing.length > 0) {
+    ElMessageBox.alert(
+      `还有 ${missing.length} 个复检项未完成，请全部完成后再提交。\n\n${missing.slice(0, 8).join('\n')}${missing.length > 8 ? '\n...' : ''}`,
+      '复检未完成',
+      { type: 'warning' }
+    )
+    return
+  }
+  await ElMessageBox.confirm('确定完成本次复检？完成后如果仍不合格，可以再次打回生产。', '提示', { type: 'info' })
+  const res = await completeRecheck({ ID: detail.value.order.ID })
+  if (res.code === 0) {
+    ElMessage.success('复检完成')
+    await loadDetail()
   }
 }
 const prevItem = () => { if (currentItemIndex.value > 0) currentItemIndex.value-- }
@@ -402,10 +558,17 @@ const loadDetail = async () => {
     const data = res.data
     data.devices.forEach(dev => {
       dev._status = dev.status || 'pending'
-      dev.results.forEach(r => { r._checked = r.passResult; r._numVal = r.numberResult })
-      calcDeviceStatus(dev)
+      dev.results.forEach(r => {
+        r._checked = r.passResult
+        r._numVal = r.numberResult
+      })
+      dev._startedRecheck = dev._status === 'rechecking'
+      if (dev._status !== 'rework' && dev._status !== 'pending_recheck' && dev._status !== 'rechecking') {
+        calcDeviceStatus(dev)
+      }
     })
-    detail.value = data; detailLoaded.value = true
+    detail.value = data
+    detailLoaded.value = true
   }
 }
 loadDetail()
@@ -418,10 +581,16 @@ loadDetail()
 .tab-bar :deep(.el-tabs__header) { margin-bottom: 0; }
 .detail-scroll { flex: 1; overflow-y: auto; padding: 16px; }
 .detail-footer { display: flex; gap: 8px; padding: 16px 0; margin-top: 16px; border-top: 1px solid var(--el-border-color-light, #e4e7ed); }
+.footer-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.return-panel { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--el-color-warning-light-5, #f3d19e); border-radius: 8px; background: var(--el-color-warning-light-9, #fdf6ec); }
+.return-panel-title { font-size: 14px; font-weight: 700; color: var(--el-color-warning-dark-2, #b88230); }
+.return-panel-desc { font-size: 12px; color: var(--el-text-color-secondary, #909399); }
 .desktop-focus-toolbar { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 12px; padding: 12px; border: 1px solid var(--el-border-color-light, #e4e7ed); border-radius: 8px; background: var(--el-fill-color-lighter, #fafcff); }
 .desktop-focus-mode-row { display: flex; align-items: center; gap: 8px; }
 .desktop-focus-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .desktop-focus-select { width: 320px; }
+.return-device-select { width: 360px; }
+.return-reason-input { width: 260px; }
 .single-mode-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; background: var(--el-fill-color-light, #f5f7fa); }
 .single-mode-title { font-size: 18px; font-weight: 600; color: var(--el-text-color-primary, #303133); }
 .single-mode-title small { margin-left: 4px; color: var(--el-text-color-secondary, #909399); font-size: 13px; }
@@ -454,6 +623,8 @@ loadDetail()
 .pass-toggle button:last-child.active { background: var(--el-color-danger, #f56c6c); color: #fff; border-color: var(--el-color-danger, #f56c6c); }
 .row-pass td { background: var(--el-color-success-light-9, #f0f9eb) !important; }
 .row-fail td { background: var(--el-color-danger-light-9, #fef0f0) !important; }
+.row-rework td { background: var(--el-color-warning-light-9, #fdf6ec) !important; }
+.row-recheck td { background: var(--el-color-primary-light-9, #ecf5ff) !important; }
 .cursor-pointer { cursor: pointer; }
 .in-range :deep(.el-input__inner) { border-color: var(--el-color-success, #67c23a) !important; background: var(--el-color-success-light-9, #f0f9eb); }
 .out-range :deep(.el-input__inner) { border-color: var(--el-color-danger, #f56c6c) !important; background: var(--el-color-danger-light-9, #fef0f0); }

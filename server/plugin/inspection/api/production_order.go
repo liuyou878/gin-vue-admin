@@ -238,6 +238,48 @@ func (a *productionOrderApi) DeleteSubmittedDevice(c *gin.Context) {
 	response.OkWithMessage("删除成功", c)
 }
 
+// ConfirmReworkDone 生产确认返工完成
+// @Tags     ProductionOrder
+// @Summary  生产确认返工完成（返工中→待复检）
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.ConfirmReworkDone true "返工确认信息"
+// @Success  200 {object} response.Response{msg=string} "确认成功"
+// @Router   /productionOrder/confirmReworkDone [post]
+func (a *productionOrderApi) ConfirmReworkDone(c *gin.Context) {
+	var req request.ConfirmReworkDone
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	claims, _ := utils.GetClaims(c)
+	if err := serviceProductionOrder.ConfirmReworkDone(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
+		response.FailWithMessage("确认失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("已进入待复检", c)
+}
+
+// GetDeviceStatusLogs 查询设备状态日志
+// @Tags     ProductionOrder
+// @Summary  查询设备状态日志
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    deviceID query string true "设备ID"
+// @Success  200 {object} response.Response{data=[]model.ProductionOrderDeviceStatusLog,msg=string} "查询成功"
+// @Router   /productionOrder/getDeviceStatusLogs [get]
+func (a *productionOrderApi) GetDeviceStatusLogs(c *gin.Context) {
+	deviceID := c.Query("deviceID")
+	logs, err := serviceProductionOrder.GetDeviceStatusLogs(deviceID)
+	if err != nil {
+		response.FailWithMessage("查询失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithData(logs, c)
+}
+
 // AssignBatch 分配设备到批次
 // @Tags     ProductionOrder
 // @Summary  分配SN到批次
@@ -258,6 +300,28 @@ func (a *productionOrderApi) AssignBatch(c *gin.Context) {
 		return
 	}
 	response.OkWithMessage("分配成功", c)
+}
+
+// ScanAssignBatch 扫码加入生产批次
+// @Tags     ProductionOrder
+// @Summary  扫码加入生产批次
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.ScanAssignBatch true "扫码分批信息"
+// @Success  200 {object} response.Response{msg=string} "分批成功"
+// @Router   /productionOrder/scanAssignBatch [post]
+func (a *productionOrderApi) ScanAssignBatch(c *gin.Context) {
+	var req request.ScanAssignBatch
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if err := serviceProductionOrder.ScanAssignBatch(&req); err != nil {
+		response.FailWithMessage("分批失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("分批成功", c)
 }
 
 // CreateBatch 创建批次

@@ -34,6 +34,29 @@ func (a *workOrderApi) StartInspection(c *gin.Context) {
 	response.OkWithMessage("已开始检测", c)
 }
 
+// StartRecheck 开始复检
+// @Tags     WorkOrder
+// @Summary  开始复检（待复检→复检中）
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.StartRecheck true "批次ID"
+// @Success  200 {object} response.Response{msg=string} "操作成功"
+// @Router   /workOrder/startRecheck [post]
+func (a *workOrderApi) StartRecheck(c *gin.Context) {
+	var req request.StartRecheck
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	claims, _ := utils.GetClaims(c)
+	if err := serviceWorkOrder.StartRecheck(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
+		response.FailWithMessage("操作失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("已开始复检", c)
+}
+
 // AssignBatchTemplate 为批次选择模板并生成待检测工单
 // @Tags     WorkOrder
 // @Summary  为批次选择模板并生成待检测工单
@@ -54,6 +77,28 @@ func (a *workOrderApi) AssignBatchTemplate(c *gin.Context) {
 		return
 	}
 	response.OkWithMessage("已生成待检测工单", c)
+}
+
+// AssignOrderTemplate 为生产订单选择模板并提交未派检批次
+// @Tags     WorkOrder
+// @Summary  为生产订单选择模板并提交未派检批次
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.AssignOrderTemplate true "生产订单模板信息"
+// @Success  200 {object} response.Response{msg=string} "操作成功"
+// @Router   /workOrder/assignOrderTemplate [post]
+func (a *workOrderApi) AssignOrderTemplate(c *gin.Context) {
+	var req request.AssignOrderTemplate
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if err := serviceWorkOrder.AssignOrderTemplate(&req); err != nil {
+		response.FailWithMessage("操作失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("已提交检测", c)
 }
 
 // SaveResults 保存检测结果
@@ -98,6 +143,51 @@ func (a *workOrderApi) CompleteInspection(c *gin.Context) {
 		return
 	}
 	response.OkWithMessage("检测完成", c)
+}
+
+// CompleteRecheck 完成复检
+// @Tags     WorkOrder
+// @Summary  完成复检
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.CompleteRecheck true "批次ID"
+// @Success  200 {object} response.Response{msg=string} "操作成功"
+// @Router   /workOrder/completeRecheck [post]
+func (a *workOrderApi) CompleteRecheck(c *gin.Context) {
+	var req request.CompleteRecheck
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if err := serviceWorkOrder.CompleteRecheck(&req); err != nil {
+		response.FailWithMessage("操作失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("复检完成", c)
+}
+
+// ReturnDevices 设备打回生产
+// @Tags     WorkOrder
+// @Summary  设备打回生产
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.ReturnDevices true "打回信息"
+// @Success  200 {object} response.Response{msg=string} "操作成功"
+// @Router   /workOrder/returnDevices [post]
+func (a *workOrderApi) ReturnDevices(c *gin.Context) {
+	var req request.ReturnDevices
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	claims, _ := utils.GetClaims(c)
+	if err := serviceWorkOrder.ReturnDevices(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
+		response.FailWithMessage("操作失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("已打回生产", c)
 }
 
 // GetInspectionDetail 获取检测详情

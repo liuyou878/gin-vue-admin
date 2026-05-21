@@ -84,8 +84,24 @@
           {{ passRateLabel(scope.row.passCount, scope.row.deviceCount) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column label="操作" width="260" fixed="right">
         <template #default="scope">
+          <el-button
+            size="small"
+            type="warning"
+            link
+            @click="openBatchScan(scope.row)"
+          >
+            分批
+          </el-button>
+          <el-button
+            size="small"
+            type="success"
+            link
+            @click="openDispatch(scope.row)"
+          >
+            派检
+          </el-button>
           <el-button
             size="small"
             type="primary"
@@ -93,13 +109,13 @@
             @click="viewDetail(scope.row)"
             >详情</el-button
           >
-          <el-button
+          <!-- <el-button
             size="small"
             type="primary"
             link
             @click="editOrder(scope.row)"
             >编辑</el-button
-          >
+          > -->
           <el-button
             v-if="scope.row.status === 0"
             size="small"
@@ -180,6 +196,221 @@
     </el-drawer>
 
     <el-dialog
+      v-model="batchScanVisible"
+      title="生产分批"
+      width="820px"
+      destroy-on-close
+      @opened="focusScanInput"
+    >
+      <div v-if="batchScanOrder">
+        <el-descriptions :column="3" border size="small" class="mb-4">
+          <el-descriptions-item label="MO号">{{
+            batchScanOrder.moNumber || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="未分批">{{
+            unbatchedForScan.length
+          }}</el-descriptions-item>
+          <el-descriptions-item label="已入篮">{{
+            scanBasket.length
+          }}</el-descriptions-item>
+        </el-descriptions>
+
+        <el-form label-width="90px">
+          <el-form-item label="批次号">
+            <el-input
+              v-model="batchScanForm.batchNumber"
+              readonly
+              style="width: 320px"
+            />
+          </el-form-item>
+          <el-form-item label="扫码SN">
+            <el-input
+              ref="scanInputRef"
+              v-model="batchScanForm.scanSN"
+              placeholder="扫描设备条码后回车加入批次"
+              class="scan-input"
+              @keyup.enter="addScannedSN"
+            />
+          </el-form-item>
+        </el-form>
+
+        <div class="scan-board">
+          <div class="scan-basket">
+            <div class="scan-title">批次</div>
+            <el-empty v-if="!scanBasket.length" description="还没有加入设备" />
+            <div v-else class="scan-list">
+              <div
+                v-for="(item, index) in scanBasket"
+                :key="item.sn"
+                class="scan-item"
+              >
+                <span>{{ index + 1 }}. {{ item.sn }}</span>
+                <el-button
+                  type="danger"
+                  link
+                  size="small"
+                  @click="removeScanItem(item.sn)"
+                  >移除</el-button
+                >
+              </div>
+            </div>
+          </div>
+          <div class="scan-waiting">
+            <div class="scan-title">未分批设备</div>
+            <div class="scan-tip">只允许以下序列号加入</div>
+            <div class="scan-list">
+              <div
+                v-for="device in unbatchedForScan.slice(0, 80)"
+                :key="device.ID"
+                class="scan-waiting-item"
+              >
+                {{ device.sn }}
+              </div>
+            </div>
+            <div v-if="unbatchedForScan.length > 80" class="scan-tip">
+              还有 {{ unbatchedForScan.length - 80 }} 台未显示，可直接扫码加入。
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="batchScanVisible = false">取消</el-button>
+        <el-button
+          type="primary"
+          :disabled="!scanBasket.length"
+          @click="submitBatchScan"
+        >
+          确认绑定批次
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="dispatchVisible"
+      title="生产派检"
+      width="760px"
+      destroy-on-close
+    >
+      <div v-if="dispatchOrder">
+        <el-descriptions :column="2" border size="small" class="mb-4">
+          <el-descriptions-item label="MO号">{{
+            dispatchOrder.moNumber || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="内部型号">{{
+            dispatchOrder.model || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="PN码">{{
+            dispatchOrder.pnCode || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="设备数">{{
+            dispatchOrder.deviceCount || 0
+          }}</el-descriptions-item>
+        </el-descriptions>
+
+        <el-form label-width="100px" class="dispatch-form">
+          <el-form-item label="业务类型">
+            <el-select
+              v-model="dispatchForm.instrumentCategory"
+              placeholder="请选择业务类型"
+              style="width: 260px"
+            >
+              <el-option label="线上" value="online" />
+              <el-option label="线下" value="offline" />
+              <el-option label="外贸" value="foreign_trade" />
+              <el-option label="定制款" value="custom" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="检测模板">
+            <el-select
+              v-model="dispatchForm.templateID"
+              placeholder="请选择检测模板"
+              filterable
+              style="width: 320px"
+            >
+              <el-option
+                v-for="template in templateList"
+                :key="template.ID"
+                :label="template.name"
+                :value="template.ID"
+              />
+            </el-select>
+          </el-form-item>
+        </el-form>
+
+        <div class="dispatch-summary">
+          <div>
+            未派检批次：
+            <span class="dispatch-strong">{{
+              dispatchPendingBatches.length
+            }}</span>
+            个
+          </div>
+          <div>
+            将统一使用模板：
+            <span class="dispatch-strong">{{
+              selectedDispatchTemplate?.name || '-'
+            }}</span>
+          </div>
+        </div>
+
+        <el-table
+          :data="dispatchOrder.batches || []"
+          border
+          size="small"
+          class="mt-3"
+        >
+          <el-table-column prop="batchNumber" label="批次号" min-width="160" />
+          <el-table-column label="设备数" width="90">
+            <template #default="scope">{{
+              scope.row.devices?.length || 0
+            }}</template>
+          </el-table-column>
+          <el-table-column label="当前模板" min-width="160">
+            <template #default="scope">{{
+              scope.row.template?.name || '-'
+            }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="100">
+            <template #default="scope">
+              <el-tag
+                size="small"
+                :type="
+                  scope.row.status === 0
+                    ? 'info'
+                    : scope.row.status === 1
+                    ? 'warning'
+                    : scope.row.status === 2
+                    ? 'primary'
+                    : 'success'
+                "
+              >
+                {{ batchStatusLabel(scope.row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <el-alert
+          v-if="!dispatchPendingBatches.length"
+          class="mt-3"
+          title="当前生产订单没有未派检批次。已派检、检测中或已完成的批次不会重复提交。"
+          type="info"
+          :closable="false"
+        />
+      </div>
+      <template #footer>
+        <el-button @click="dispatchVisible = false">取消</el-button>
+        <el-button
+          type="success"
+          :disabled="!dispatchForm.templateID || !dispatchPendingBatches.length"
+          @click="submitDispatch"
+        >
+          提交给检测
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
       v-model="detailVisible"
       title="生产订单详情"
       width="1100px"
@@ -215,7 +446,7 @@
 
         <div class="mb-3">
           <el-alert
-            title="当前页面按生产订单号汇总显示；模板和检测工单生成发生在批次层。"
+            title="当前页面用于查看设备、批次和日志；派检请回到列表点击“派检”，一个生产号只选一次检测模板。"
             type="info"
             :closable="false"
           />
@@ -227,6 +458,16 @@
           >
           <el-table :data="unbatchedDevices" border size="small" class="mt-1">
             <el-table-column prop="sn" label="SN" min-width="140" />
+            <el-table-column label="状态" width="100">
+              <template #default="scope">
+                <el-tag
+                  :type="deviceStatusTagType(scope.row.status)"
+                  size="small"
+                >
+                  {{ deviceStatusLabel(scope.row.status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
             <el-table-column prop="model" label="型号" width="90" />
             <el-table-column prop="pnCode" label="PN码" width="130" />
             <el-table-column prop="firmwareVersion" label="固件" width="110" />
@@ -235,6 +476,27 @@
               label="主板固件"
               width="130"
             />
+            <el-table-column label="操作" width="170" fixed="right">
+              <template #default="scope">
+                <el-button
+                  v-if="scope.row.status === 'rework'"
+                  type="warning"
+                  link
+                  size="small"
+                  @click="handleConfirmRework(scope.row)"
+                >
+                  确认返工完成
+                </el-button>
+                <el-button
+                  type="primary"
+                  link
+                  size="small"
+                  @click="openStatusLogs(scope.row)"
+                >
+                  日志
+                </el-button>
+              </template>
+            </el-table-column>
           </el-table>
         </div>
 
@@ -247,31 +509,10 @@
               <div class="text-sm text-gray-500">
                 设备数: {{ batch.devices?.length || 0 }}
               </div>
-              <el-select
-                v-model="batchTemplateMap[batch.ID]"
-                size="small"
-                placeholder="选择检测模板"
-                clearable
-                style="width: 220px"
-              >
-                <el-option
-                  v-for="template in templateList"
-                  :key="template.ID"
-                  :label="template.name"
-                  :value="template.ID"
-                />
-              </el-select>
-              <el-button
-                v-if="batch.status === 0"
-                type="primary"
-                size="small"
-                :disabled="!batchTemplateMap[batch.ID]"
-                @click="assignTemplateToBatch(batch)"
-              >
-                生成检测工单
-              </el-button>
+              <el-tag v-if="batch.template" size="small" type="info">
+                模板: {{ batch.template.name }}
+              </el-tag>
               <el-tag
-                v-else
                 size="small"
                 :type="
                   batch.status === 1
@@ -287,6 +528,16 @@
           </div>
           <el-table :data="batch.devices" border size="small" class="mt-1">
             <el-table-column prop="sn" label="SN" min-width="140" />
+            <el-table-column label="状态" width="100">
+              <template #default="scope">
+                <el-tag
+                  :type="deviceStatusTagType(scope.row.status)"
+                  size="small"
+                >
+                  {{ deviceStatusLabel(scope.row.status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
             <el-table-column prop="model" label="型号" width="90" />
             <el-table-column prop="pnCode" label="PN码" width="130" />
             <el-table-column prop="firmwareVersion" label="固件" width="110" />
@@ -295,35 +546,115 @@
               label="主板固件"
               width="130"
             />
+            <el-table-column label="操作" width="170" fixed="right">
+              <template #default="scope">
+                <el-button
+                  v-if="scope.row.status === 'rework'"
+                  type="warning"
+                  link
+                  size="small"
+                  @click="handleConfirmRework(scope.row)"
+                >
+                  确认返工完成
+                </el-button>
+                <el-button
+                  type="primary"
+                  link
+                  size="small"
+                  @click="openStatusLogs(scope.row)"
+                >
+                  日志
+                </el-button>
+              </template>
+            </el-table-column>
           </el-table>
         </div>
       </div>
     </el-dialog>
+
+    <el-drawer
+      v-model="logVisible"
+      title="设备状态日志"
+      size="520px"
+      destroy-on-close
+    >
+      <template v-if="logDevice">
+        <div class="log-device-title">{{ logDevice.sn || '-' }}</div>
+        <el-timeline v-if="statusLogs.length">
+          <el-timeline-item
+            v-for="log in statusLogs"
+            :key="log.ID"
+            :timestamp="formatDate(log.CreatedAt)"
+            placement="top"
+          >
+            <div class="log-card">
+              <div>
+                <el-tag
+                  :type="deviceStatusTagType(log.fromStatus)"
+                  size="small"
+                >
+                  {{ deviceStatusLabel(log.fromStatus) }}
+                </el-tag>
+                <span class="log-arrow">→</span>
+                <el-tag :type="deviceStatusTagType(log.toStatus)" size="small">
+                  {{ deviceStatusLabel(log.toStatus) }}
+                </el-tag>
+              </div>
+              <div class="log-reason">{{ log.reason || '-' }}</div>
+              <div class="log-operator">
+                操作人：{{ log.operatorName || '-' }}
+              </div>
+            </div>
+          </el-timeline-item>
+        </el-timeline>
+        <el-empty v-else description="暂无状态日志" />
+      </template>
+    </el-drawer>
   </div>
 </template>
 
 <script setup>
   import { computed, reactive, ref } from 'vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
+  import { formatDate } from '@/utils/format'
   import {
     getProductionOrderList,
     deleteProductionOrder,
     forceDeleteProductionOrder,
     updateProductionOrder,
-    findProductionOrder
+    findProductionOrder,
+    confirmReworkDone,
+    scanAssignBatch,
+    getDeviceStatusLogs
   } from '@/plugin/inspection/api/production_order'
   import { getTemplateList } from '@/plugin/inspection/api/template'
-  import { assignBatchTemplate } from '@/plugin/inspection/api/work_order'
+  import { assignOrderTemplate } from '@/plugin/inspection/api/work_order'
 
   const loading = ref(false)
   const tableData = ref([])
   const total = ref(0)
   const drawerVisible = ref(false)
+  const batchScanVisible = ref(false)
   const detailVisible = ref(false)
+  const dispatchVisible = ref(false)
   const formRef = ref(null)
+  const scanInputRef = ref(null)
   const detailOrder = ref(null)
+  const batchScanOrder = ref(null)
+  const dispatchOrder = ref(null)
   const templateList = ref([])
-  const batchTemplateMap = reactive({})
+  const logVisible = ref(false)
+  const logDevice = ref(null)
+  const statusLogs = ref([])
+  const dispatchForm = reactive({
+    templateID: null,
+    instrumentCategory: ''
+  })
+  const batchScanForm = reactive({
+    batchNumber: '',
+    scanSN: ''
+  })
+  const scanBasket = ref([])
 
   const searchInfo = reactive({
     moNumber: '',
@@ -357,6 +688,26 @@
     }[value] || value)
   const batchStatusLabel = (value) =>
     ({ 0: '未生成', 1: '待检测', 2: '检测中', 3: '已完成' }[value] || value)
+  const deviceStatusLabel = (value) =>
+    ({
+      pending: '待检测',
+      pass: '合格',
+      fail: '不合格',
+      rework: '返工中',
+      pending_recheck: '待复检',
+      rechecking: '复检中'
+    }[value] ||
+    value ||
+    '-')
+  const deviceStatusTagType = (value) =>
+    ({
+      pending: 'info',
+      pass: 'success',
+      fail: 'danger',
+      rework: 'warning',
+      pending_recheck: 'primary',
+      rechecking: 'warning'
+    }[value] || 'info')
   const passRateLabel = (passCount, deviceCount) => {
     const total = Number(deviceCount || 0)
     if (!total) return '-'
@@ -372,6 +723,25 @@
     )
     return allDevices.filter((device) => !batchedSet.has(device.ID))
   })
+
+  const unbatchedForScan = computed(() => {
+    if (!batchScanOrder.value) return []
+    const basketSet = new Set(scanBasket.value.map((item) => item.sn))
+    const allDevices = batchScanOrder.value.devices || []
+    return allDevices.filter(
+      (device) => !device.batchID && !basketSet.has(device.sn)
+    )
+  })
+
+  const dispatchPendingBatches = computed(() =>
+    (dispatchOrder.value?.batches || []).filter((batch) => batch.status === 0)
+  )
+
+  const selectedDispatchTemplate = computed(() =>
+    templateList.value.find(
+      (template) => template.ID === dispatchForm.templateID
+    )
+  )
 
   const getList = async () => {
     loading.value = true
@@ -425,33 +795,173 @@
   }
 
   const viewDetail = async (row) => {
-    await loadTemplates()
     const res = await findProductionOrder({ id: row.ID })
     if (res.code !== 0) return
     detailOrder.value = res.data
-    Object.keys(batchTemplateMap).forEach((key) => delete batchTemplateMap[key])
-    ;(res.data.batches || []).forEach((batch) => {
-      batchTemplateMap[batch.ID] = batch.templateID || null
-    })
     detailVisible.value = true
   }
 
-  const assignTemplateToBatch = async (batch) => {
-    const templateID = batchTemplateMap[batch.ID]
-    if (!templateID) {
+  const openBatchScan = async (row) => {
+    const res = await findProductionOrder({ id: row.ID })
+    if (res.code !== 0) return
+    batchScanOrder.value = res.data
+    batchScanForm.batchNumber = previewNextBatchNumber(res.data)
+    batchScanForm.scanSN = ''
+    scanBasket.value = []
+    batchScanVisible.value = true
+  }
+
+  const formatDateCompact = (date = new Date()) => {
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const d = String(date.getDate()).padStart(2, '0')
+    return `${y}${m}${d}`
+  }
+
+  const previewNextBatchNumber = (order) => {
+    const dateText = formatDateCompact()
+    const prefix = `${order.moNumber || ''}-${dateText}-`
+    const sameDay = (order.batches || []).filter((batch) =>
+      String(batch.batchNumber || '').startsWith(prefix)
+    )
+    return `${prefix}${String(sameDay.length + 1).padStart(2, '0')}`
+  }
+
+  const focusScanInput = () => {
+    setTimeout(() => {
+      scanInputRef.value?.focus?.()
+    }, 50)
+  }
+
+  const addScannedSN = () => {
+    const sn = String(batchScanForm.scanSN || '').trim()
+    batchScanForm.scanSN = ''
+    if (!sn) {
+      focusScanInput()
+      return
+    }
+    if (scanBasket.value.some((item) => item.sn === sn)) {
+      ElMessage.warning(`SN ${sn} 已在篮子里`)
+      focusScanInput()
+      return
+    }
+    const device = (batchScanOrder.value?.devices || []).find(
+      (item) => item.sn === sn
+    )
+    if (!device) {
+      ElMessage.error(`SN ${sn} 不属于当前生产订单`)
+      focusScanInput()
+      return
+    }
+    if (device.batchID) {
+      const batch = (batchScanOrder.value?.batches || []).find(
+        (item) => item.ID === device.batchID
+      )
+      ElMessage.error(
+        `SN ${sn} 已在批次 ${batch?.batchNumber || device.batchID} 中`
+      )
+      focusScanInput()
+      return
+    }
+    if (device.status !== 'pending') {
+      ElMessage.error(`SN ${sn} 当前状态不是待检测，不能分批`)
+      focusScanInput()
+      return
+    }
+    scanBasket.value.unshift(device)
+    ElMessage.success(`已加入 ${sn}`)
+    focusScanInput()
+  }
+
+  const removeScanItem = (sn) => {
+    scanBasket.value = scanBasket.value.filter((item) => item.sn !== sn)
+    focusScanInput()
+  }
+
+  const submitBatchScan = async () => {
+    if (!batchScanOrder.value) return
+    if (!scanBasket.value.length) {
+      ElMessage.warning('请先扫码加入设备')
+      focusScanInput()
+      return
+    }
+    const res = await scanAssignBatch({
+      productionOrderID: batchScanOrder.value.ID,
+      batchNumber: batchScanForm.batchNumber,
+      sns: scanBasket.value.map((item) => item.sn)
+    })
+    if (res.code !== 0) return
+    ElMessage.success('分批成功')
+    const refresh = await findProductionOrder({ id: batchScanOrder.value.ID })
+    if (refresh.code === 0) {
+      batchScanOrder.value = refresh.data
+      batchScanForm.batchNumber = previewNextBatchNumber(refresh.data)
+    }
+    scanBasket.value = []
+    getList()
+    focusScanInput()
+  }
+
+  const openDispatch = async (row) => {
+    await loadTemplates()
+    const res = await findProductionOrder({ id: row.ID })
+    if (res.code !== 0) return
+    dispatchOrder.value = res.data
+    dispatchForm.templateID = res.data.templateID || null
+    dispatchForm.instrumentCategory = res.data.instrumentCategory || ''
+    dispatchVisible.value = true
+  }
+
+  const submitDispatch = async () => {
+    if (!dispatchOrder.value) return
+    if (!dispatchForm.templateID) {
       ElMessage.warning('请先选择检测模板')
       return
     }
-    const res = await assignBatchTemplate({
-      ID: batch.ID,
-      templateID: Number(templateID)
+    if (!dispatchPendingBatches.value.length) {
+      ElMessage.warning('没有未派检批次')
+      return
+    }
+    const res = await assignOrderTemplate({
+      productionOrderID: dispatchOrder.value.ID,
+      templateID: Number(dispatchForm.templateID),
+      instrumentCategory: dispatchForm.instrumentCategory
     })
     if (res.code !== 0) return
-    ElMessage.success('已生成待检测工单')
+    ElMessage.success('已提交检测')
+    dispatchVisible.value = false
+    dispatchOrder.value = null
+    getList()
+  }
+
+  const handleConfirmRework = async (row) => {
+    try {
+      await ElMessageBox.confirm(
+        `确认 ${row.sn} 已返工完成，并提交给检测复检？`,
+        '确认返工完成',
+        { type: 'warning', confirmButtonText: '确认完成' }
+      )
+    } catch {
+      return
+    }
+
+    const res = await confirmReworkDone({ deviceID: row.ID })
+    if (res.code !== 0) return
+    ElMessage.success('已进入待复检')
     if (detailOrder.value) {
       await viewDetail({ ID: detailOrder.value.ID })
     }
     getList()
+  }
+
+  const openStatusLogs = async (row) => {
+    logDevice.value = row
+    statusLogs.value = []
+    logVisible.value = true
+    const res = await getDeviceStatusLogs({ deviceID: row.ID })
+    if (res.code === 0) {
+      statusLogs.value = res.data || []
+    }
   }
 
   const onDelete = (id) => {
@@ -494,5 +1004,102 @@
   .count-fail {
     color: #dc2626;
     font-weight: 600;
+  }
+
+  .dispatch-form {
+    margin-top: 12px;
+  }
+
+  .dispatch-summary {
+    display: flex;
+    gap: 24px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: var(--el-fill-color-lighter, #fafafa);
+    color: var(--el-text-color-regular, #606266);
+  }
+
+  .dispatch-strong {
+    color: var(--el-color-primary, #409eff);
+    font-weight: 700;
+  }
+
+  .scan-input {
+    width: 420px;
+  }
+
+  .scan-board {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  .scan-basket,
+  .scan-waiting {
+    min-height: 280px;
+    padding: 12px;
+    border: 1px solid var(--el-border-color-light, #e4e7ed);
+    border-radius: 10px;
+    background: var(--el-fill-color-lighter, #fafafa);
+  }
+
+  .scan-title {
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .scan-tip {
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: var(--el-text-color-secondary, #909399);
+  }
+
+  .scan-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 360px;
+    overflow-y: auto;
+  }
+
+  .scan-item,
+  .scan-waiting-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 10px;
+    border-radius: 6px;
+    background: var(--el-bg-color, #fff);
+    border: 1px solid var(--el-border-color-lighter, #ebeef5);
+  }
+
+  .log-device-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 16px;
+  }
+
+  .log-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--el-border-color-light, #e4e7ed);
+    border-radius: 8px;
+    background: var(--el-fill-color-lighter, #fafafa);
+  }
+
+  .log-arrow {
+    margin: 0 8px;
+    color: var(--el-text-color-secondary, #909399);
+  }
+
+  .log-reason {
+    color: var(--el-text-color-primary, #303133);
+  }
+
+  .log-operator {
+    font-size: 12px;
+    color: var(--el-text-color-secondary, #909399);
   }
 </style>

@@ -4,6 +4,10 @@ export const createTemplate = (data) => {
   return service({ url: '/inspectionTemplate/createTemplate', method: 'post', data })
 }
 
+export const copyTemplate = (data) => {
+  return service({ url: '/inspectionTemplate/copyTemplate', method: 'post', data })
+}
+
 export const deleteTemplate = (params) => {
   return service({ url: '/inspectionTemplate/deleteTemplate', method: 'delete', params })
 }
