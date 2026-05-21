@@ -145,11 +145,16 @@ func (s *productionOrderSvc) FindProductionOrder(id string) (model.ProductionOrd
 		po.Batches[i].DeviceCount = len(po.Batches[i].Devices)
 	}
 	fillBatchSummary(&po)
-	var pass, fail int64
-	global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = 'pass'", id).Count(&pass)
-	global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = 'fail'", id).Count(&fail)
+	var pass, fail, rework, recheck int64
+	global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", id, "pass").Count(&pass)
+	global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", id, "fail").Count(&fail)
+	global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", id, "rework").Count(&rework)
+	global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status IN ?", id, []string{"pending_recheck", "rechecking"}).Count(&recheck)
 	po.PassCount = int(pass)
 	po.FailCount = int(fail)
+	po.ReworkCount = int(rework)
+	po.RecheckCount = int(recheck)
+	po.AbnormalCount = int(fail + rework + recheck)
 	return po, err
 }
 
@@ -173,14 +178,18 @@ func (s *productionOrderSvc) GetProductionOrderList(search request.ProductionOrd
 	}
 	err = db.Limit(search.PageSize).Offset(search.PageSize * (search.Page - 1)).Order("id desc").Find(&list).Error
 	for i := range list {
-		var count, pass, fail int64
-		deviceDB := global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ?", list[i].ID)
-		deviceDB.Count(&count)
-		deviceDB.Where("status = 'pass'").Count(&pass)
-		deviceDB.Where("status = 'fail'").Count(&fail)
+		var count, pass, fail, rework, recheck int64
+		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ?", list[i].ID).Count(&count)
+		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", list[i].ID, "pass").Count(&pass)
+		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", list[i].ID, "fail").Count(&fail)
+		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", list[i].ID, "rework").Count(&rework)
+		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status IN ?", list[i].ID, []string{"pending_recheck", "rechecking"}).Count(&recheck)
 		list[i].DeviceCount = int(count)
 		list[i].PassCount = int(pass)
 		list[i].FailCount = int(fail)
+		list[i].ReworkCount = int(rework)
+		list[i].RecheckCount = int(recheck)
+		list[i].AbnormalCount = int(fail + rework + recheck)
 		if list[i].TemplateID != nil {
 			var tmpl model.InspectionTemplate
 			if global.GVA_DB.Where("id = ?", *list[i].TemplateID).First(&tmpl).Error == nil {

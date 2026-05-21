@@ -440,8 +440,11 @@ const onNumChange = (dev, ri) => {
   if (r._numVal === undefined || r._numVal === null || r._numVal === '') r._checked = null
   else {
     const min = r.minValue, max = r.maxValue
-    if ((min != null && r._numVal < min) || (max != null && r._numVal > max)) { if (r._checked == null) r._checked = false }
-    else if (min != null || max != null) { if (r._checked == null) r._checked = true }
+    if ((min != null && r._numVal < min) || (max != null && r._numVal > max)) {
+      r._checked = false
+    } else if (min != null || max != null) {
+      r._checked = true
+    }
   }
   calcDeviceStatus(dev)
 }
@@ -530,6 +533,14 @@ const onReturnDevices = async () => {
   })
   if (res.code === 0) {
     ElMessage.success('已打回生产')
+    const pickedSet = new Set(picked)
+    detail.value.devices.forEach((dev) => {
+      if (pickedSet.has(dev.ID)) {
+        dev._status = 'rework'
+        dev.status = 'rework'
+        dev.returnReason = returnReason.value || ''
+      }
+    })
     returnDeviceIDs.value = []
     returnReason.value = ''
     await loadDetail()

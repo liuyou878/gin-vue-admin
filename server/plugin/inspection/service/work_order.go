@@ -443,16 +443,15 @@ func (s *workOrderSvc) GetInspectionBatchList(search request.InspectionBatchSear
 
 	for i := range list {
 		var count, pass, fail int64
-		deviceDB := global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("batch_id = ?", list[i].ID)
-		deviceDB.Count(&count)
-		deviceDB.Where("status = 'pass'").Count(&pass)
-		deviceDB.Where("status = 'fail'").Count(&fail)
+		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("batch_id = ?", list[i].ID).Count(&count)
+		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("batch_id = ? AND status = ?", list[i].ID, "pass").Count(&pass)
+		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("batch_id = ? AND status = ?", list[i].ID, "fail").Count(&fail)
 		var rework int64
-		deviceDB.Where("status = 'rework'").Count(&rework)
+		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("batch_id = ? AND status = ?", list[i].ID, "rework").Count(&rework)
 		var recheck int64
-		deviceDB.Where("status IN ?", []string{"pending_recheck", "rechecking"}).Count(&recheck)
+		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("batch_id = ? AND status IN ?", list[i].ID, []string{"pending_recheck", "rechecking"}).Count(&recheck)
 		var rechecking int64
-		deviceDB.Where("status = 'rechecking'").Count(&rechecking)
+		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("batch_id = ? AND status = ?", list[i].ID, "rechecking").Count(&rechecking)
 		list[i].DeviceCount = int(count)
 		list[i].PassCount = int(pass)
 		list[i].FailCount = int(fail)

@@ -145,7 +145,7 @@
 </template>
 
 <script setup>
-  import { ref, reactive } from 'vue'
+  import { onMounted, onUnmounted, ref, reactive } from 'vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { formatDate } from '@/utils/format'
   import {
@@ -207,6 +207,11 @@
     searchInfo.page = 1
     getList()
   }
+  const refreshOnVisible = () => {
+    if (document.visibilityState === 'visible') {
+      getList()
+    }
+  }
 
   const openDetail = (row) => {
     window.location.hash = `/inspectDetail?batchId=${row.ID}`
@@ -253,6 +258,14 @@
     }
   }
   getList()
+  onMounted(() => {
+    document.addEventListener('visibilitychange', refreshOnVisible)
+    window.addEventListener('focus', getList)
+  })
+  onUnmounted(() => {
+    document.removeEventListener('visibilitychange', refreshOnVisible)
+    window.removeEventListener('focus', getList)
+  })
 </script>
 
 <style scoped>

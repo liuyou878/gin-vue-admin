@@ -79,6 +79,21 @@
           <span class="count-fail">{{ scope.row.failCount || 0 }}</span>
         </template>
       </el-table-column>
+      <el-table-column label="返工数" width="90">
+        <template #default="scope">
+          <span class="count-return">{{ scope.row.reworkCount || 0 }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="待复检" width="90">
+        <template #default="scope">
+          <span class="count-recheck">{{ scope.row.recheckCount || 0 }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="异常数" width="90">
+        <template #default="scope">
+          <span class="count-abnormal">{{ scope.row.abnormalCount || 0 }}</span>
+        </template>
+      </el-table-column>
       <el-table-column label="合格率" width="100">
         <template #default="scope">
           {{ passRateLabel(scope.row.passCount, scope.row.deviceCount) }}
@@ -1054,6 +1069,21 @@
 
   .count-fail {
     color: #dc2626;
+    font-weight: 600;
+  }
+
+  .count-return {
+    color: #d97706;
+    font-weight: 600;
+  }
+
+  .count-recheck {
+    color: #2563eb;
+    font-weight: 600;
+  }
+
+  .count-abnormal {
+    color: #9333ea;
     font-weight: 600;
   }
 
