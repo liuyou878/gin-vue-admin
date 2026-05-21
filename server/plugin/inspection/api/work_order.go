@@ -1,6 +1,8 @@
 package api
 
 import (
+	"net/url"
+
 	"github.com/flipped-aurora/gin-vue-admin/server/model/common/response"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/inspection/model/request"
 	"github.com/flipped-aurora/gin-vue-admin/server/utils"
@@ -207,6 +209,29 @@ func (a *workOrderApi) GetInspectionDetail(c *gin.Context) {
 		return
 	}
 	response.OkWithData(data, c)
+}
+
+// ExportInspectionExcel 导出检测工单Excel
+// @Tags     WorkOrder
+// @Summary  导出检测工单Excel
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/octet-stream
+// @Param    id query string true "批次ID"
+// @Success  200 {file} file "检测工单Excel"
+// @Router   /workOrder/exportInspectionExcel [get]
+func (a *workOrderApi) ExportInspectionExcel(c *gin.Context) {
+	id := c.Query("id")
+	buf, filename, err := serviceWorkOrder.ExportInspectionExcel(id)
+	if err != nil {
+		response.FailWithMessage("导出失败: "+err.Error(), c)
+		return
+	}
+	escaped := url.QueryEscape(filename)
+	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Header("Content-Disposition", "attachment; filename*=UTF-8''"+escaped)
+	c.Header("Content-Transfer-Encoding", "binary")
+	c.Data(200, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buf.Bytes())
 }
 
 // GetInspectionBatchList 获取检测批次列表

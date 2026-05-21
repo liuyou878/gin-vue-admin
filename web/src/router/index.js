@@ -31,6 +31,12 @@ const routes = [
     component: () => import('@/plugin/inspection/view/inspect_detail.vue')
   },
   {
+    path: '/inspectPrint',
+    name: 'InspectPrint',
+    meta: { title: '检测工单打印', client: true },
+    component: () => import('@/plugin/inspection/view/inspect_print.vue')
+  },
+  {
     path: '/inspectWorkOrder',
     name: 'InspectWorkOrder',
     meta: {

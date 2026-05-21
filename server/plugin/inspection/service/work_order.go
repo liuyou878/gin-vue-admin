@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/inspection/model"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/inspection/model/request"
+	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
 )
 
@@ -598,4 +600,285 @@ func (s *workOrderSvc) GetInspectionDetailData(batchID string) (map[string]inter
 		"devices":       deviceInfos,
 		"templateItems": templateItemInfos,
 	}, nil
+}
+
+func (s *workOrderSvc) ExportInspectionExcel(batchID string) (*bytes.Buffer, string, error) {
+	var batch model.ProductionBatch
+	if err := global.GVA_DB.Preload("Template").Where("id = ?", batchID).First(&batch).Error; err != nil {
+		return nil, "", err
+	}
+
+	var order model.ProductionOrder
+	if err := global.GVA_DB.Where("id = ?", batch.ProductionOrderID).First(&order).Error; err != nil {
+		return nil, "", err
+	}
+
+	var devices []model.ProductionOrderDevice
+	if err := global.GVA_DB.Where("batch_id = ?", batchID).Order("line_number asc, id asc").Find(&devices).Error; err != nil {
+		return nil, "", err
+	}
+
+	var templateItems []model.InspectionTemplateItem
+	if batch.TemplateID != nil {
+		if err := global.GVA_DB.Preload("Item").Where("template_id = ?", *batch.TemplateID).Order("sort asc").Find(&templateItems).Error; err != nil {
+			return nil, "", err
+		}
+	}
+	if len(templateItems) == 0 {
+		return nil, "", errors.New("批次没有检测模板或检测项，不能导出")
+	}
+
+	deviceIDs := make([]uint, 0, len(devices))
+	for _, device := range devices {
+		deviceIDs = append(deviceIDs, device.ID)
+	}
+	type exportResultKey struct {
+		DeviceID uint
+		ItemID   uint
+	}
+	resultMap := make(map[exportResultKey]model.InspectionDeviceResult)
+	if len(deviceIDs) > 0 {
+		var results []model.InspectionDeviceResult
+		if err := global.GVA_DB.Where("production_order_device_id IN ?", deviceIDs).Find(&results).Error; err != nil {
+			return nil, "", err
+		}
+		for _, result := range results {
+			resultMap[exportResultKey{DeviceID: result.ProductionOrderDeviceID, ItemID: result.ItemID}] = result
+		}
+	}
+
+	f := excelize.NewFile()
+	sheet := "检测工单"
+	defaultSheet := f.GetSheetName(0)
+	f.SetSheetName(defaultSheet, sheet)
+
+	lastColIndex := 5 + len(templateItems)
+	if lastColIndex < 8 {
+		lastColIndex = 8
+	}
+	lastCol, _ := excelize.ColumnNumberToName(lastColIndex)
+
+	titleStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 16},
+		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
+	})
+	headerStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 10},
+		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center", WrapText: true},
+		Border:    thinBorders(),
+		Fill:      excelize.Fill{Type: "pattern", Color: []string{"F3F4F6"}, Pattern: 1},
+	})
+	cellStyle, _ := f.NewStyle(&excelize.Style{
+		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center", WrapText: true},
+		Border:    thinBorders(),
+	})
+	infoStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Size: 10},
+		Alignment: &excelize.Alignment{Horizontal: "left", Vertical: "center", WrapText: true},
+		Border:    thinBorders(),
+		Fill:      excelize.Fill{Type: "pattern", Color: []string{"F9FAFB"}, Pattern: 1},
+	})
+	footerStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Size: 9},
+		Alignment: &excelize.Alignment{Vertical: "center", WrapText: true},
+	})
+	_ = f.MergeCell(sheet, "A1", lastCol+"1")
+	_ = f.SetCellValue(sheet, "A1", "GNSS接收机产品检测工单")
+	_ = f.SetCellStyle(sheet, "A1", lastCol+"1", titleStyle)
+	_ = f.SetRowHeight(sheet, 1, 28)
+
+	productName := order.ProductName
+	modelName := order.Model
+	if batch.Template != nil {
+		if batch.Template.ProductName != "" {
+			productName = batch.Template.ProductName
+		}
+		if batch.Template.Model != "" {
+			modelName = batch.Template.Model
+		}
+	}
+
+	infoRows := [][]string{
+		{fmt.Sprintf("生产订单号：%s", order.MONumber), fmt.Sprintf("批次号：%s", batch.BatchNumber), fmt.Sprintf("业务类型：%s", businessCategoryLabel(order.InstrumentCategory))},
+		{fmt.Sprintf("产品名称：%s", productName), fmt.Sprintf("模板型号：%s", modelName), fmt.Sprintf("PN码：%s", order.PNCode)},
+		{fmt.Sprintf("固件版本：%s", order.FirmwareVersion), fmt.Sprintf("主板固件版本：%s", order.MainboardFirmwareVersion), fmt.Sprintf("检测员：%s", batch.InspectorName)},
+	}
+	infoSegments := splitExcelSegments(lastColIndex, 3)
+	for i, row := range infoRows {
+		r := i + 3
+		for j, text := range row {
+			startCol, _ := excelize.ColumnNumberToName(infoSegments[j][0])
+			endCol, _ := excelize.ColumnNumberToName(infoSegments[j][1])
+			startCell := fmt.Sprintf("%s%d", startCol, r)
+			endCell := fmt.Sprintf("%s%d", endCol, r)
+			if startCell != endCell {
+				_ = f.MergeCell(sheet, startCell, endCell)
+			}
+			_ = f.SetCellValue(sheet, startCell, text)
+		}
+		_ = f.SetCellStyle(sheet, fmt.Sprintf("A%d", r), fmt.Sprintf("%s%d", lastCol, r), infoStyle)
+		_ = f.SetRowHeight(sheet, r, 22)
+	}
+
+	headerRow := 7
+	_ = f.SetCellValue(sheet, "A7", "序号")
+	_ = f.SetCellValue(sheet, "B7", "机身码(SN)")
+	_ = f.SetCellValue(sheet, "C7", "检测结果")
+	for i, item := range templateItems {
+		col, _ := excelize.ColumnNumberToName(i + 4)
+		_ = f.SetCellValue(sheet, fmt.Sprintf("%s%d", col, headerRow), item.Item.Name)
+	}
+	remarkCol, _ := excelize.ColumnNumberToName(len(templateItems) + 4)
+	signCol, _ := excelize.ColumnNumberToName(len(templateItems) + 5)
+	_ = f.SetCellValue(sheet, fmt.Sprintf("%s%d", remarkCol, headerRow), "备注")
+	_ = f.SetCellValue(sheet, fmt.Sprintf("%s%d", signCol, headerRow), "签名")
+	_ = f.SetCellStyle(sheet, fmt.Sprintf("A%d", headerRow), fmt.Sprintf("%s%d", signCol, headerRow), headerStyle)
+	_ = f.SetRowHeight(sheet, headerRow, 36)
+
+	minRows := len(devices)
+	if minRows < 8 {
+		minRows = 8
+	}
+	for i := 0; i < minRows; i++ {
+		row := headerRow + 1 + i
+		_ = f.SetCellValue(sheet, fmt.Sprintf("A%d", row), i+1)
+		if i < len(devices) {
+			device := devices[i]
+			_ = f.SetCellValue(sheet, fmt.Sprintf("B%d", row), device.SN)
+			_ = f.SetCellValue(sheet, fmt.Sprintf("C%d", row), deviceInspectionResultLabel(device.Status))
+			remarks := make([]string, 0)
+			for j, item := range templateItems {
+				result, ok := resultMap[exportResultKey{DeviceID: device.ID, ItemID: item.ItemID}]
+				if !ok {
+					continue
+				}
+				col, _ := excelize.ColumnNumberToName(j + 4)
+				_ = f.SetCellValue(sheet, fmt.Sprintf("%s%d", col, row), exportResultText(item.Item.ResultType, result))
+				if strings.TrimSpace(result.Remark) != "" {
+					remarks = append(remarks, fmt.Sprintf("%s：%s", item.Item.Name, strings.TrimSpace(result.Remark)))
+				}
+			}
+			if len(remarks) > 0 {
+				_ = f.SetCellValue(sheet, fmt.Sprintf("%s%d", remarkCol, row), strings.Join(remarks, "；"))
+			}
+		}
+		_ = f.SetCellStyle(sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("%s%d", signCol, row), cellStyle)
+		_ = f.SetRowHeight(sheet, row, 28)
+	}
+
+	footerRow := headerRow + minRows + 2
+	_ = f.MergeCell(sheet, fmt.Sprintf("A%d", footerRow), fmt.Sprintf("%s%d", signCol, footerRow))
+	_ = f.SetCellValue(sheet, fmt.Sprintf("A%d", footerRow), "仪器检测依据：企业标准：Q/440112014000AEFCHKJ 1-2025\n计量检定规程参照：JJG 1200-2023\n抽样检测参照：GB/T 2828.1-2021")
+	_ = f.SetCellStyle(sheet, fmt.Sprintf("A%d", footerRow), fmt.Sprintf("%s%d", signCol, footerRow), footerStyle)
+	_ = f.SetRowHeight(sheet, footerRow, 48)
+
+	_ = f.SetColWidth(sheet, "A", "A", 6)
+	_ = f.SetColWidth(sheet, "B", "B", 18)
+	_ = f.SetColWidth(sheet, "C", "C", 12)
+	for i := 0; i < len(templateItems); i++ {
+		col, _ := excelize.ColumnNumberToName(i + 4)
+		_ = f.SetColWidth(sheet, col, col, 10)
+	}
+	_ = f.SetColWidth(sheet, remarkCol, signCol, 14)
+	_ = f.SetPanes(sheet, &excelize.Panes{
+		Freeze:      true,
+		Split:       false,
+		XSplit:      3,
+		YSplit:      7,
+		TopLeftCell: "D8",
+		ActivePane:  "bottomRight",
+	})
+
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		return nil, "", err
+	}
+	filename := fmt.Sprintf("%s-%s-检测工单.xlsx", order.MONumber, batch.BatchNumber)
+	return buf, filename, nil
+}
+
+func thinBorders() []excelize.Border {
+	return []excelize.Border{
+		{Type: "left", Color: "000000", Style: 1},
+		{Type: "right", Color: "000000", Style: 1},
+		{Type: "top", Color: "000000", Style: 1},
+		{Type: "bottom", Color: "000000", Style: 1},
+	}
+}
+
+func businessCategoryLabel(value string) string {
+	switch value {
+	case "online":
+		return "线上"
+	case "offline":
+		return "线下"
+	case "foreign_trade":
+		return "外贸"
+	case "custom":
+		return "定制款"
+	default:
+		return value
+	}
+}
+
+func exportResultText(resultType string, result model.InspectionDeviceResult) string {
+	parts := make([]string, 0, 2)
+	if resultType != "number" {
+		if result.PassResult != nil {
+			if *result.PassResult {
+				parts = append(parts, "√")
+			} else {
+				parts = append(parts, "×")
+			}
+		}
+	}
+	if resultType != "pass_fail" && result.NumberResult != nil {
+		parts = append(parts, fmt.Sprintf("%g", *result.NumberResult))
+	}
+	return strings.Join(parts, " ")
+}
+
+func deviceInspectionResultLabel(status string) string {
+	switch status {
+	case "pass":
+		return "合格"
+	case "fail":
+		return "不合格"
+	case "pending":
+		return "未完成"
+	case "rework":
+		return "返工中"
+	case "pending_recheck":
+		return "待复检"
+	case "rechecking":
+		return "复检中"
+	default:
+		return ""
+	}
+}
+
+func splitExcelSegments(totalCols int, parts int) [][2]int {
+	if parts <= 0 {
+		return nil
+	}
+	segments := make([][2]int, 0, parts)
+	base := totalCols / parts
+	remainder := totalCols % parts
+	start := 1
+	for i := 0; i < parts; i++ {
+		width := base
+		if i < remainder {
+			width++
+		}
+		if width < 1 {
+			width = 1
+		}
+		end := start + width - 1
+		if end > totalCols {
+			end = totalCols
+		}
+		segments = append(segments, [2]int{start, end})
+		start = end + 1
+	}
+	return segments
 }

@@ -92,7 +92,7 @@
         <el-table-column prop="CreatedAt" label="创建时间" width="160">
           <template #default="s5">{{ formatDate(s5.row.CreatedAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="260" fixed="right">
           <template #default="s6">
             <el-button
               v-if="activeTab === 'pending'"
@@ -116,6 +116,12 @@
               @click="openDetail(s6.row)"
             >
               {{ activeTab === 'completed' ? '查看' : '检测' }}
+            </el-button>
+            <el-button size="small" type="success" link @click="onExportExcel(s6.row)">
+              导出Excel
+            </el-button>
+            <el-button size="small" type="primary" link @click="openPrint(s6.row)">
+              打印
             </el-button>
           </template>
         </el-table-column>
@@ -144,6 +150,7 @@
   import { formatDate } from '@/utils/format'
   import {
     getInspectionBatchList,
+    exportInspectionExcel,
     startInspection,
     startRecheck
   } from '@/plugin/inspection/api/work_order'
@@ -203,6 +210,25 @@
 
   const openDetail = (row) => {
     window.location.hash = `/inspectDetail?batchId=${row.ID}`
+  }
+  const openPrint = (row) => {
+    const url = `${window.location.origin}${window.location.pathname}#/inspectPrint?batchId=${row.ID}`
+    window.open(url, '_blank')
+  }
+  const downloadBlob = (blob, filename) => {
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+  }
+  const onExportExcel = async (row) => {
+    const res = await exportInspectionExcel({ id: row.ID })
+    const filename = `${row.moNumber || 'MO'}-${row.batchNumber || row.ID}-检测工单.xlsx`
+    downloadBlob(res.data || res, filename)
   }
   const onStartInspect = async (row) => {
     await ElMessageBox.confirm('确定开始检测？', '提示', { type: 'info' })

@@ -3,6 +3,10 @@
     <div class="detail-toolbar">
       <el-button :icon="'ArrowLeft'" @click="goBack" />
       <span class="ml-2 text-sm">{{ detailInfo }}</span>
+      <div class="toolbar-actions">
+        <el-button size="small" type="success" @click="onExportExcel">导出Excel</el-button>
+        <el-button size="small" type="primary" @click="openPrint">打印</el-button>
+      </div>
     </div>
 
     <el-tabs v-model="inspectMode" class="tab-bar">
@@ -284,7 +288,7 @@
 import { ref, computed, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { saveResults as apiSaveResults, completeInspection, completeRecheck, getInspectionDetail, returnDevices as apiReturnDevices } from '@/plugin/inspection/api/work_order'
+import { saveResults as apiSaveResults, completeInspection, completeRecheck, exportInspectionExcel, getInspectionDetail, returnDevices as apiReturnDevices } from '@/plugin/inspection/api/work_order'
 
 const route = useRoute()
 
@@ -319,6 +323,42 @@ const detailInfo = computed(() => {
 })
 
 const goBack = () => { window.location.hash = '/inspectWorkOrder' }
+const openPrint = async () => {
+  if (!isReadonly.value) {
+    const saved = await saveResults(true)
+    if (!saved) {
+      ElMessage.error('打印前保存检测结果失败')
+      return
+    }
+  }
+  const batchId = route.query.batchId
+  const url = `${window.location.origin}${window.location.pathname}#/inspectPrint?batchId=${batchId}`
+  window.open(url, '_blank')
+}
+const downloadBlob = (blob, filename) => {
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  window.URL.revokeObjectURL(url)
+}
+const onExportExcel = async () => {
+  if (!isReadonly.value) {
+    const saved = await saveResults(true)
+    if (!saved) {
+      ElMessage.error('导出前保存检测结果失败')
+      return
+    }
+  }
+  const batchId = route.query.batchId
+  const res = await exportInspectionExcel({ id: batchId })
+  const o = detail.value.order
+  const filename = `${o.moNumber || 'MO'}-${o.batchNumber || batchId}-检测工单.xlsx`
+  downloadBlob(res.data || res, filename)
+}
 
 const doneCount = (idx) => {
   let c = 0
@@ -577,6 +617,7 @@ loadDetail()
 <style scoped>
 .detail-page { height: 100vh; display: flex; flex-direction: column; background: var(--el-bg-color, #fff); overflow: hidden; }
 .detail-toolbar { display: flex; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--el-border-color-light, #e4e7ed); background: var(--el-fill-color-light, #fafafa); flex-shrink: 0; }
+.toolbar-actions { margin-left: auto; display: flex; gap: 8px; }
 .tab-bar { flex-shrink: 0; padding: 0 16px; background: var(--el-bg-color, #fff); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
 .tab-bar :deep(.el-tabs__header) { margin-bottom: 0; }
 .detail-scroll { flex: 1; overflow-y: auto; padding: 16px; }

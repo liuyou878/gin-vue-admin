@@ -25,5 +25,6 @@ func (r *workOrderRouter) Init(private *gin.RouterGroup) {
 		group := private.Group("workOrder")
 		group.GET("getInspectionBatchList", apiWorkOrder.GetInspectionBatchList)
 		group.GET("getInspectionDetail", apiWorkOrder.GetInspectionDetail)
+		group.GET("exportInspectionExcel", apiWorkOrder.ExportInspectionExcel)
 	}
 }

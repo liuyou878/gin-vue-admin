@@ -39,3 +39,12 @@ export const returnDevices = (data) => {
 export const getInspectionDetail = (params) => {
   return service({ url: '/workOrder/getInspectionDetail', method: 'get', params })
 }
+
+export const exportInspectionExcel = (params) => {
+  return service({
+    url: '/workOrder/exportInspectionExcel',
+    method: 'get',
+    params,
+    responseType: 'blob'
+  })
+}

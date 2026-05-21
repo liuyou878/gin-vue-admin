@@ -46,6 +46,7 @@ func Api(ctx context.Context) {
 		{Path: "/workOrder/returnDevices", Description: "设备打回生产", ApiGroup: "检测工单", Method: "POST"},
 		{Path: "/workOrder/getInspectionBatchList", Description: "获取检测批次列表", ApiGroup: "检测工单", Method: "GET"},
 		{Path: "/workOrder/getInspectionDetail", Description: "获取检测详情", ApiGroup: "检测工单", Method: "GET"},
+		{Path: "/workOrder/exportInspectionExcel", Description: "导出检测工单Excel", ApiGroup: "检测工单", Method: "GET"},
 	}
 	utils.RegisterApis(entities...)
 }
