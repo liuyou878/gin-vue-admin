@@ -11,15 +11,38 @@
     </el-tabs>
 
     <div class="detail-scroll">
+      <div v-if="inspectMode === 'byDevice'" class="desktop-only desktop-focus-toolbar">
+        <div class="desktop-focus-mode-row">
+          <el-radio-group v-model="desktopViewMode" size="default">
+            <el-radio-button label="all">全表模式</el-radio-button>
+            <el-radio-button label="single">单项模式</el-radio-button>
+          </el-radio-group>
+        </div>
+        <div v-if="desktopViewMode === 'single'" class="desktop-focus-main">
+          <el-button size="default" @click="prevItem" :disabled="currentItemIndex === 0">上一项</el-button>
+          <el-select v-model="currentItemIndex" placeholder="选择检测项" size="default" class="desktop-focus-select">
+            <el-option
+              v-for="(ti, idx) in detail.templateItems"
+              :key="ti.itemID"
+              :label="`${idx + 1}. ${ti.itemName}`"
+              :value="idx"
+            />
+          </el-select>
+          <el-button size="default" @click="nextItem" :disabled="currentItemIndex >= detail.templateItems.length - 1">下一项</el-button>
+        </div>
+      </div>
+
       <!-- By Device: Desktop table -->
-      <div v-if="inspectMode === 'byDevice'" class="desktop-only" style="overflow-x:auto">
+      <div v-if="inspectMode === 'byDevice' && desktopViewMode === 'all'" class="desktop-only" style="overflow-x:auto">
         <table class="inspect-table">
           <thead>
             <tr>
               <th class="fixed-col">序号</th>
               <th class="fixed-col sn-col">SN</th>
               <th class="fixed-col">判定</th>
-              <th v-for="ti in detail.templateItems" :key="ti.itemID">{{ ti.itemName }}<br /><small>{{ ti.unit || '' }}</small></th>
+              <th v-for="entry in visibleDesktopItems" :key="entry.item.itemID">
+                {{ entry.item.itemName }}<br /><small>{{ entry.item.unit || '' }}</small>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -31,33 +54,129 @@
                   {{ deviceStatusLabel(dev) }}
                 </el-tag>
               </td>
-              <td v-for="(ti, ri) in detail.templateItems" :key="ti.itemID">
-                <template v-if="ti.resultType === 'pass_fail'">
+              <td v-for="entry in visibleDesktopItems" :key="entry.item.itemID">
+                <template v-if="entry.item.resultType === 'pass_fail'">
                   <span class="pass-toggle">
-                    <button :class="{active: dev.results[ri]._checked === true}" :disabled="isReadonly" @click="setPass(dev, ri, true)">✓</button>
-                    <button :class="{active: dev.results[ri]._checked === false}" :disabled="isReadonly" @click="setPass(dev, ri, false)">✗</button>
+                    <button :class="{active: dev.results[entry.index]._checked === true}" :disabled="isReadonly" @click="setPass(dev, entry.index, true)">✓</button>
+                    <button :class="{active: dev.results[entry.index]._checked === false}" :disabled="isReadonly" @click="setPass(dev, entry.index, false)">✗</button>
                   </span>
                 </template>
-                <template v-else-if="ti.resultType === 'number'">
-                  <el-input-number :disabled="isReadonly" v-model="dev.results[ri]._numVal" :precision="2" size="small"
-                    controls-position="right" style="width:100px" :class="getRangeClass(dev.results[ri])"
-                    @change="onNumChange(dev, ri)" />
+                <template v-else-if="entry.item.resultType === 'number'">
+                  <el-input-number :disabled="isReadonly" v-model="dev.results[entry.index]._numVal" :precision="2" size="small"
+                    controls-position="right" style="width:100px" :class="getRangeClass(dev.results[entry.index])"
+                    @change="onNumChange(dev, entry.index)" />
                 </template>
                 <template v-else>
                   <div class="flex gap-1 items-center">
                     <span class="pass-toggle">
-                      <button :class="{active: dev.results[ri]._checked === true}" @click="setPass(dev, ri, true)">✓</button>
-                      <button :class="{active: dev.results[ri]._checked === false}" @click="setPass(dev, ri, false)">✗</button>
+                      <button :class="{active: dev.results[entry.index]._checked === true}" :disabled="isReadonly" @click="setPass(dev, entry.index, true)">✓</button>
+                      <button :class="{active: dev.results[entry.index]._checked === false}" :disabled="isReadonly" @click="setPass(dev, entry.index, false)">✗</button>
                     </span>
-                    <el-input-number :disabled="isReadonly" v-model="dev.results[ri]._numVal" :precision="2" size="small"
-                      controls-position="right" style="width:90px" :class="getRangeClass(dev.results[ri])"
-                      @change="onNumChange(dev, ri)" />
+                    <el-input-number :disabled="isReadonly" v-model="dev.results[entry.index]._numVal" :precision="2" size="small"
+                      controls-position="right" style="width:90px" :class="getRangeClass(dev.results[entry.index])"
+                      @change="onNumChange(dev, entry.index)" />
                   </div>
                 </template>
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div v-if="inspectMode === 'byDevice' && desktopViewMode === 'single'" class="desktop-only">
+        <div v-if="currentItem" class="single-mode-header">
+          <div class="single-mode-title">
+            <span>{{ currentItem.itemName }}</span>
+            <small v-if="currentItem.unit">({{ currentItem.unit }})</small>
+          </div>
+          <div class="single-mode-progress">
+            已完成 {{ doneCount(currentItemIndex) }} / {{ detail.devices.length }}
+          </div>
+        </div>
+
+        <div class="single-mode-list">
+          <div
+            v-for="(dev, devIndex) in detail.devices"
+            :key="dev.ID"
+            :ref="el => setSingleModeRowRef(el, devIndex)"
+            class="single-mode-row"
+            :class="[deviceRowClass(dev), { 'single-mode-active': currentSingleDeviceIndex === devIndex }]"
+          >
+            <div class="single-mode-meta">
+              <div class="single-mode-sn">{{ dev.lineNumber }}. {{ dev.sn }}</div>
+              <el-tag :type="deviceStatusTag(dev)" size="large">
+                {{ deviceStatusLabel(dev) }}
+              </el-tag>
+            </div>
+
+            <div v-if="currentItem" class="single-mode-actions">
+              <template v-if="currentItem.resultType === 'pass_fail'">
+                <div class="single-mode-pass-toggle">
+                  <button
+                    class="single-action-btn single-action-pass"
+                    :class="{ active: dev.results[currentItemIndex]._checked === true }"
+                    :disabled="isReadonly"
+                    @click="setPassAndAdvance(dev, devIndex, currentItemIndex, true)"
+                  >
+                    通过
+                  </button>
+                  <button
+                    class="single-action-btn single-action-fail"
+                    :class="{ active: dev.results[currentItemIndex]._checked === false }"
+                    :disabled="isReadonly"
+                    @click="setPassAndAdvance(dev, devIndex, currentItemIndex, false)"
+                  >
+                    不通过
+                  </button>
+                </div>
+              </template>
+
+              <template v-else-if="currentItem.resultType === 'number'">
+                <el-input-number
+                  :disabled="isReadonly"
+                  v-model="dev.results[currentItemIndex]._numVal"
+                  :precision="2"
+                  size="large"
+                  controls-position="right"
+                  style="width: 180px"
+                  :class="getRangeClass(dev.results[currentItemIndex])"
+                  @change="onNumChange(dev, currentItemIndex)"
+                />
+              </template>
+
+              <template v-else>
+                <div class="single-mode-pass-toggle">
+                  <button
+                    class="single-action-btn single-action-pass"
+                    :class="{ active: dev.results[currentItemIndex]._checked === true }"
+                    :disabled="isReadonly"
+                    @click="setPassAndAdvance(dev, devIndex, currentItemIndex, true)"
+                  >
+                    通过
+                  </button>
+                  <button
+                    class="single-action-btn single-action-fail"
+                    :class="{ active: dev.results[currentItemIndex]._checked === false }"
+                    :disabled="isReadonly"
+                    @click="setPassAndAdvance(dev, devIndex, currentItemIndex, false)"
+                  >
+                    不通过
+                  </button>
+                </div>
+                <el-input-number
+                  :disabled="isReadonly"
+                  v-model="dev.results[currentItemIndex]._numVal"
+                  :precision="2"
+                  size="large"
+                  controls-position="right"
+                  style="width: 180px"
+                  :class="getRangeClass(dev.results[currentItemIndex])"
+                  @change="onNumChange(dev, currentItemIndex)"
+                />
+              </template>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- By Device: Mobile card -->
@@ -136,7 +255,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { saveResults as apiSaveResults, completeInspection, getInspectionDetail } from '@/plugin/inspection/api/work_order'
@@ -145,13 +264,23 @@ const route = useRoute()
 
 const detailLoaded = ref(false)
 const inspectMode = ref('byDevice')
+const desktopViewMode = ref('all')
 const currentItemIndex = ref(0)
 const currentDeviceIndex = ref(0)
+const currentSingleDeviceIndex = ref(0)
+const singleModeRowRefs = ref([])
 const detail = ref({ order: {}, devices: [], templateItems: [] })
 
 const isReadonly = computed(() => detail.value.order.status === 3)
 const currentDevice = computed(() => detail.value.devices[currentDeviceIndex.value] || null)
 const currentItem = computed(() => detail.value.templateItems[currentItemIndex.value] || null)
+const visibleDesktopItems = computed(() => {
+  if (desktopViewMode.value === 'single') {
+    const item = detail.value.templateItems[currentItemIndex.value]
+    return item ? [{ item, index: currentItemIndex.value }] : []
+  }
+  return detail.value.templateItems.map((item, index) => ({ item, index }))
+})
 const detailInfo = computed(() => {
   const o = detail.value.order
   return [o.moNumber, o.batchNumber, o.model, o.inspectorName].filter(Boolean).join(' | ') || '-'
@@ -176,6 +305,38 @@ const deviceStatusTag = (d) => { const s = d._status || 'pending'; return s === 
 const deviceRowClass = (d) => { const s = d._status || 'pending'; return s === 'fail' ? 'row-fail' : s === 'pass' ? 'row-pass' : '' }
 const toggleDeviceStatus = (d) => { const o = ['pending','pass','fail']; d._status = o[(o.indexOf(d._status||'pending') + 1) % 3] }
 const setPass = (dev, ri, val) => { dev.results[ri]._checked = val; calcDeviceStatus(dev) }
+const setSingleModeRowRef = (el, index) => {
+  if (!el) return
+  singleModeRowRefs.value[index] = el
+}
+const scrollToSingleModeRow = async (index) => {
+  await nextTick()
+  const row = singleModeRowRefs.value[index]
+  if (row?.scrollIntoView) {
+    row.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }
+}
+const moveToNextSingleModeTarget = async (currentIndex) => {
+  const lastDeviceIndex = Math.max(detail.value.devices.length - 1, 0)
+  if (currentIndex < lastDeviceIndex) {
+    const nextIndex = currentIndex + 1
+    currentSingleDeviceIndex.value = nextIndex
+    await scrollToSingleModeRow(nextIndex)
+    return
+  }
+
+  if (currentItemIndex.value < detail.value.templateItems.length - 1) {
+    currentItemIndex.value += 1
+    currentSingleDeviceIndex.value = 0
+    await scrollToSingleModeRow(0)
+  }
+}
+const setPassAndAdvance = async (dev, devIndex, resultIndex, val) => {
+  setPass(dev, resultIndex, val)
+  if (desktopViewMode.value === 'single') {
+    await moveToNextSingleModeTarget(devIndex)
+  }
+}
 const onNumChange = (dev, ri) => {
   const r = dev.results[ri]
   if (r._numVal === undefined || r._numVal === null || r._numVal === '') r._checked = null
@@ -225,6 +386,14 @@ const onComplete = async () => {
 const prevItem = () => { if (currentItemIndex.value > 0) currentItemIndex.value-- }
 const nextItem = () => { if (currentItemIndex.value < detail.value.templateItems.length - 1) currentItemIndex.value++ }
 
+watch(
+  () => [desktopViewMode.value, currentItemIndex.value],
+  () => {
+    currentSingleDeviceIndex.value = 0
+    singleModeRowRefs.value = []
+  }
+)
+
 const loadDetail = async () => {
   const batchId = route.query.batchId
   if (!batchId) return
@@ -249,6 +418,27 @@ loadDetail()
 .tab-bar :deep(.el-tabs__header) { margin-bottom: 0; }
 .detail-scroll { flex: 1; overflow-y: auto; padding: 16px; }
 .detail-footer { display: flex; gap: 8px; padding: 16px 0; margin-top: 16px; border-top: 1px solid var(--el-border-color-light, #e4e7ed); }
+.desktop-focus-toolbar { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 12px; padding: 12px; border: 1px solid var(--el-border-color-light, #e4e7ed); border-radius: 8px; background: var(--el-fill-color-lighter, #fafcff); }
+.desktop-focus-mode-row { display: flex; align-items: center; gap: 8px; }
+.desktop-focus-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.desktop-focus-select { width: 320px; }
+.single-mode-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; background: var(--el-fill-color-light, #f5f7fa); }
+.single-mode-title { font-size: 18px; font-weight: 600; color: var(--el-text-color-primary, #303133); }
+.single-mode-title small { margin-left: 4px; color: var(--el-text-color-secondary, #909399); font-size: 13px; }
+.single-mode-progress { color: var(--el-text-color-secondary, #909399); font-size: 13px; }
+.single-mode-list { display: flex; flex-direction: column; gap: 10px; }
+.single-mode-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border: 1px solid var(--el-border-color-light, #e4e7ed); border-radius: 10px; background: var(--el-bg-color, #fff); }
+.single-mode-active { box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.18); border-color: rgba(64, 158, 255, 0.45); }
+.single-mode-meta { display: flex; align-items: center; gap: 12px; min-width: 260px; }
+.single-mode-sn { font-size: 16px; font-weight: 600; color: var(--el-text-color-primary, #303133); }
+.single-mode-actions { display: flex; align-items: center; gap: 12px; justify-content: flex-start; flex: 1; }
+.single-mode-pass-toggle { display: flex; align-items: center; gap: 10px; }
+.single-action-btn { min-width: 92px; height: 42px; border: 1px solid var(--el-border-color, #dcdfe6); border-radius: 8px; background: var(--el-bg-color, #fff); cursor: pointer; font-size: 15px; font-weight: 600; transition: all 0.15s ease; }
+.single-action-btn:disabled { cursor: not-allowed; opacity: 0.6; }
+.single-action-pass { color: #15803d; }
+.single-action-fail { color: #b91c1c; }
+.single-action-pass.active { background: #67c23a; border-color: #67c23a; color: #fff; }
+.single-action-fail.active { background: #f56c6c; border-color: #f56c6c; color: #fff; }
 
 .inspect-table { border-collapse: collapse; width: 100%; font-size: 13px; }
 .inspect-table th, .inspect-table td { border: 1px solid var(--el-border-color-light, #e4e7ed); padding: 6px 8px; text-align: center; white-space: nowrap; }
