@@ -112,7 +112,6 @@
               v-if="row.result.resultType !== 'pass_fail'"
               v-model="row.result._numVal"
               :disabled="isReadonly"
-              :precision="2"
               controls-position="right"
               class="number-input"
               :class="getRangeClass(row.result)"
@@ -583,7 +582,7 @@ loadDetail()
 .detail-scroll {
   flex: 1;
   overflow: auto;
-  padding: 16px;
+  padding: 0 16px 16px;
   min-width: 0;
 }
 
@@ -594,11 +593,12 @@ loadDetail()
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-bottom: 14px;
+  margin: 0 -16px 14px;
   padding: 14px;
-  border: 1px solid var(--el-border-color-light, #e4e7ed);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.96);
+  border: 0;
+  border-bottom: 1px solid var(--el-border-color-light, #e4e7ed);
+  border-radius: 0 0 14px 14px;
+  background: var(--el-bg-color, #fff);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
 }
 
@@ -673,7 +673,8 @@ loadDetail()
 }
 
 .row-controls {
-  display: flex;
+  display: grid;
+  grid-template-columns: 320px 280px;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
@@ -681,13 +682,15 @@ loadDetail()
 }
 
 .pass-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   align-items: center;
   gap: 10px;
+  width: 320px;
 }
 
 .action-btn {
-  min-width: 96px;
+  width: 100%;
   height: 42px;
   padding: 0 18px;
   border: 1px solid var(--el-border-color, #dcdfe6);
@@ -724,12 +727,12 @@ loadDetail()
 }
 
 .number-input {
-  width: 150px;
+  width: 320px;
   flex-shrink: 0;
 }
 
 .remark-input {
-  width: 220px;
+  width: 280px;
 }
 
 .detail-footer {
@@ -805,11 +808,13 @@ loadDetail()
 
 @media (max-width: 768px) {
   .detail-scroll {
-    padding: 10px;
+    padding: 0 10px 10px;
   }
 
   .workbench-header {
+    margin: 0 -10px 10px;
     padding: 12px;
+    border-radius: 0 0 12px 12px;
   }
 
   .subject-row {
@@ -835,11 +840,13 @@ loadDetail()
   .row-controls {
     flex-direction: column;
     align-items: stretch;
+    display: flex;
   }
 
   .pass-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
+    width: 100%;
   }
 
   .action-btn {
