@@ -418,13 +418,13 @@
       const { value } = await ElMessageBox.prompt(
         `请输入新模板名称`,
         `复制模板：${row.name}`,
-        {
-          confirmButtonText: '复制',
-          cancelButtonText: '取消',
-          inputValue: `${row.name}-副本`,
-          inputPattern: /\S+/,
-          inputErrorMessage: '请输入模板名称'
-        }
+      {
+        confirmButtonText: '复制',
+        cancelButtonText: '取消',
+        inputPlaceholder: '请输入新模板名称',
+        inputPattern: /\S+/,
+        inputErrorMessage: '请输入模板名称'
+      }
       )
       const res = await copyTemplate({ ID: row.ID, name: value.trim() })
       if (res.code === 0) {
