@@ -161,7 +161,12 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="备注" prop="remark">
-          <el-input v-model="categoryForm.remark" type="textarea" :rows="3" />
+          <el-input
+            v-model="categoryForm.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="可选"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -270,8 +275,7 @@
   const categoryRules = {
     name: [requiredRule('请输入类别名称')],
     sort: [requiredRule('请填写排序')],
-    status: [requiredRule('请选择状态')],
-    remark: [requiredRule('请填写备注')]
+    status: [requiredRule('请选择状态')]
   }
   const modelRules = {
     categoryId: [requiredRule('请选择设备类别')],
