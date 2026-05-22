@@ -209,18 +209,6 @@ func (s *workOrderSvc) SaveResults(req *request.SaveInspectionResult, inspectorI
 				return err
 			}
 		}
-		for _, ds := range req.DeviceStatuses {
-			var device model.ProductionOrderDevice
-			if err := tx.Where("id = ? AND batch_id = ?", ds.DeviceID, req.BatchID).First(&device).Error; err != nil {
-				return err
-			}
-			if batch.Status >= 3 && device.Status != "rechecking" {
-				return fmt.Errorf("设备 %s 当前不是复检中，不能修改检测结果", device.SN)
-			}
-			if err := updateDeviceStatusForInspectionSave(tx, device, ds.Status, "保存检测结果"); err != nil {
-				return err
-			}
-		}
 		return nil
 	})
 }
@@ -306,11 +294,6 @@ func (s *workOrderSvc) SaveSingleResult(req *request.SaveSingleInspectionResult,
 			return err
 		}
 
-		if strings.TrimSpace(req.Status) != "" && !(batch.Status >= 3 && device.Status == "rechecking") {
-			if err := updateDeviceStatusForInspectionSave(tx, device, req.Status, "保存单项检测结果"); err != nil {
-				return err
-			}
-		}
 		return nil
 	})
 	if err != nil {
@@ -367,16 +350,6 @@ func updateDeviceStatusWithLog(tx *gorm.DB, device model.ProductionOrderDevice, 
 		return err
 	}
 	return updateDeviceStatusLogOnly(tx, device, nextStatus, reason, operatorID, operatorName)
-}
-
-func updateDeviceStatusForInspectionSave(tx *gorm.DB, device model.ProductionOrderDevice, nextStatus string, reason string) error {
-	if device.Status == nextStatus {
-		return nil
-	}
-	if strings.TrimSpace(nextStatus) == "pending" {
-		return tx.Model(&model.ProductionOrderDevice{}).Where("id = ?", device.ID).Update("status", nextStatus).Error
-	}
-	return updateDeviceStatusWithLog(tx, device, nextStatus, reason, nil, "")
 }
 
 func updateDeviceStatusLogOnly(tx *gorm.DB, device model.ProductionOrderDevice, nextStatus string, reason string, operatorID interface{}, operatorName string) error {
@@ -470,11 +443,22 @@ func (s *workOrderSvc) CompleteInspection(req *request.CompleteInspection, opera
 			if device.Status == "rework" {
 				continue
 			}
+			hasFail := false
 			for _, templateItem := range templateItems {
 				result, ok := resultMap[resultKey{DeviceID: device.ID, ItemID: templateItem.ItemID}]
 				if !ok || !inspectionResultCompleted(templateItem.Item.ResultType, result) {
 					return fmt.Errorf("设备 %s 的检测项 %s 未完成", device.SN, templateItem.Item.Name)
 				}
+				if resultIndicatesFail(templateItem.Item, result) {
+					hasFail = true
+				}
+			}
+			nextStatus := "pass"
+			if hasFail {
+				nextStatus = "fail"
+			}
+			if err := updateDeviceStatusWithLog(tx, device, nextStatus, "完成检测", operatorID, operatorName); err != nil {
+				return err
 			}
 		}
 
