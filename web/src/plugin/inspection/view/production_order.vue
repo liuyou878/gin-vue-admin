@@ -95,11 +95,6 @@
           <DeviceStatusCount :row="scope.row" type="rework" :count="scope.row.reworkCount" allow-rework-actions @changed="getList" />
         </template>
       </el-table-column>
-      <el-table-column label="待复检" width="90">
-        <template #default="scope">
-          <DeviceStatusCount :row="scope.row" type="recheck" :count="scope.row.recheckCount" allow-rework-actions @changed="getList" />
-        </template>
-      </el-table-column>
       <el-table-column label="异常数" width="90">
         <template #default="scope">
           <DeviceStatusCount :row="scope.row" type="abnormal" :count="scope.row.abnormalCount" allow-rework-actions @changed="getList" />

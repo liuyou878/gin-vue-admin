@@ -233,7 +233,11 @@
       await ElMessageBox.confirm(
         `确认 ${row.sn} 已返工完成，并提交给检测复检？`,
         '确认返工完成',
-        { type: 'warning', confirmButtonText: '确认完成' }
+        {
+          type: 'warning',
+          confirmButtonText: '确认完成',
+          customClass: 'device-action-message-box'
+        }
       )
     } catch {
       return
@@ -251,7 +255,11 @@
       await ElMessageBox.confirm(
         `确认已接收 ${row.sn}，并开始返工？`,
         '确认接收返工',
-        { type: 'warning', confirmButtonText: '确认接收' }
+        {
+          type: 'warning',
+          confirmButtonText: '确认接收',
+          customClass: 'device-action-message-box'
+        }
       )
     } catch {
       return
