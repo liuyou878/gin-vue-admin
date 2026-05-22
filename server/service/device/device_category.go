@@ -40,7 +40,10 @@ func (s *DeviceCategoryService) DeleteDeviceCategoryByIds(ids commonReq.IdsReq) 
 
 // UpdateDeviceCategory 更新设备类别
 func (s *DeviceCategoryService) UpdateDeviceCategory(category deviceModel.DeviceCategory) error {
-	return global.GVA_DB.Model(&deviceModel.DeviceCategory{}).Where("id = ?", category.ID).Updates(&category).Error
+	return global.GVA_DB.Model(&deviceModel.DeviceCategory{}).
+		Where("id = ?", category.ID).
+		Select("name", "code", "sort", "status", "remark").
+		Updates(&category).Error
 }
 
 // GetDeviceCategory 获取设备类别详情
@@ -68,6 +71,6 @@ func (s *DeviceCategoryService) GetDeviceCategoryInfoList(info deviceReq.DeviceC
 	if info.PageSize > 0 {
 		db = db.Limit(info.PageSize).Offset(info.PageSize * (info.Page - 1))
 	}
-	err = db.Order("sort asc, id desc").Find(&list).Error
+	err = db.Order("sort asc, created_at desc, id desc").Find(&list).Error
 	return
 }

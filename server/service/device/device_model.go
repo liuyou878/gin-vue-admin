@@ -54,7 +54,10 @@ func (s *DeviceModelService) UpdateDeviceModel(model deviceModel.DeviceModel) er
 	if count == 0 {
 		return errors.New("设备类别不存在")
 	}
-	return global.GVA_DB.Model(&deviceModel.DeviceModel{}).Where("id = ?", model.ID).Updates(&model).Error
+	return global.GVA_DB.Model(&deviceModel.DeviceModel{}).
+		Where("id = ?", model.ID).
+		Select("category_id", "model_code", "model_name", "sort", "series_name", "generation", "status", "remark").
+		Updates(&model).Error
 }
 
 // GetDeviceModel 获取设备型号详情
@@ -85,6 +88,6 @@ func (s *DeviceModelService) GetDeviceModelInfoList(info deviceReq.DeviceModelSe
 	if info.PageSize > 0 {
 		db = db.Limit(info.PageSize).Offset(info.PageSize * (info.Page - 1))
 	}
-	err = db.Preload("Category").Order("id desc").Find(&list).Error
+	err = db.Preload("Category").Order("sort asc, created_at desc, id desc").Find(&list).Error
 	return
 }

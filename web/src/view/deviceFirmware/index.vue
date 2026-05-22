@@ -79,7 +79,12 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="状态" min-width="260">
+        <el-table-column label="排序" width="90">
+          <template #default="scope">
+            <span class="tree-seq-col">{{ scope.row.sort ?? 0 }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" min-width="180">
           <template #default="scope">
             <el-tag :type="scope.row.status === 1 ? 'success' : 'info'">
               {{ scope.row.status === 1 ? '启用' : '禁用' }}
@@ -192,6 +197,9 @@
         <el-form-item label="型号名称" prop="modelName">
           <el-input v-model="modelForm.modelName" />
         </el-form-item>
+        <el-form-item label="排序" prop="sort">
+          <el-input-number v-model="modelForm.sort" :min="0" />
+        </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="modelForm.status">
             <el-radio :value="1">启用</el-radio>
@@ -259,6 +267,7 @@
     categoryId: '',
     modelCode: '',
     modelName: '',
+    sort: 0,
     seriesName: '',
     status: 1,
     remark: ''
@@ -280,6 +289,7 @@
   const modelRules = {
     categoryId: [requiredRule('请选择设备类别')],
     modelName: [requiredRule('请输入型号名称')],
+    sort: [requiredRule('请填写排序')],
     status: [requiredRule('请选择状态')]
   }
 
@@ -433,6 +443,7 @@
         categoryId: parentCategory?.ID || '',
         modelCode: '',
         modelName: '',
+        sort: 0,
         seriesName: '',
         status: 1,
         remark: ''
