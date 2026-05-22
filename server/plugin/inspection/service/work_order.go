@@ -799,9 +799,15 @@ func (s *workOrderSvc) GetInspectionDetailData(batchID string) (map[string]inter
 			"instrumentCategory":       order.InstrumentCategory,
 			"status":                   batch.Status,
 			"templateID":               batch.TemplateID,
-			"inspectorID":              batch.InspectorID,
-			"inspectorName":            batch.InspectorName,
-			"inspectionDate":           batch.InspectionDate,
+			"templateName": func() string {
+				if batch.Template != nil {
+					return batch.Template.Name
+				}
+				return ""
+			}(),
+			"inspectorID":    batch.InspectorID,
+			"inspectorName":  batch.InspectorName,
+			"inspectionDate": batch.InspectionDate,
 		},
 		"devices":       deviceInfos,
 		"templateItems": templateItemInfos,

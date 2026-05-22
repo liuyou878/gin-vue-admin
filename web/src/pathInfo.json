@@ -86,6 +86,8 @@
   "/src/plugin/announcement/form/info.vue": "InfoForm",
   "/src/plugin/announcement/view/info.vue": "Info",
   "/src/plugin/email/view/index.vue": "Email",
+  "/src/plugin/inspection/components/InspectResultOverview.vue": "InspectResultOverview",
+  "/src/plugin/inspection/components/ProductionOrderDeviceDialog.vue": "ProductionOrderDeviceDialog",
   "/src/plugin/inspection/view/inspection_item.vue": "Inspection_item",
   "/src/plugin/inspection/view/inspect_detail.vue": "Inspect_detail",
   "/src/plugin/inspection/view/inspect_print.vue": "Inspect_print",

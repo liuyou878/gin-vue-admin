@@ -5,6 +5,13 @@
       <span class="detail-info">{{ detailInfo }}</span>
     </div>
 
+    <InspectResultOverview
+      v-if="showResultOverview"
+      :detail="detail"
+      @refresh="loadDetail"
+    />
+
+    <template v-else>
     <el-tabs v-model="inspectMode" class="tab-bar">
       <el-tab-pane label="按项检测" name="byItem" />
       <el-tab-pane label="按台检测" name="byDevice" />
@@ -135,36 +142,12 @@
         <el-empty v-if="inspectionRows.length === 0" description="暂无检测数据" />
       </section>
 
-      <div class="detail-footer" v-if="detail.order.status === 2 || canReturnAfterComplete || hasRecheckingDevices">
-        <div v-if="canReturnAfterComplete && failDevices.length" class="return-panel">
-          <div class="return-panel-title">异常处理</div>
-          <div class="return-panel-desc">检测已完成，只显示最终不合格设备，可选择需要打回生产的 SN。</div>
-          <el-select
-            v-model="returnDeviceIDs"
-            multiple
-            collapse-tags
-            collapse-tags-tooltip
-            filterable
-            placeholder="选择不合格设备"
-            class="return-device-select"
-          >
-            <el-option
-              v-for="device in failDevices"
-              :key="device.ID"
-              :label="`${device.lineNumber}. ${device.sn}`"
-              :value="device.ID"
-            />
-          </el-select>
-          <el-input v-model="returnReason" placeholder="打回原因" class="return-reason-input" />
-          <el-button type="warning" @click="onReturnDevices" :disabled="returnDeviceIDs.length === 0">打回生产</el-button>
-        </div>
-
-        <div class="footer-actions" v-if="detail.order.status === 2 || hasRecheckingDevices">
-          <el-button v-if="detail.order.status === 2" type="success" size="large" @click="onComplete">完成检测</el-button>
-          <el-button v-if="hasRecheckingDevices" type="success" size="large" @click="onCompleteRecheck">完成复检</el-button>
-        </div>
+      <div class="detail-footer" v-if="detail.order.status === 2 || hasRecheckingDevices">
+        <el-button v-if="detail.order.status === 2" type="success" size="large" @click="onComplete">完成检测</el-button>
+        <el-button v-if="hasRecheckingDevices" type="success" size="large" @click="onCompleteRecheck">完成复检</el-button>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -172,11 +155,11 @@
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import InspectResultOverview from '@/plugin/inspection/components/InspectResultOverview.vue'
 import {
   completeInspection,
   completeRecheck,
   getInspectionDetail,
-  returnDevices as apiReturnDevices,
   saveResults as apiSaveResults,
   saveSingleResult as apiSaveSingleResult
 } from '@/plugin/inspection/api/work_order'
@@ -188,16 +171,12 @@ const inspectMode = ref('byItem')
 const currentItemIndex = ref(0)
 const currentDeviceIndex = ref(0)
 const detail = ref({ order: {}, devices: [], templateItems: [] })
-const returnDeviceIDs = ref([])
-const returnReason = ref('')
 
 const currentDevice = computed(() => detail.value.devices[currentDeviceIndex.value] || null)
 const currentItem = computed(() => detail.value.templateItems[currentItemIndex.value] || null)
-const failDevices = computed(() => detail.value.devices.filter((device) => (device._status || device.status) === 'fail'))
-const hasRecheckDevices = computed(() => detail.value.devices.some((device) => (device._status || device.status) === 'pending_recheck'))
 const hasRecheckingDevices = computed(() => detail.value.devices.some((device) => device._startedRecheck || (device._status || device.status) === 'rechecking'))
+const showResultOverview = computed(() => detail.value.order.status === 3 && !hasRecheckingDevices.value)
 const isReadonly = computed(() => detail.value.order.status === 3 && !hasRecheckingDevices.value)
-const canReturnAfterComplete = computed(() => detail.value.order.status === 3 && !hasRecheckDevices.value && !hasRecheckingDevices.value)
 
 const detailInfo = computed(() => {
   const order = detail.value.order
@@ -585,38 +564,6 @@ const onCompleteRecheck = async () => {
   }
 }
 
-const onReturnDevices = async () => {
-  if (returnDeviceIDs.value.length === 0) {
-    ElMessage.warning('请先选择要打回的设备')
-    return
-  }
-  const selectable = new Set(failDevices.value.map((device) => device.ID))
-  const picked = returnDeviceIDs.value.filter((id) => selectable.has(id))
-  if (!picked.length) {
-    ElMessage.warning('只能打回不合格设备')
-    return
-  }
-  const res = await apiReturnDevices({
-    batchID: detail.value.order.ID,
-    deviceIDs: picked,
-    reason: returnReason.value || ''
-  })
-  if (res.code === 0) {
-    ElMessage.success('已打回生产')
-    const pickedSet = new Set(picked)
-    detail.value.devices.forEach((device) => {
-      if (pickedSet.has(device.ID)) {
-        device._status = 'returned'
-        device.status = 'returned'
-        device.returnReason = returnReason.value || ''
-      }
-    })
-    returnDeviceIDs.value = []
-    returnReason.value = ''
-    await loadDetail()
-  }
-}
-
 const loadDetail = async () => {
   const batchId = route.query.batchId
   if (!batchId) return
@@ -856,45 +803,10 @@ loadDetail()
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  justify-content: flex-end;
   padding: 16px 0;
   margin-top: 16px;
   border-top: 1px solid var(--el-border-color-light, #e4e7ed);
-}
-
-.footer-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.return-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--el-color-warning-light-5, #f3d19e);
-  border-radius: 8px;
-  background: var(--el-color-warning-light-9, #fdf6ec);
-}
-
-.return-panel-title {
-  color: var(--el-color-warning-dark-2, #b88230);
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.return-panel-desc {
-  color: var(--el-text-color-secondary, #909399);
-  font-size: 12px;
-}
-
-.return-device-select {
-  width: 360px;
-}
-
-.return-reason-input {
-  width: 260px;
 }
 
 .row-pass {
