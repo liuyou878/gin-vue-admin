@@ -53,7 +53,8 @@ type ConfirmInspectionComplete struct {
 }
 
 type StartRecheck struct {
-	ID uint `json:"ID" binding:"required"`
+	ID       uint `json:"ID" binding:"required"`
+	DeviceID uint `json:"deviceID"`
 }
 
 type CompleteRecheck struct {

@@ -9,7 +9,6 @@
           <el-select v-model="searchInfo.resultType" placeholder="请选择类型" clearable style="width:160px">
             <el-option label="仅勾选" value="pass_fail" />
             <el-option label="仅数值" value="number" />
-            <el-option label="勾选+数值" value="both" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -89,7 +88,6 @@
           <el-select v-model="formData.resultType" placeholder="请选择结果类型" style="width:100%">
             <el-option label="仅勾选 (通过/未通过)" value="pass_fail" />
             <el-option label="仅数值" value="number" />
-            <el-option label="勾选+数值 (兼有)" value="both" />
           </el-select>
         </el-form-item>
         <el-form-item label="单位" prop="unit" v-if="formData.resultType !== 'pass_fail'">

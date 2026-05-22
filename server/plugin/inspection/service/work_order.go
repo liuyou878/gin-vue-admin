@@ -44,6 +44,14 @@ func (s *workOrderSvc) StartRecheck(req *request.StartRecheck, inspectorID uint,
 			return err
 		}
 
+		if req.DeviceID > 0 {
+			var device model.ProductionOrderDevice
+			if err := tx.Where("id = ? AND batch_id = ? AND status = ?", req.DeviceID, req.ID, "pending_recheck").First(&device).Error; err != nil {
+				return errors.New("设备不是待复检状态，不能开始复检")
+			}
+			return updateDeviceStatusWithLog(tx, device, "rechecking", "开始复检", inspectorID, inspectorName)
+		}
+
 		var devices []model.ProductionOrderDevice
 		if err := tx.Where("batch_id = ? AND status = ?", req.ID, "pending_recheck").Find(&devices).Error; err != nil {
 			return err
@@ -209,7 +217,7 @@ func (s *workOrderSvc) SaveResults(req *request.SaveInspectionResult, inspectorI
 			if batch.Status >= 3 && device.Status != "rechecking" {
 				return fmt.Errorf("设备 %s 当前不是复检中，不能修改检测结果", device.SN)
 			}
-			if err := updateDeviceStatusWithLog(tx, device, ds.Status, "保存检测结果", nil, ""); err != nil {
+			if err := updateDeviceStatusForInspectionSave(tx, device, ds.Status, "保存检测结果"); err != nil {
 				return err
 			}
 		}
@@ -299,7 +307,7 @@ func (s *workOrderSvc) SaveSingleResult(req *request.SaveSingleInspectionResult,
 		}
 
 		if strings.TrimSpace(req.Status) != "" && !(batch.Status >= 3 && device.Status == "rechecking") {
-			if err := updateDeviceStatusWithLog(tx, device, req.Status, "保存单项检测结果", nil, ""); err != nil {
+			if err := updateDeviceStatusForInspectionSave(tx, device, req.Status, "保存单项检测结果"); err != nil {
 				return err
 			}
 		}
@@ -359,6 +367,16 @@ func updateDeviceStatusWithLog(tx *gorm.DB, device model.ProductionOrderDevice, 
 		return err
 	}
 	return updateDeviceStatusLogOnly(tx, device, nextStatus, reason, operatorID, operatorName)
+}
+
+func updateDeviceStatusForInspectionSave(tx *gorm.DB, device model.ProductionOrderDevice, nextStatus string, reason string) error {
+	if device.Status == nextStatus {
+		return nil
+	}
+	if strings.TrimSpace(nextStatus) == "pending" {
+		return tx.Model(&model.ProductionOrderDevice{}).Where("id = ?", device.ID).Update("status", nextStatus).Error
+	}
+	return updateDeviceStatusWithLog(tx, device, nextStatus, reason, nil, "")
 }
 
 func updateDeviceStatusLogOnly(tx *gorm.DB, device model.ProductionOrderDevice, nextStatus string, reason string, operatorID interface{}, operatorName string) error {

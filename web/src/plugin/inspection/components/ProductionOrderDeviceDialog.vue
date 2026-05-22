@@ -62,6 +62,24 @@
           >
             返工完成
           </el-button>
+          <el-button
+            v-if="allowRecheckActions && scope.row.status === 'pending_recheck'"
+            type="warning"
+            link
+            size="small"
+            @click="handleStartRecheck(scope.row)"
+          >
+            开始复检
+          </el-button>
+          <el-button
+            v-if="allowRecheckActions && scope.row.status === 'rechecking'"
+            type="warning"
+            link
+            size="small"
+            @click="openInspectDetail(scope.row)"
+          >
+            继续复检
+          </el-button>
           <el-button type="primary" link size="small" @click="openFlowLogs(scope.row)">
             设备日志
           </el-button>
@@ -102,6 +120,7 @@
     getSubmittedDeviceList
   } from '@/plugin/inspection/api/production_order'
   import { getFlowLogs } from '@/plugin/inspection/api/work_order'
+  import { startRecheck } from '@/plugin/inspection/api/work_order'
   import FlowLogDrawer from '@/plugin/inspection/components/FlowLogDrawer.vue'
 
   const props = defineProps({
@@ -126,6 +145,10 @@
       default: ''
     },
     allowReworkActions: {
+      type: Boolean,
+      default: false
+    },
+    allowRecheckActions: {
       type: Boolean,
       default: false
     }
@@ -269,6 +292,34 @@
     ElMessage.success('已进入返工中')
     await loadDevices()
     emit('changed')
+  }
+
+  const openInspectDetail = (row) => {
+    if (!row.batchID) return
+    window.location.hash = `/inspectDetail?batchId=${row.batchID}`
+  }
+
+  const handleStartRecheck = async (row) => {
+    try {
+      await ElMessageBox.confirm(
+        `确定开始复检 ${row.sn}？开始后检测端才能录入复检结果。`,
+        '开始复检',
+        {
+          type: 'warning',
+          confirmButtonText: '开始复检',
+          customClass: 'device-action-message-box'
+        }
+      )
+    } catch {
+      return
+    }
+
+    const res = await startRecheck({ ID: row.batchID, deviceID: row.ID })
+    if (res.code !== 0) return
+    ElMessage.success('已开始复检')
+    await loadDevices()
+    emit('changed')
+    openInspectDetail(row)
   }
 
   const openFlowLogs = async (row) => {

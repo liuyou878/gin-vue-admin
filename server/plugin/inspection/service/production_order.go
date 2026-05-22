@@ -872,6 +872,7 @@ func fillBatchSummary(order *model.ProductionOrder) {
 		order.BatchSummary = "-"
 		return
 	}
+	order.Status = aggregateOrderStatus(order.Status, order.Batches)
 	if len(order.Batches) == 1 {
 		order.BatchSummary = order.Batches[0].BatchNumber
 		return
@@ -892,4 +893,14 @@ func fillBatchSummary(order *model.ProductionOrder) {
 		return
 	}
 	order.BatchSummary = fmt.Sprintf("%s 等%d个批次", names[0], len(order.Batches))
+}
+
+func aggregateOrderStatus(current int, batches []model.ProductionBatch) int {
+	status := current
+	for _, batch := range batches {
+		if batch.Status > status {
+			status = batch.Status
+		}
+	}
+	return status
 }

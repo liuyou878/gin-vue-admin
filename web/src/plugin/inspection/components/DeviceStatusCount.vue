@@ -15,6 +15,7 @@
     :filter-type="type"
     :title="dialogTitle"
     :allow-rework-actions="allowReworkActions"
+    :allow-recheck-actions="allowRecheckActions"
     @changed="emit('changed')"
   />
 </template>
@@ -41,6 +42,10 @@
       default: ''
     },
     allowReworkActions: {
+      type: Boolean,
+      default: false
+    },
+    allowRecheckActions: {
       type: Boolean,
       default: false
     }

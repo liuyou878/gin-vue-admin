@@ -111,6 +111,7 @@
               type="recheck"
               :count="s3.row.recheckCount"
               :batch-id="s3.row.ID"
+              allow-recheck-actions
               @changed="getList"
             />
           </template>
@@ -135,14 +136,6 @@
               @click="onStartInspect(s6.row)"
               >接收并开始检测</el-button
             >
-            <el-button
-              v-if="activeTab === 'confirming' && (s6.row.recheckCount > 0 || s6.row.recheckingCount > 0)"
-              size="small"
-              type="warning"
-              @click="onRecheckAction(s6.row)"
-            >
-              {{ s6.row.recheckingCount > 0 ? '继续复检' : '开始复检' }}
-            </el-button>
             <el-button
               v-if="activeTab === 'confirming' && canConfirmComplete(s6.row)"
               size="small"
@@ -195,8 +188,7 @@
     getInspectionBatchList,
     exportInspectionExcel,
     confirmInspectionComplete,
-    startInspection,
-    startRecheck
+    startInspection
   } from '@/plugin/inspection/api/work_order'
 
   const loading = ref(false)
@@ -292,19 +284,6 @@
     const res = await startInspection({ ID: row.ID })
     if (res.code === 0) {
       ElMessage.success('已接收并开始检测')
-      getList()
-      openDetail(row)
-    }
-  }
-  const onRecheckAction = async (row) => {
-    if (row.recheckingCount > 0) {
-      openDetail(row)
-      return
-    }
-    await ElMessageBox.confirm('确定开始复检？开始后检测端才能录入复检结果。', '提示', { type: 'info' })
-    const res = await startRecheck({ ID: row.ID })
-    if (res.code === 0) {
-      ElMessage.success('已开始复检')
       getList()
       openDetail(row)
     }

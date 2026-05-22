@@ -167,7 +167,7 @@ import {
 const route = useRoute()
 
 const detailLoaded = ref(false)
-const inspectMode = ref('byItem')
+const inspectMode = ref('byDevice')
 const currentItemIndex = ref(0)
 const currentDeviceIndex = ref(0)
 const detail = ref({ order: {}, devices: [], templateItems: [] })
