@@ -652,45 +652,13 @@
       </div>
     </el-dialog>
 
-    <el-drawer
+    <FlowLogDrawer
       v-model="flowLogVisible"
       :title="flowLogDrawerTitle"
-      size="520px"
-      destroy-on-close
-    >
-      <template v-if="flowLogTitle">
-        <div class="log-device-title">{{ flowLogTitle }}</div>
-        <el-timeline v-if="flowLogs.length">
-          <el-timeline-item
-            v-for="log in flowLogs"
-            :key="`${log.scope}-${log.ID}`"
-            :timestamp="formatDate(log.CreatedAt)"
-            placement="top"
-          >
-            <div class="log-card">
-              <div>
-                <el-tag :type="log.scope === 'batch' ? 'primary' : 'success'" size="small">
-                  {{ log.scopeLabel }}
-                </el-tag>
-                <span class="log-action">{{ log.title || log.action || '-' }}</span>
-              </div>
-              <div>
-                <span class="log-current-status">当前状态：</span>
-                <el-tag :type="flowStatusTagType(log)" size="small">
-                  {{ flowStatusLabel(log, log.toStatus) }}
-                </el-tag>
-              </div>
-              <div v-if="log.deviceSN" class="log-reason">设备：{{ log.deviceSN }}</div>
-              <div v-if="log.reason" class="log-reason">备注：{{ log.reason }}</div>
-              <div v-if="log.operatorName" class="log-operator">
-                操作人：{{ log.operatorName || '-' }}
-              </div>
-            </div>
-          </el-timeline-item>
-        </el-timeline>
-        <el-empty v-else :description="`暂无${flowLogDrawerTitle}`" />
-      </template>
-    </el-drawer>
+      :subject="flowLogTitle"
+      :logs="flowLogs"
+      :mode="flowLogMode"
+    />
 
     <ProductionOrderDeviceDialog
       v-model="deviceDialogVisible"
@@ -722,6 +690,7 @@
     getFlowLogs
   } from '@/plugin/inspection/api/work_order'
   import ProductionOrderDeviceDialog from '@/plugin/inspection/components/ProductionOrderDeviceDialog.vue'
+  import FlowLogDrawer from '@/plugin/inspection/components/FlowLogDrawer.vue'
 
   const loading = ref(false)
   const tableData = ref([])
@@ -739,6 +708,7 @@
   const flowLogVisible = ref(false)
   const flowLogTitle = ref('')
   const flowLogDrawerTitle = ref('流转日志')
+  const flowLogMode = ref('flow')
   const flowLogs = ref([])
   const deviceDialogVisible = ref(false)
   const deviceDialogOrder = ref(null)
@@ -809,14 +779,6 @@
       pending_recheck: 'primary',
       rechecking: 'warning'
     }[value] || 'info')
-  const flowStatusLabel = (log, value) => {
-    if (log.scope === 'batch') return batchStatusLabel(Number(value))
-    return deviceStatusLabel(value)
-  }
-  const flowStatusTagType = (log) => {
-    if (log.scope === 'batch') return orderStatusTagType(Number(log.toStatus))
-    return deviceStatusTagType(log.toStatus)
-  }
   const passRateLabel = (passCount, deviceCount) => {
     const total = Number(deviceCount || 0)
     if (!total) return '-'
@@ -1123,6 +1085,7 @@
 
   const openFlowLogs = async ({ batch, device }) => {
     flowLogDrawerTitle.value = device ? '设备日志' : '流转日志'
+    flowLogMode.value = device ? 'device' : 'flow'
     flowLogTitle.value = device?.sn || batch?.batchNumber || '-'
     flowLogs.value = []
     flowLogVisible.value = true
@@ -1259,34 +1222,4 @@
     border: 1px solid var(--el-border-color-lighter, #ebeef5);
   }
 
-  .log-device-title {
-    font-size: 16px;
-    font-weight: 700;
-    margin-bottom: 16px;
-  }
-
-  .log-card {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 10px 12px;
-    border: 1px solid var(--el-border-color-light, #e4e7ed);
-    border-radius: 8px;
-    background: var(--el-fill-color-lighter, #fafafa);
-  }
-
-  .log-action {
-    margin-left: 8px;
-    font-weight: 600;
-  }
-
-  .log-current-status,
-  .log-reason {
-    color: var(--el-text-color-primary, #303133);
-  }
-
-  .log-operator {
-    font-size: 12px;
-    color: var(--el-text-color-secondary, #909399);
-  }
 </style>

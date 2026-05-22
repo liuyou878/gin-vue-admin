@@ -81,50 +81,26 @@
       />
     </div>
 
-    <el-drawer v-model="logVisible" title="设备日志" size="520px" destroy-on-close>
-      <template v-if="logDevice">
-        <div class="log-device-title">{{ logDevice.sn || '-' }}</div>
-        <el-timeline v-if="flowLogs.length">
-          <el-timeline-item
-            v-for="log in flowLogs"
-            :key="`${log.scope}-${log.ID}`"
-            :timestamp="formatDate(log.CreatedAt)"
-            placement="top"
-          >
-            <div class="log-card">
-              <div>
-                <el-tag :type="log.scope === 'batch' ? 'primary' : 'success'" size="small">
-                  {{ log.scopeLabel }}
-                </el-tag>
-                <span class="log-action">{{ log.title || log.action || '-' }}</span>
-              </div>
-              <div>
-                <span class="log-current-status">当前状态：</span>
-                <el-tag :type="flowStatusTagType(log)" size="small">
-                  {{ flowStatusLabel(log, log.toStatus) }}
-                </el-tag>
-              </div>
-              <div v-if="log.reason" class="log-reason">备注：{{ log.reason }}</div>
-              <div v-if="log.operatorName" class="log-operator">操作人：{{ log.operatorName }}</div>
-            </div>
-          </el-timeline-item>
-        </el-timeline>
-        <el-empty v-else description="暂无设备日志" />
-      </template>
-    </el-drawer>
+    <FlowLogDrawer
+      v-model="logVisible"
+      title="设备日志"
+      :subject="logDevice?.sn || ''"
+      :logs="flowLogs"
+      mode="device"
+    />
   </el-dialog>
 </template>
 
 <script setup>
   import { computed, reactive, ref, watch } from 'vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
-  import { formatDate } from '@/utils/format'
   import {
     confirmReworkReceived,
     confirmReworkDone,
     getSubmittedDeviceList
   } from '@/plugin/inspection/api/production_order'
   import { getFlowLogs } from '@/plugin/inspection/api/work_order'
+  import FlowLogDrawer from '@/plugin/inspection/components/FlowLogDrawer.vue'
 
   const props = defineProps({
     modelValue: {
@@ -206,22 +182,6 @@
       pending_recheck: 'primary',
       rechecking: 'warning'
     }[value] || 'info')
-
-  const batchStatusLabel = (value) =>
-    ({ 0: '未派检', 1: '待检测接收', 2: '检测中', 3: '已完成' }[Number(value)] || value)
-
-  const batchStatusTagType = (value) =>
-    ({ 0: 'info', 1: 'warning', 2: 'primary', 3: 'success' }[Number(value)] || 'info')
-
-  const flowStatusLabel = (log, value) => {
-    if (log.scope === 'batch') return batchStatusLabel(value)
-    return deviceStatusLabel(value)
-  }
-
-  const flowStatusTagType = (log) => {
-    if (log.scope === 'batch') return batchStatusTagType(log.toStatus)
-    return deviceStatusTagType(log.toStatus)
-  }
 
   const buildParams = () => ({
     productionOrderID: props.order?.ID,
@@ -331,27 +291,4 @@
     margin-top: 12px;
   }
 
-  .log-device-title {
-    margin-bottom: 12px;
-    font-size: 16px;
-    font-weight: 700;
-  }
-
-  .log-card {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .log-action {
-    margin-left: 8px;
-    font-weight: 600;
-  }
-
-  .log-current-status,
-  .log-reason,
-  .log-operator {
-    color: var(--el-text-color-secondary, #909399);
-    font-size: 12px;
-  }
 </style>
