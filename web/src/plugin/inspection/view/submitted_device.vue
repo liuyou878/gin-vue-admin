@@ -136,9 +136,10 @@ const prettyDeviceInfo = computed(() => {
 
 const statusLabel = (status) =>
   ({
-    pending: '待检测',
+    pending: '待检测设备',
     pass: '合格',
     fail: '不合格',
+    returned: '待生产接收',
     rework: '返工中',
     pending_recheck: '待复检'
   }[status] || status || '-')
@@ -147,6 +148,7 @@ const statusTagType = (status) =>
   ({
     pass: 'success',
     fail: 'danger',
+    returned: 'warning',
     rework: 'warning',
     pending_recheck: 'primary',
     pending: 'info'

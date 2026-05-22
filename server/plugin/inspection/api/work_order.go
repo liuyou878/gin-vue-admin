@@ -13,9 +13,9 @@ var WorkOrder = new(workOrderApi)
 
 type workOrderApi struct{}
 
-// StartInspection 开始检测
+// StartInspection 接收并开始检测
 // @Tags     WorkOrder
-// @Summary  开始检测（状态:待检测→检测中）
+// @Summary  接收并开始检测（状态:待检测接收→检测中）
 // @Security ApiKeyAuth
 // @accept   application/json
 // @Produce  application/json
@@ -33,7 +33,7 @@ func (a *workOrderApi) StartInspection(c *gin.Context) {
 		response.FailWithMessage("操作失败: "+err.Error(), c)
 		return
 	}
-	response.OkWithMessage("已开始检测", c)
+	response.OkWithMessage("已接收并开始检测", c)
 }
 
 // StartRecheck 开始复检
@@ -59,9 +59,9 @@ func (a *workOrderApi) StartRecheck(c *gin.Context) {
 	response.OkWithMessage("已开始复检", c)
 }
 
-// AssignBatchTemplate 为批次选择模板并生成待检测工单
+// AssignBatchTemplate 为批次选择模板并提交检测接收
 // @Tags     WorkOrder
-// @Summary  为批次选择模板并生成待检测工单
+// @Summary  为批次选择模板并提交检测接收
 // @Security ApiKeyAuth
 // @accept   application/json
 // @Produce  application/json
@@ -74,11 +74,12 @@ func (a *workOrderApi) AssignBatchTemplate(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := serviceWorkOrder.AssignBatchTemplate(&req); err != nil {
+	claims, _ := utils.GetClaims(c)
+	if err := serviceWorkOrder.AssignBatchTemplate(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
 		response.FailWithMessage("操作失败: "+err.Error(), c)
 		return
 	}
-	response.OkWithMessage("已生成待检测工单", c)
+	response.OkWithMessage("已提交检测接收", c)
 }
 
 // AssignOrderTemplate 为生产订单选择模板并提交未派检批次
@@ -96,11 +97,12 @@ func (a *workOrderApi) AssignOrderTemplate(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := serviceWorkOrder.AssignOrderTemplate(&req); err != nil {
+	claims, _ := utils.GetClaims(c)
+	if err := serviceWorkOrder.AssignOrderTemplate(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
 		response.FailWithMessage("操作失败: "+err.Error(), c)
 		return
 	}
-	response.OkWithMessage("已提交检测", c)
+	response.OkWithMessage("已提交检测接收", c)
 }
 
 // SaveResults 保存检测结果
@@ -165,7 +167,8 @@ func (a *workOrderApi) CompleteInspection(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := serviceWorkOrder.CompleteInspection(&req); err != nil {
+	claims, _ := utils.GetClaims(c)
+	if err := serviceWorkOrder.CompleteInspection(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
 		response.FailWithMessage("操作失败: "+err.Error(), c)
 		return
 	}
@@ -187,7 +190,8 @@ func (a *workOrderApi) CompleteRecheck(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := serviceWorkOrder.CompleteRecheck(&req); err != nil {
+	claims, _ := utils.GetClaims(c)
+	if err := serviceWorkOrder.CompleteRecheck(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
 		response.FailWithMessage("操作失败: "+err.Error(), c)
 		return
 	}
@@ -234,6 +238,46 @@ func (a *workOrderApi) GetInspectionDetail(c *gin.Context) {
 		return
 	}
 	response.OkWithData(data, c)
+}
+
+// GetBatchStatusLogs 查询批次流转日志
+// @Tags     WorkOrder
+// @Summary  查询批次流转日志
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    batchID query string true "批次ID"
+// @Success  200 {object} response.Response{data=[]model.ProductionBatchStatusLog,msg=string} "查询成功"
+// @Router   /workOrder/getBatchStatusLogs [get]
+func (a *workOrderApi) GetBatchStatusLogs(c *gin.Context) {
+	batchID := c.Query("batchID")
+	logs, err := serviceWorkOrder.GetBatchStatusLogs(batchID)
+	if err != nil {
+		response.FailWithMessage("查询失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithData(logs, c)
+}
+
+// GetFlowLogs 查询融合流转日志
+// @Tags     WorkOrder
+// @Summary  查询融合流转日志
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    batchID query string false "批次ID"
+// @Param    deviceID query string false "设备ID"
+// @Success  200 {object} response.Response{data=[]service.FlowLogItem,msg=string} "查询成功"
+// @Router   /workOrder/getFlowLogs [get]
+func (a *workOrderApi) GetFlowLogs(c *gin.Context) {
+	batchID := c.Query("batchID")
+	deviceID := c.Query("deviceID")
+	logs, err := serviceWorkOrder.GetFlowLogs(batchID, deviceID)
+	if err != nil {
+		response.FailWithMessage("查询失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithData(logs, c)
 }
 
 // ExportInspectionExcel 导出检测工单Excel

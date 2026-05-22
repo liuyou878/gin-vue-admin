@@ -26,6 +26,7 @@ func Api(ctx context.Context) {
 		{Path: "/inspectionTemplate/getTemplateList", Description: "获取模板列表", ApiGroup: "检测模板", Method: "GET"},
 		{Path: "/productionOrder/submitDeviceData", Description: "生产工具提交全量数据", ApiGroup: "生产订单", Method: "POST"},
 		{Path: "/productionOrder/createProductionOrder", Description: "创建生产订单", ApiGroup: "生产订单", Method: "POST"},
+		{Path: "/productionOrder/confirmReworkReceived", Description: "生产确认接收返工", ApiGroup: "生产订单", Method: "POST"},
 		{Path: "/productionOrder/confirmReworkDone", Description: "生产确认返工完成", ApiGroup: "生产订单", Method: "POST"},
 		{Path: "/productionOrder/deleteProductionOrder", Description: "删除生产订单", ApiGroup: "生产订单", Method: "DELETE"},
 		{Path: "/productionOrder/forceDeleteProductionOrder", Description: "强制删除生产订单", ApiGroup: "生产订单", Method: "DELETE"},
@@ -39,9 +40,9 @@ func Api(ctx context.Context) {
 		{Path: "/productionOrder/findSubmittedDevice", Description: "查询生产工具提交设备详情", ApiGroup: "生产订单", Method: "GET"},
 		{Path: "/productionOrder/getDeviceStatusLogs", Description: "查询设备状态日志", ApiGroup: "生产订单", Method: "GET"},
 		{Path: "/productionOrder/deleteSubmittedDevice", Description: "删除生产工具提交设备记录", ApiGroup: "生产订单", Method: "DELETE"},
-		{Path: "/workOrder/assignBatchTemplate", Description: "为批次选择模板并生成待检测工单", ApiGroup: "检测工单", Method: "POST"},
+		{Path: "/workOrder/assignBatchTemplate", Description: "为批次选择模板并提交检测接收", ApiGroup: "检测工单", Method: "POST"},
 		{Path: "/workOrder/assignOrderTemplate", Description: "为生产订单选择模板并提交未派检批次", ApiGroup: "检测工单", Method: "POST"},
-		{Path: "/workOrder/startInspection", Description: "开始检测", ApiGroup: "检测工单", Method: "POST"},
+		{Path: "/workOrder/startInspection", Description: "接收并开始检测", ApiGroup: "检测工单", Method: "POST"},
 		{Path: "/workOrder/startRecheck", Description: "开始复检", ApiGroup: "检测工单", Method: "POST"},
 		{Path: "/workOrder/saveResults", Description: "保存检测结果", ApiGroup: "检测工单", Method: "POST"},
 		{Path: "/workOrder/saveSingleResult", Description: "保存单项检测结果", ApiGroup: "检测工单", Method: "POST"},
@@ -50,19 +51,24 @@ func Api(ctx context.Context) {
 		{Path: "/workOrder/returnDevices", Description: "设备打回生产", ApiGroup: "检测工单", Method: "POST"},
 		{Path: "/workOrder/getInspectionBatchList", Description: "获取检测批次列表", ApiGroup: "检测工单", Method: "GET"},
 		{Path: "/workOrder/getInspectionDetail", Description: "获取检测详情", ApiGroup: "检测工单", Method: "GET"},
+		{Path: "/workOrder/getBatchStatusLogs", Description: "查询批次流转日志", ApiGroup: "检测工单", Method: "GET"},
+		{Path: "/workOrder/getFlowLogs", Description: "查询融合流转日志", ApiGroup: "检测工单", Method: "GET"},
 		{Path: "/workOrder/exportInspectionExcel", Description: "导出检测工单Excel", ApiGroup: "检测工单", Method: "GET"},
 	}
 	pluginUtils.RegisterApis(entities...)
-	grantSaveSingleResultPermission()
+	grantInheritedPermission("/workOrder/saveResults", "POST", "/workOrder/saveSingleResult", "POST")
+	grantInheritedPermission("/productionOrder/confirmReworkDone", "POST", "/productionOrder/confirmReworkReceived", "POST")
+	grantInheritedPermission("/workOrder/getInspectionDetail", "GET", "/workOrder/getBatchStatusLogs", "GET")
+	grantInheritedPermission("/workOrder/getInspectionDetail", "GET", "/workOrder/getFlowLogs", "GET")
 }
 
-func grantSaveSingleResultPermission() {
+func grantInheritedPermission(sourcePath string, sourceMethod string, targetPath string, targetMethod string) {
 	if global.GVA_DB == nil {
 		return
 	}
 	var rules []adapter.CasbinRule
 	if err := global.GVA_DB.
-		Where("ptype = ? AND v1 = ? AND v2 = ?", "p", "/workOrder/saveResults", "POST").
+		Where("ptype = ? AND v1 = ? AND v2 = ?", "p", sourcePath, sourceMethod).
 		Find(&rules).Error; err != nil {
 		return
 	}
@@ -70,8 +76,8 @@ func grantSaveSingleResultPermission() {
 		newRule := adapter.CasbinRule{
 			Ptype: "p",
 			V0:    rule.V0,
-			V1:    "/workOrder/saveSingleResult",
-			V2:    "POST",
+			V1:    targetPath,
+			V2:    targetMethod,
 		}
 		_ = global.GVA_DB.
 			Where("ptype = ? AND v0 = ? AND v1 = ? AND v2 = ?", newRule.Ptype, newRule.V0, newRule.V1, newRule.V2).

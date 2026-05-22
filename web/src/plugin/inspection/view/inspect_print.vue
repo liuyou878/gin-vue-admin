@@ -108,6 +108,7 @@ const deviceResultLabel = (row) =>
     pass: '合格',
     fail: '不合格',
     pending: '未完成',
+    returned: '待生产接收',
     rework: '返工中',
     pending_recheck: '待复检',
     rechecking: '复检中'

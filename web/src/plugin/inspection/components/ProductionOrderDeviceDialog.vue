@@ -43,6 +43,15 @@
       <el-table-column label="操作" width="170" fixed="right">
         <template #default="scope">
           <el-button
+            v-if="scope.row.status === 'returned'"
+            type="warning"
+            link
+            size="small"
+            @click="handleConfirmReworkReceived(scope.row)"
+          >
+            接收返工
+          </el-button>
+          <el-button
             v-if="scope.row.status === 'rework'"
             type="warning"
             link
@@ -51,8 +60,8 @@
           >
             返工完成
           </el-button>
-          <el-button type="primary" link size="small" @click="openStatusLogs(scope.row)">
-            日志
+          <el-button type="primary" link size="small" @click="openFlowLogs(scope.row)">
+            设备日志
           </el-button>
         </template>
       </el-table-column>
@@ -72,32 +81,35 @@
       />
     </div>
 
-    <el-drawer v-model="logVisible" title="设备状态日志" size="520px" destroy-on-close>
+    <el-drawer v-model="logVisible" title="设备日志" size="520px" destroy-on-close>
       <template v-if="logDevice">
         <div class="log-device-title">{{ logDevice.sn || '-' }}</div>
-        <el-timeline v-if="statusLogs.length">
+        <el-timeline v-if="flowLogs.length">
           <el-timeline-item
-            v-for="log in statusLogs"
-            :key="log.ID"
+            v-for="log in flowLogs"
+            :key="`${log.scope}-${log.ID}`"
             :timestamp="formatDate(log.CreatedAt)"
             placement="top"
           >
             <div class="log-card">
               <div>
-                <el-tag :type="deviceStatusTagType(log.fromStatus)" size="small">
-                  {{ deviceStatusLabel(log.fromStatus) }}
+                <el-tag :type="log.scope === 'batch' ? 'primary' : 'success'" size="small">
+                  {{ log.scopeLabel }}
                 </el-tag>
-                <span class="log-arrow">→</span>
-                <el-tag :type="deviceStatusTagType(log.toStatus)" size="small">
-                  {{ deviceStatusLabel(log.toStatus) }}
+                <span class="log-action">{{ log.title || log.action || '-' }}</span>
+              </div>
+              <div>
+                <span class="log-current-status">当前状态：</span>
+                <el-tag :type="flowStatusTagType(log)" size="small">
+                  {{ flowStatusLabel(log, log.toStatus) }}
                 </el-tag>
               </div>
-              <div class="log-reason">{{ log.reason || '-' }}</div>
-              <div class="log-operator">操作人：{{ log.operatorName || '-' }}</div>
+              <div v-if="log.reason" class="log-reason">备注：{{ log.reason }}</div>
+              <div v-if="log.operatorName" class="log-operator">操作人：{{ log.operatorName }}</div>
             </div>
           </el-timeline-item>
         </el-timeline>
-        <el-empty v-else description="暂无状态日志" />
+        <el-empty v-else description="暂无设备日志" />
       </template>
     </el-drawer>
   </el-dialog>
@@ -108,10 +120,11 @@
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { formatDate } from '@/utils/format'
   import {
+    confirmReworkReceived,
     confirmReworkDone,
-    getDeviceStatusLogs,
     getSubmittedDeviceList
   } from '@/plugin/inspection/api/production_order'
+  import { getFlowLogs } from '@/plugin/inspection/api/work_order'
 
   const props = defineProps({
     modelValue: {
@@ -139,7 +152,7 @@
   const total = ref(0)
   const logVisible = ref(false)
   const logDevice = ref(null)
-  const statusLogs = ref([])
+  const flowLogs = ref([])
 
   const searchInfo = reactive({
     sn: '',
@@ -157,9 +170,9 @@
       all: { label: '全部设备', params: {} },
       pass: { label: '合格设备', params: { status: 'pass' } },
       fail: { label: '不合格设备', params: { status: 'fail' } },
-      rework: { label: '返工中设备', params: { status: 'rework' } },
+      rework: { label: '返工设备', params: { statuses: 'returned,rework' } },
       recheck: { label: '待复检设备', params: { statuses: 'pending_recheck,rechecking' } },
-      abnormal: { label: '异常设备', params: { statuses: 'fail,rework,pending_recheck,rechecking' } }
+      abnormal: { label: '异常设备', params: { statuses: 'fail,returned,rework,pending_recheck,rechecking' } }
     }
     return map[props.filterType] || map.all
   })
@@ -172,9 +185,10 @@
 
   const deviceStatusLabel = (value) =>
     ({
-      pending: '待检测',
+      pending: '待检测设备',
       pass: '合格',
       fail: '不合格',
+      returned: '待生产接收',
       rework: '返工中',
       pending_recheck: '待复检',
       rechecking: '复检中'
@@ -187,10 +201,27 @@
       pending: 'info',
       pass: 'success',
       fail: 'danger',
+      returned: 'warning',
       rework: 'warning',
       pending_recheck: 'primary',
       rechecking: 'warning'
     }[value] || 'info')
+
+  const batchStatusLabel = (value) =>
+    ({ 0: '未派检', 1: '待检测接收', 2: '检测中', 3: '已完成' }[Number(value)] || value)
+
+  const batchStatusTagType = (value) =>
+    ({ 0: 'info', 1: 'warning', 2: 'primary', 3: 'success' }[Number(value)] || 'info')
+
+  const flowStatusLabel = (log, value) => {
+    if (log.scope === 'batch') return batchStatusLabel(value)
+    return deviceStatusLabel(value)
+  }
+
+  const flowStatusTagType = (log) => {
+    if (log.scope === 'batch') return batchStatusTagType(log.toStatus)
+    return deviceStatusTagType(log.toStatus)
+  }
 
   const buildParams = () => ({
     productionOrderID: props.order?.ID,
@@ -243,13 +274,31 @@
     emit('changed')
   }
 
-  const openStatusLogs = async (row) => {
+  const handleConfirmReworkReceived = async (row) => {
+    try {
+      await ElMessageBox.confirm(
+        `确认已接收 ${row.sn}，并开始返工？`,
+        '确认接收返工',
+        { type: 'warning', confirmButtonText: '确认接收' }
+      )
+    } catch {
+      return
+    }
+
+    const res = await confirmReworkReceived({ deviceID: row.ID })
+    if (res.code !== 0) return
+    ElMessage.success('已进入返工中')
+    await loadDevices()
+    emit('changed')
+  }
+
+  const openFlowLogs = async (row) => {
     logDevice.value = row
-    statusLogs.value = []
+    flowLogs.value = []
     logVisible.value = true
-    const res = await getDeviceStatusLogs({ deviceID: row.ID })
+    const res = await getFlowLogs({ batchID: row.batchID, deviceID: row.ID })
     if (res.code === 0) {
-      statusLogs.value = res.data || []
+      flowLogs.value = res.data || []
     }
   }
 
@@ -294,11 +343,12 @@
     gap: 6px;
   }
 
-  .log-arrow {
-    margin: 0 8px;
-    color: var(--el-text-color-secondary, #909399);
+  .log-action {
+    margin-left: 8px;
+    font-weight: 600;
   }
 
+  .log-current-status,
   .log-reason,
   .log-operator {
     color: var(--el-text-color-secondary, #909399);

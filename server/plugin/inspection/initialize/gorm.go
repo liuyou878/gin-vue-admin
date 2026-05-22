@@ -18,6 +18,7 @@ func Gorm(ctx context.Context) {
 		new(model.ProductionOrder),
 		new(model.ProductionOrderDevice),
 		new(model.ProductionBatch),
+		new(model.ProductionBatchStatusLog),
 		new(model.InspectionDeviceResult),
 		new(model.ProductionOrderDeviceStatusLog),
 	)
@@ -75,10 +76,10 @@ func seedDefaultTemplate(ctx context.Context) {
 	global.GVA_DB.WithContext(ctx).Find(&items)
 
 	tmpl := model.InspectionTemplate{
-		Name:            "G3X标准检测",
-		ProductName:     "GNSS接收机（RTK）",
-		Model:           "G3X",
-		Status:          1,
+		Name:        "G3X标准检测",
+		ProductName: "GNSS接收机（RTK）",
+		Model:       "G3X",
+		Status:      1,
 	}
 	if err := global.GVA_DB.WithContext(ctx).Create(&tmpl).Error; err != nil {
 		return

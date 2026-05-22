@@ -14,6 +14,7 @@ func (r *productionOrderRouter) Init(private *gin.RouterGroup) {
 		group := private.Group("productionOrder").Use(middleware.OperationRecord())
 		group.POST("submitDeviceData", apiProductionOrder.SubmitDeviceData)
 		group.POST("createProductionOrder", apiProductionOrder.CreateProductionOrder)
+		group.POST("confirmReworkReceived", apiProductionOrder.ConfirmReworkReceived)
 		group.POST("confirmReworkDone", apiProductionOrder.ConfirmReworkDone)
 		group.DELETE("deleteProductionOrder", apiProductionOrder.DeleteProductionOrder)
 		group.DELETE("forceDeleteProductionOrder", apiProductionOrder.ForceDeleteProductionOrder)

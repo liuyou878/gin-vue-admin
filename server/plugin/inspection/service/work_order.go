@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -20,12 +21,20 @@ type workOrderSvc struct{}
 
 func (s *workOrderSvc) StartInspection(req *request.StartInspection, inspectorID uint, inspectorName string) error {
 	now := time.Now()
-	return global.GVA_DB.Model(&model.ProductionBatch{}).Where("id = ? AND status = 1", req.ID).Updates(map[string]interface{}{
-		"status":          2,
-		"inspector_id":    inspectorID,
-		"inspector_name":  inspectorName,
-		"inspection_date": &now,
-	}).Error
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var batch model.ProductionBatch
+		if err := tx.Where("id = ? AND status = 1", req.ID).First(&batch).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&batch).Updates(map[string]interface{}{
+			"inspector_id":    inspectorID,
+			"inspector_name":  inspectorName,
+			"inspection_date": &now,
+		}).Error; err != nil {
+			return err
+		}
+		return updateBatchStatusWithLog(tx, batch, 2, "检测接收并开始检测", inspectorID, inspectorName, "")
+	})
 }
 
 func (s *workOrderSvc) StartRecheck(req *request.StartRecheck, inspectorID uint, inspectorName string) error {
@@ -48,11 +57,11 @@ func (s *workOrderSvc) StartRecheck(req *request.StartRecheck, inspectorID uint,
 				return err
 			}
 		}
-		return nil
+		return updateBatchStatusLogOnly(tx, batch, "开始复检", inspectorID, inspectorName, "")
 	})
 }
 
-func (s *workOrderSvc) AssignBatchTemplate(req *request.AssignBatchTemplate) error {
+func (s *workOrderSvc) AssignBatchTemplate(req *request.AssignBatchTemplate, operatorID uint, operatorName string) error {
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		var batch model.ProductionBatch
 		if err := tx.Where("id = ?", req.ID).First(&batch).Error; err != nil {
@@ -69,8 +78,10 @@ func (s *workOrderSvc) AssignBatchTemplate(req *request.AssignBatchTemplate) err
 
 		if err := tx.Model(&batch).Updates(map[string]interface{}{
 			"template_id": req.TemplateID,
-			"status":      1,
 		}).Error; err != nil {
+			return err
+		}
+		if err := updateBatchStatusWithLog(tx, batch, 1, "生产提交检测接收", operatorID, operatorName, ""); err != nil {
 			return err
 		}
 
@@ -80,7 +91,7 @@ func (s *workOrderSvc) AssignBatchTemplate(req *request.AssignBatchTemplate) err
 	})
 }
 
-func (s *workOrderSvc) AssignOrderTemplate(req *request.AssignOrderTemplate) error {
+func (s *workOrderSvc) AssignOrderTemplate(req *request.AssignOrderTemplate, operatorID uint, operatorName string) error {
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		var order model.ProductionOrder
 		if err := tx.Where("id = ?", req.ProductionOrderID).First(&order).Error; err != nil {
@@ -112,11 +123,16 @@ func (s *workOrderSvc) AssignOrderTemplate(req *request.AssignOrderTemplate) err
 
 		if err := tx.Model(&model.ProductionBatch{}).
 			Where("id IN ?", assignableIDs).
-			Updates(map[string]interface{}{
-				"template_id": req.TemplateID,
-				"status":      1,
-			}).Error; err != nil {
+			Update("template_id", req.TemplateID).Error; err != nil {
 			return err
+		}
+		for _, batch := range batches {
+			if batch.Status != 0 {
+				continue
+			}
+			if err := updateBatchStatusWithLog(tx, batch, 1, "生产提交检测接收", operatorID, operatorName, ""); err != nil {
+				return err
+			}
 		}
 
 		updates := map[string]interface{}{
@@ -326,7 +342,7 @@ func (s *workOrderSvc) ReturnDevices(req *request.ReturnDevices, returnByID uint
 			device.ReturnAt = &now
 			device.ReturnByID = &returnByID
 			device.ReturnByName = returnByName
-			if err := updateDeviceStatusWithLog(tx, device, "rework", req.Reason, returnByID, returnByName); err != nil {
+			if err := updateDeviceStatusWithLog(tx, device, "returned", req.Reason, returnByID, returnByName); err != nil {
 				return err
 			}
 		}
@@ -363,7 +379,33 @@ func updateDeviceStatusLogOnly(tx *gorm.DB, device model.ProductionOrderDevice, 
 	}).Error
 }
 
-func (s *workOrderSvc) CompleteInspection(req *request.CompleteInspection) error {
+func updateBatchStatusWithLog(tx *gorm.DB, batch model.ProductionBatch, nextStatus int, action string, operatorID interface{}, operatorName string, reason string) error {
+	if batch.Status == nextStatus {
+		return nil
+	}
+	updates := map[string]interface{}{"status": nextStatus}
+	if err := tx.Model(&model.ProductionBatch{}).Where("id = ?", batch.ID).Updates(updates).Error; err != nil {
+		return err
+	}
+	var opID *uint
+	switch v := operatorID.(type) {
+	case uint:
+		opID = &v
+	case *uint:
+		opID = v
+	}
+	return tx.Create(&model.ProductionBatchStatusLog{
+		ProductionBatchID: batch.ID,
+		FromStatus:        batch.Status,
+		ToStatus:          nextStatus,
+		Action:            action,
+		Reason:            reason,
+		OperatorID:        opID,
+		OperatorName:      operatorName,
+	}).Error
+}
+
+func (s *workOrderSvc) CompleteInspection(req *request.CompleteInspection, operatorID uint, operatorName string) error {
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		var batch model.ProductionBatch
 		if err := tx.Where("id = ? AND status = 2", req.ID).First(&batch).Error; err != nil {
@@ -418,11 +460,11 @@ func (s *workOrderSvc) CompleteInspection(req *request.CompleteInspection) error
 			}
 		}
 
-		return tx.Model(&model.ProductionBatch{}).Where("id = ?", req.ID).Update("status", 3).Error
+		return updateBatchStatusWithLog(tx, batch, 3, "完成检测", operatorID, operatorName, "")
 	})
 }
 
-func (s *workOrderSvc) CompleteRecheck(req *request.CompleteRecheck) error {
+func (s *workOrderSvc) CompleteRecheck(req *request.CompleteRecheck, operatorID uint, operatorName string) error {
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		var batch model.ProductionBatch
 		if err := tx.Where("id = ? AND status = 3", req.ID).First(&batch).Error; err != nil {
@@ -489,8 +531,27 @@ func (s *workOrderSvc) CompleteRecheck(req *request.CompleteRecheck) error {
 			}
 		}
 
-		return nil
+		return updateBatchStatusLogOnly(tx, batch, "完成复检", operatorID, operatorName, "")
 	})
+}
+
+func updateBatchStatusLogOnly(tx *gorm.DB, batch model.ProductionBatch, action string, operatorID interface{}, operatorName string, reason string) error {
+	var opID *uint
+	switch v := operatorID.(type) {
+	case uint:
+		opID = &v
+	case *uint:
+		opID = v
+	}
+	return tx.Create(&model.ProductionBatchStatusLog{
+		ProductionBatchID: batch.ID,
+		FromStatus:        batch.Status,
+		ToStatus:          batch.Status,
+		Action:            action,
+		Reason:            reason,
+		OperatorID:        opID,
+		OperatorName:      operatorName,
+	}).Error
 }
 
 func inspectionResultCompleted(resultType string, result model.InspectionDeviceResult) bool {
@@ -565,7 +626,7 @@ func (s *workOrderSvc) GetInspectionBatchList(search request.InspectionBatchSear
 		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("batch_id = ? AND status = ?", list[i].ID, "pass").Count(&pass)
 		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("batch_id = ? AND status = ?", list[i].ID, "fail").Count(&fail)
 		var rework int64
-		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("batch_id = ? AND status = ?", list[i].ID, "rework").Count(&rework)
+		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("batch_id = ? AND status IN ?", list[i].ID, []string{"returned", "rework"}).Count(&rework)
 		var recheck int64
 		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("batch_id = ? AND status IN ?", list[i].ID, []string{"pending_recheck", "rechecking"}).Count(&recheck)
 		var rechecking int64
@@ -718,6 +779,177 @@ func (s *workOrderSvc) GetInspectionDetailData(batchID string) (map[string]inter
 		"devices":       deviceInfos,
 		"templateItems": templateItemInfos,
 	}, nil
+}
+
+func (s *workOrderSvc) GetBatchStatusLogs(batchID string) ([]model.ProductionBatchStatusLog, error) {
+	var logs []model.ProductionBatchStatusLog
+	err := global.GVA_DB.Where("production_batch_id = ?", batchID).Order("id asc").Find(&logs).Error
+	return logs, err
+}
+
+type FlowLogItem struct {
+	ID           uint      `json:"ID"`
+	Scope        string    `json:"scope"`
+	ScopeLabel   string    `json:"scopeLabel"`
+	BatchID      uint      `json:"batchID"`
+	DeviceID     uint      `json:"deviceID"`
+	DeviceSN     string    `json:"deviceSN"`
+	Title        string    `json:"title"`
+	FromStatus   string    `json:"fromStatus"`
+	ToStatus     string    `json:"toStatus"`
+	Action       string    `json:"action"`
+	Reason       string    `json:"reason"`
+	OperatorID   *uint     `json:"operatorID"`
+	OperatorName string    `json:"operatorName"`
+	CreatedAt    time.Time `json:"CreatedAt"`
+}
+
+func (s *workOrderSvc) GetFlowLogs(batchID string, deviceID string) ([]FlowLogItem, error) {
+	items := make([]FlowLogItem, 0)
+	if strings.TrimSpace(deviceID) != "" {
+		var device model.ProductionOrderDevice
+		if err := global.GVA_DB.Where("id = ?", deviceID).First(&device).Error; err != nil {
+			return nil, err
+		}
+		var deviceLogs []model.ProductionOrderDeviceStatusLog
+		if err := global.GVA_DB.Where("production_order_device_id = ?", deviceID).Order("id asc").Find(&deviceLogs).Error; err != nil {
+			return nil, err
+		}
+		for _, log := range deviceLogs {
+			items = append(items, FlowLogItem{
+				ID:           log.ID,
+				Scope:        "device",
+				ScopeLabel:   "设备",
+				BatchID:      valueOrZero(device.BatchID),
+				DeviceID:     device.ID,
+				DeviceSN:     device.SN,
+				Title:        firstNonEmpty(log.Reason, "设备状态变更"),
+				FromStatus:   log.FromStatus,
+				ToStatus:     log.ToStatus,
+				Action:       firstNonEmpty(log.Reason, "设备状态变更"),
+				Reason:       log.Reason,
+				OperatorID:   log.OperatorID,
+				OperatorName: log.OperatorName,
+				CreatedAt:    log.CreatedAt,
+			})
+		}
+		if strings.TrimSpace(batchID) == "" && device.BatchID != nil {
+			batchID = fmt.Sprintf("%d", *device.BatchID)
+		}
+	}
+
+	if strings.TrimSpace(batchID) != "" {
+		var batch model.ProductionBatch
+		batchFound := global.GVA_DB.Where("id = ?", batchID).First(&batch).Error == nil
+		var batchLogs []model.ProductionBatchStatusLog
+		batchLogErr := global.GVA_DB.Where("production_batch_id = ?", batchID).Order("id asc").Find(&batchLogs).Error
+		if batchLogErr == nil && len(batchLogs) > 0 {
+			for _, log := range batchLogs {
+				items = append(items, FlowLogItem{
+					ID:           log.ID,
+					Scope:        "batch",
+					ScopeLabel:   "批次",
+					BatchID:      log.ProductionBatchID,
+					Title:        firstNonEmpty(log.Action, "批次流转"),
+					FromStatus:   fmt.Sprintf("%d", log.FromStatus),
+					ToStatus:     fmt.Sprintf("%d", log.ToStatus),
+					Action:       log.Action,
+					Reason:       log.Reason,
+					OperatorID:   log.OperatorID,
+					OperatorName: log.OperatorName,
+					CreatedAt:    log.CreatedAt,
+				})
+			}
+		} else if batchFound {
+			items = append(items, syntheticBatchFlowLogs(batch)...)
+		} else if batchLogErr != nil {
+			return nil, batchLogErr
+		}
+	}
+
+	sort.SliceStable(items, func(i, j int) bool {
+		return items[i].CreatedAt.After(items[j].CreatedAt)
+	})
+	return items, nil
+}
+
+func syntheticBatchFlowLogs(batch model.ProductionBatch) []FlowLogItem {
+	logTime := batch.UpdatedAt
+	if logTime.IsZero() {
+		logTime = batch.CreatedAt
+	}
+	if batch.Status <= 0 {
+		return []FlowLogItem{
+			{
+				ID:         batch.ID*10 + 1,
+				Scope:      "batch",
+				ScopeLabel: "批次",
+				BatchID:    batch.ID,
+				Title:      "生产分批",
+				FromStatus: "0",
+				ToStatus:   "0",
+				Action:     "生产分批",
+				CreatedAt:  logTime,
+			},
+		}
+	}
+	logs := []FlowLogItem{
+		{
+			ID:           batch.ID*10 + 1,
+			Scope:        "batch",
+			ScopeLabel:   "批次",
+			BatchID:      batch.ID,
+			Title:        "生产提交检测接收",
+			FromStatus:   "0",
+			ToStatus:     "1",
+			Action:       "生产提交检测接收",
+			Reason:       "历史数据无原始派检日志，系统自动补显",
+			OperatorName: "",
+			CreatedAt:    logTime,
+		},
+	}
+	if batch.Status >= 2 {
+		inspectionTime := logTime
+		if batch.InspectionDate != nil {
+			inspectionTime = *batch.InspectionDate
+		}
+		logs = append(logs, FlowLogItem{
+			ID:           batch.ID*10 + 2,
+			Scope:        "batch",
+			ScopeLabel:   "批次",
+			BatchID:      batch.ID,
+			Title:        "检测接收并开始检测",
+			FromStatus:   "1",
+			ToStatus:     "2",
+			Action:       "检测接收并开始检测",
+			Reason:       "历史数据无原始接收日志，系统自动补显",
+			OperatorID:   batch.InspectorID,
+			OperatorName: batch.InspectorName,
+			CreatedAt:    inspectionTime,
+		})
+	}
+	if batch.Status >= 3 {
+		logs = append(logs, FlowLogItem{
+			ID:         batch.ID*10 + 3,
+			Scope:      "batch",
+			ScopeLabel: "批次",
+			BatchID:    batch.ID,
+			Title:      "完成检测",
+			FromStatus: "2",
+			ToStatus:   "3",
+			Action:     "完成检测",
+			Reason:     "历史数据无原始完成日志，系统自动补显",
+			CreatedAt:  logTime,
+		})
+	}
+	return logs
+}
+
+func valueOrZero(value *uint) uint {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
 
 func (s *workOrderSvc) ExportInspectionExcel(batchID string) (*bytes.Buffer, string, error) {
@@ -964,6 +1196,8 @@ func deviceInspectionResultLabel(status string) string {
 		return "不合格"
 	case "pending":
 		return "未完成"
+	case "returned":
+		return "待生产接收"
 	case "rework":
 		return "返工中"
 	case "pending_recheck":

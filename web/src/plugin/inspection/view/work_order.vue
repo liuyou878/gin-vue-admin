@@ -2,7 +2,7 @@
   <div class="list-page">
     <div class="sticky-header">
       <el-tabs v-model="activeTab" @tab-change="onTabChange">
-        <el-tab-pane label="待检测" name="pending" />
+        <el-tab-pane label="待接收" name="pending" />
         <el-tab-pane label="检测中" name="inspecting" />
         <el-tab-pane label="待复检" name="recheck" />
         <el-tab-pane label="已完成" name="completed" />
@@ -99,7 +99,7 @@
               size="small"
               type="primary"
               @click="onStartInspect(s6.row)"
-              >开始检测</el-button
+              >接收并开始检测</el-button
             >
             <el-button
               v-else-if="activeTab === 'recheck'"
@@ -236,10 +236,10 @@
     downloadBlob(res.data || res, filename)
   }
   const onStartInspect = async (row) => {
-    await ElMessageBox.confirm('确定开始检测？', '提示', { type: 'info' })
+    await ElMessageBox.confirm('确定接收该批次并开始检测？', '提示', { type: 'info' })
     const res = await startInspection({ ID: row.ID })
     if (res.code === 0) {
-      ElMessage.success('已开始检测')
+      ElMessage.success('已接收并开始检测')
       getList()
       openDetail(row)
     }

@@ -456,6 +456,7 @@ const deviceStatusLabel = (device) => {
   const progress = deviceProgressText(device)
   if (status === 'pending') return `待完成${progress}`
   return ({
+    returned: '待生产接收',
     pending_recheck: '待复检',
     rechecking: '复检中',
     pass: '通过',
@@ -475,7 +476,7 @@ const deviceStatusTag = (device) => {
   const status = device?._status || device?.status || 'pending'
   return status === 'pass' ? 'success' :
     status === 'fail' ? 'danger' :
-      status === 'rework' ? 'warning' :
+      status === 'returned' || status === 'rework' ? 'warning' :
         status === 'pending_recheck' ? 'primary' :
           status === 'rechecking' ? 'warning' : 'info'
 }
@@ -484,7 +485,7 @@ const deviceRowClass = (device) => {
   const status = device?._status || device?.status || 'pending'
   return status === 'fail' ? 'row-fail' :
     status === 'pass' ? 'row-pass' :
-      status === 'rework' ? 'row-rework' :
+      status === 'returned' || status === 'rework' ? 'row-rework' :
         status === 'pending_recheck' || status === 'rechecking' ? 'row-recheck' : ''
 }
 
@@ -602,8 +603,8 @@ const onReturnDevices = async () => {
     const pickedSet = new Set(picked)
     detail.value.devices.forEach((device) => {
       if (pickedSet.has(device.ID)) {
-        device._status = 'rework'
-        device.status = 'rework'
+        device._status = 'returned'
+        device.status = 'returned'
         device.returnReason = returnReason.value || ''
       }
     })
@@ -627,7 +628,7 @@ const loadDetail = async () => {
       result._saveState = ''
     })
     device._startedRecheck = device._status === 'rechecking'
-    if (device._status !== 'rework' && device._status !== 'pending_recheck' && device._status !== 'rechecking') {
+    if (device._status !== 'returned' && device._status !== 'rework' && device._status !== 'pending_recheck' && device._status !== 'rechecking') {
       calcDeviceStatus(device)
     }
   })

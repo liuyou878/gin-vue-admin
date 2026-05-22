@@ -67,6 +67,13 @@
           catLabel(scope.row.instrumentCategory)
         }}</template>
       </el-table-column>
+      <el-table-column label="订单状态" width="110">
+        <template #default="scope">
+          <el-tag :type="orderStatusTagType(scope.row.status)" size="small">
+            {{ batchStatusLabel(scope.row.status) }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="submitterName" label="提交人" width="100" />
       <el-table-column label="设备数" width="80">
         <template #default="scope">
@@ -436,7 +443,7 @@
           :disabled="!dispatchForm.templateID || !dispatchPendingBatches.length"
           @click="submitDispatch"
         >
-          提交给检测
+          提交检测接收
         </el-button>
       </template>
     </el-dialog>
@@ -510,6 +517,15 @@
             <el-table-column label="操作" width="170" fixed="right">
               <template #default="scope">
                 <el-button
+                  v-if="scope.row.status === 'returned'"
+                  type="warning"
+                  link
+                  size="small"
+                  @click="handleConfirmReworkReceived(scope.row)"
+                >
+                  确认接收返工
+                </el-button>
+                <el-button
                   v-if="scope.row.status === 'rework'"
                   type="warning"
                   link
@@ -522,9 +538,9 @@
                   type="primary"
                   link
                   size="small"
-                  @click="openStatusLogs(scope.row)"
+                  @click="openFlowLogs({ device: scope.row })"
                 >
-                  日志
+                  设备日志
                 </el-button>
               </template>
             </el-table-column>
@@ -571,6 +587,14 @@
               >
                 打印
               </el-button>
+              <el-button
+                size="small"
+                type="primary"
+                link
+                @click="openFlowLogs({ batch })"
+              >
+                流转日志
+              </el-button>
             </div>
           </div>
           <el-table :data="batch.devices" border size="small" class="mt-1">
@@ -596,6 +620,15 @@
             <el-table-column label="操作" width="170" fixed="right">
               <template #default="scope">
                 <el-button
+                  v-if="scope.row.status === 'returned'"
+                  type="warning"
+                  link
+                  size="small"
+                  @click="handleConfirmReworkReceived(scope.row)"
+                >
+                  确认接收返工
+                </el-button>
+                <el-button
                   v-if="scope.row.status === 'rework'"
                   type="warning"
                   link
@@ -608,9 +641,9 @@
                   type="primary"
                   link
                   size="small"
-                  @click="openStatusLogs(scope.row)"
+                  @click="openFlowLogs({ batch, device: scope.row })"
                 >
-                  日志
+                  设备日志
                 </el-button>
               </template>
             </el-table-column>
@@ -620,41 +653,42 @@
     </el-dialog>
 
     <el-drawer
-      v-model="logVisible"
-      title="设备状态日志"
+      v-model="flowLogVisible"
+      :title="flowLogDrawerTitle"
       size="520px"
       destroy-on-close
     >
-      <template v-if="logDevice">
-        <div class="log-device-title">{{ logDevice.sn || '-' }}</div>
-        <el-timeline v-if="statusLogs.length">
+      <template v-if="flowLogTitle">
+        <div class="log-device-title">{{ flowLogTitle }}</div>
+        <el-timeline v-if="flowLogs.length">
           <el-timeline-item
-            v-for="log in statusLogs"
-            :key="log.ID"
+            v-for="log in flowLogs"
+            :key="`${log.scope}-${log.ID}`"
             :timestamp="formatDate(log.CreatedAt)"
             placement="top"
           >
             <div class="log-card">
               <div>
-                <el-tag
-                  :type="deviceStatusTagType(log.fromStatus)"
-                  size="small"
-                >
-                  {{ deviceStatusLabel(log.fromStatus) }}
+                <el-tag :type="log.scope === 'batch' ? 'primary' : 'success'" size="small">
+                  {{ log.scopeLabel }}
                 </el-tag>
-                <span class="log-arrow">→</span>
-                <el-tag :type="deviceStatusTagType(log.toStatus)" size="small">
-                  {{ deviceStatusLabel(log.toStatus) }}
+                <span class="log-action">{{ log.title || log.action || '-' }}</span>
+              </div>
+              <div>
+                <span class="log-current-status">当前状态：</span>
+                <el-tag :type="flowStatusTagType(log)" size="small">
+                  {{ flowStatusLabel(log, log.toStatus) }}
                 </el-tag>
               </div>
-              <div class="log-reason">{{ log.reason || '-' }}</div>
-              <div class="log-operator">
+              <div v-if="log.deviceSN" class="log-reason">设备：{{ log.deviceSN }}</div>
+              <div v-if="log.reason" class="log-reason">备注：{{ log.reason }}</div>
+              <div v-if="log.operatorName" class="log-operator">
                 操作人：{{ log.operatorName || '-' }}
               </div>
             </div>
           </el-timeline-item>
         </el-timeline>
-        <el-empty v-else description="暂无状态日志" />
+        <el-empty v-else :description="`暂无${flowLogDrawerTitle}`" />
       </template>
     </el-drawer>
 
@@ -677,14 +711,15 @@
     forceDeleteProductionOrder,
     updateProductionOrder,
     findProductionOrder,
+    confirmReworkReceived,
     confirmReworkDone,
     scanAssignBatch,
-    getDeviceStatusLogs
   } from '@/plugin/inspection/api/production_order'
   import { getTemplateList } from '@/plugin/inspection/api/template'
   import {
     assignOrderTemplate,
-    exportInspectionExcel
+    exportInspectionExcel,
+    getFlowLogs
   } from '@/plugin/inspection/api/work_order'
   import ProductionOrderDeviceDialog from '@/plugin/inspection/components/ProductionOrderDeviceDialog.vue'
 
@@ -701,9 +736,10 @@
   const batchScanOrder = ref(null)
   const dispatchOrder = ref(null)
   const templateList = ref([])
-  const logVisible = ref(false)
-  const logDevice = ref(null)
-  const statusLogs = ref([])
+  const flowLogVisible = ref(false)
+  const flowLogTitle = ref('')
+  const flowLogDrawerTitle = ref('流转日志')
+  const flowLogs = ref([])
   const deviceDialogVisible = ref(false)
   const deviceDialogOrder = ref(null)
   const deviceDialogFilter = ref('all')
@@ -748,12 +784,15 @@
       custom: '定制款'
     }[value] || value)
   const batchStatusLabel = (value) =>
-    ({ 0: '未生成', 1: '待检测', 2: '检测中', 3: '已完成' }[value] || value)
+    ({ 0: '未派检', 1: '待检测接收', 2: '检测中', 3: '已完成' }[value] || value)
+  const orderStatusTagType = (value) =>
+    ({ 0: 'info', 1: 'warning', 2: 'primary', 3: 'success' }[value] || 'info')
   const deviceStatusLabel = (value) =>
     ({
-      pending: '待检测',
+      pending: '待检测设备',
       pass: '合格',
       fail: '不合格',
+      returned: '待生产接收',
       rework: '返工中',
       pending_recheck: '待复检',
       rechecking: '复检中'
@@ -765,10 +804,19 @@
       pending: 'info',
       pass: 'success',
       fail: 'danger',
+      returned: 'warning',
       rework: 'warning',
       pending_recheck: 'primary',
       rechecking: 'warning'
     }[value] || 'info')
+  const flowStatusLabel = (log, value) => {
+    if (log.scope === 'batch') return batchStatusLabel(Number(value))
+    return deviceStatusLabel(value)
+  }
+  const flowStatusTagType = (log) => {
+    if (log.scope === 'batch') return orderStatusTagType(Number(log.toStatus))
+    return deviceStatusTagType(log.toStatus)
+  }
   const passRateLabel = (passCount, deviceCount) => {
     const total = Number(deviceCount || 0)
     if (!total) return '-'
@@ -963,7 +1011,7 @@
       return
     }
     if (device.status !== 'pending') {
-      ElMessage.error(`SN ${sn} 当前状态不是待检测，不能分批`)
+      ElMessage.error(`SN ${sn} 当前状态不是待检测设备，不能分批`)
       focusScanInput()
       return
     }
@@ -1027,9 +1075,29 @@
       instrumentCategory: dispatchForm.instrumentCategory
     })
     if (res.code !== 0) return
-    ElMessage.success('已提交检测')
+    ElMessage.success('已提交检测接收')
     dispatchVisible.value = false
     dispatchOrder.value = null
+    getList()
+  }
+
+  const handleConfirmReworkReceived = async (row) => {
+    try {
+      await ElMessageBox.confirm(
+        `确认已接收 ${row.sn}，并开始返工？`,
+        '确认接收返工',
+        { type: 'warning', confirmButtonText: '确认接收' }
+      )
+    } catch {
+      return
+    }
+
+    const res = await confirmReworkReceived({ deviceID: row.ID })
+    if (res.code !== 0) return
+    ElMessage.success('已进入返工中')
+    if (detailOrder.value) {
+      await viewDetail({ ID: detailOrder.value.ID })
+    }
     getList()
   }
 
@@ -1053,13 +1121,17 @@
     getList()
   }
 
-  const openStatusLogs = async (row) => {
-    logDevice.value = row
-    statusLogs.value = []
-    logVisible.value = true
-    const res = await getDeviceStatusLogs({ deviceID: row.ID })
+  const openFlowLogs = async ({ batch, device }) => {
+    flowLogDrawerTitle.value = device ? '设备日志' : '流转日志'
+    flowLogTitle.value = device?.sn || batch?.batchNumber || '-'
+    flowLogs.value = []
+    flowLogVisible.value = true
+    const res = await getFlowLogs({
+      batchID: batch?.ID || device?.batchID,
+      deviceID: device?.ID
+    })
     if (res.code === 0) {
-      statusLogs.value = res.data || []
+      flowLogs.value = res.data || []
     }
   }
 
@@ -1203,11 +1275,12 @@
     background: var(--el-fill-color-lighter, #fafafa);
   }
 
-  .log-arrow {
-    margin: 0 8px;
-    color: var(--el-text-color-secondary, #909399);
+  .log-action {
+    margin-left: 8px;
+    font-weight: 600;
   }
 
+  .log-current-status,
   .log-reason {
     color: var(--el-text-color-primary, #303133);
   }

@@ -44,6 +44,14 @@ export const getInspectionDetail = (params) => {
   return service({ url: '/workOrder/getInspectionDetail', method: 'get', params })
 }
 
+export const getBatchStatusLogs = (params) => {
+  return service({ url: '/workOrder/getBatchStatusLogs', method: 'get', params })
+}
+
+export const getFlowLogs = (params) => {
+  return service({ url: '/workOrder/getFlowLogs', method: 'get', params })
+}
+
 export const exportInspectionExcel = (params) => {
   return service({
     url: '/workOrder/exportInspectionExcel',

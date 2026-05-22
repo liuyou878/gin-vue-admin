@@ -92,3 +92,9 @@ type ConfirmReworkDone struct {
 	DeviceIDs []uint `json:"deviceIDs"`
 	Remark    string `json:"remark"`
 }
+
+type ConfirmReworkReceived struct {
+	DeviceID  uint   `json:"deviceID"`
+	DeviceIDs []uint `json:"deviceIDs"`
+	Remark    string `json:"remark"`
+}

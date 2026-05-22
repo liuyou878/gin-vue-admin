@@ -145,16 +145,17 @@ func (s *productionOrderSvc) FindProductionOrder(id string) (model.ProductionOrd
 		po.Batches[i].DeviceCount = len(po.Batches[i].Devices)
 	}
 	fillBatchSummary(&po)
-	var pass, fail, rework, recheck int64
+	var pass, fail, returned, rework, recheck int64
 	global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", id, "pass").Count(&pass)
 	global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", id, "fail").Count(&fail)
+	global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", id, "returned").Count(&returned)
 	global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", id, "rework").Count(&rework)
 	global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status IN ?", id, []string{"pending_recheck", "rechecking"}).Count(&recheck)
 	po.PassCount = int(pass)
 	po.FailCount = int(fail)
-	po.ReworkCount = int(rework)
+	po.ReworkCount = int(returned + rework)
 	po.RecheckCount = int(recheck)
-	po.AbnormalCount = int(fail + rework + recheck)
+	po.AbnormalCount = int(fail + returned + rework + recheck)
 	return po, err
 }
 
@@ -178,18 +179,19 @@ func (s *productionOrderSvc) GetProductionOrderList(search request.ProductionOrd
 	}
 	err = db.Limit(search.PageSize).Offset(search.PageSize * (search.Page - 1)).Order("id desc").Find(&list).Error
 	for i := range list {
-		var count, pass, fail, rework, recheck int64
+		var count, pass, fail, returned, rework, recheck int64
 		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ?", list[i].ID).Count(&count)
 		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", list[i].ID, "pass").Count(&pass)
 		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", list[i].ID, "fail").Count(&fail)
+		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", list[i].ID, "returned").Count(&returned)
 		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", list[i].ID, "rework").Count(&rework)
 		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status IN ?", list[i].ID, []string{"pending_recheck", "rechecking"}).Count(&recheck)
 		list[i].DeviceCount = int(count)
 		list[i].PassCount = int(pass)
 		list[i].FailCount = int(fail)
-		list[i].ReworkCount = int(rework)
+		list[i].ReworkCount = int(returned + rework)
 		list[i].RecheckCount = int(recheck)
-		list[i].AbnormalCount = int(fail + rework + recheck)
+		list[i].AbnormalCount = int(fail + returned + rework + recheck)
 		if list[i].TemplateID != nil {
 			var tmpl model.InspectionTemplate
 			if global.GVA_DB.Where("id = ?", *list[i].TemplateID).First(&tmpl).Error == nil {
@@ -279,6 +281,40 @@ func (s *productionOrderSvc) ConfirmReworkDone(req *request.ConfirmReworkDone, o
 				device.ReturnReason = req.Remark
 			}
 			if err := updateDeviceStatusWithLog(tx, device, "pending_recheck", firstNonEmpty(req.Remark, "生产确认返工完成"), operatorID, operatorName); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (s *productionOrderSvc) ConfirmReworkReceived(req *request.ConfirmReworkReceived, operatorID uint, operatorName string) error {
+	ids := make([]uint, 0, len(req.DeviceIDs)+1)
+	if req.DeviceID > 0 {
+		ids = append(ids, req.DeviceID)
+	}
+	ids = append(ids, req.DeviceIDs...)
+	if len(ids) == 0 {
+		return errors.New("请选择待接收返工设备")
+	}
+
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var devices []model.ProductionOrderDevice
+		if err := tx.Where("id IN ?", ids).Find(&devices).Error; err != nil {
+			return err
+		}
+		if len(devices) != len(ids) {
+			return errors.New("部分设备不存在")
+		}
+		for _, device := range devices {
+			if device.Status != "returned" {
+				return fmt.Errorf("设备 %s 不是待生产接收状态，不能确认接收返工", device.SN)
+			}
+		}
+
+		for _, device := range devices {
+			reason := firstNonEmpty(req.Remark, "生产确认接收返工")
+			if err := updateDeviceStatusWithLog(tx, device, "rework", reason, operatorID, operatorName); err != nil {
 				return err
 			}
 		}
@@ -498,7 +534,7 @@ func (s *productionOrderSvc) SubmitDeviceData(req *request.SubmitDeviceData, sub
 }
 
 // AssignBatch 分配设备到批次
-func (s *productionOrderSvc) AssignBatch(req *request.AssignBatch) error {
+func (s *productionOrderSvc) AssignBatch(req *request.AssignBatch, operatorID uint, operatorName string) error {
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		var batch model.ProductionBatch
 		if err := tx.Where("id = ?", req.BatchID).First(&batch).Error; err != nil {
@@ -514,11 +550,11 @@ func (s *productionOrderSvc) AssignBatch(req *request.AssignBatch) error {
 			}
 			tx.Model(&device).Update("batch_id", req.BatchID)
 		}
-		return nil
+		return createBatchFlowLog(tx, batch, "生产分批", operatorID, operatorName)
 	})
 }
 
-func (s *productionOrderSvc) ScanAssignBatch(req *request.ScanAssignBatch) error {
+func (s *productionOrderSvc) ScanAssignBatch(req *request.ScanAssignBatch, operatorID uint, operatorName string) error {
 	sns := normalizeSNList(req.SNs)
 	if len(sns) == 0 {
 		return errors.New("请先扫码加入设备")
@@ -576,8 +612,28 @@ func (s *productionOrderSvc) ScanAssignBatch(req *request.ScanAssignBatch) error
 				return err
 			}
 		}
-		return nil
+		return createBatchFlowLog(tx, batch, "生产分批", operatorID, operatorName)
 	})
+}
+
+func createBatchFlowLog(tx *gorm.DB, batch model.ProductionBatch, action string, operatorID uint, operatorName string) error {
+	var existing model.ProductionBatchStatusLog
+	err := tx.Where("production_batch_id = ? AND from_status = ? AND to_status = ? AND action = ?", batch.ID, batch.Status, batch.Status, action).
+		First(&existing).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return tx.Create(&model.ProductionBatchStatusLog{
+			ProductionBatchID: batch.ID,
+			FromStatus:        batch.Status,
+			ToStatus:          batch.Status,
+			Action:            action,
+			OperatorID:        &operatorID,
+			OperatorName:      operatorName,
+		}).Error
+	}
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func nextBatchNumber(tx *gorm.DB, order model.ProductionOrder) (string, error) {

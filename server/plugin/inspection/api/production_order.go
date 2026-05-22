@@ -261,6 +261,29 @@ func (a *productionOrderApi) ConfirmReworkDone(c *gin.Context) {
 	response.OkWithMessage("已进入待复检", c)
 }
 
+// ConfirmReworkReceived 生产确认接收返工
+// @Tags     ProductionOrder
+// @Summary  生产确认接收返工（待生产接收→返工中）
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.ConfirmReworkReceived true "返工接收信息"
+// @Success  200 {object} response.Response{msg=string} "确认成功"
+// @Router   /productionOrder/confirmReworkReceived [post]
+func (a *productionOrderApi) ConfirmReworkReceived(c *gin.Context) {
+	var req request.ConfirmReworkReceived
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	claims, _ := utils.GetClaims(c)
+	if err := serviceProductionOrder.ConfirmReworkReceived(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
+		response.FailWithMessage("确认失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("已进入返工中", c)
+}
+
 // GetDeviceStatusLogs 查询设备状态日志
 // @Tags     ProductionOrder
 // @Summary  查询设备状态日志
@@ -295,7 +318,8 @@ func (a *productionOrderApi) AssignBatch(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := serviceProductionOrder.AssignBatch(&req); err != nil {
+	claims, _ := utils.GetClaims(c)
+	if err := serviceProductionOrder.AssignBatch(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
 		response.FailWithMessage("分配失败: "+err.Error(), c)
 		return
 	}
@@ -317,7 +341,8 @@ func (a *productionOrderApi) ScanAssignBatch(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := serviceProductionOrder.ScanAssignBatch(&req); err != nil {
+	claims, _ := utils.GetClaims(c)
+	if err := serviceProductionOrder.ScanAssignBatch(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
 		response.FailWithMessage("分批失败: "+err.Error(), c)
 		return
 	}

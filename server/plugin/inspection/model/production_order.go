@@ -20,7 +20,7 @@ type ProductionOrder struct {
 	MainboardFirmwareVersion string                  `json:"mainboardFirmwareVersion" gorm:"column:mainboard_firmware_version;size:100;comment:主板固件版本"`
 	PNCode                   string                  `json:"pnCode" gorm:"column:pn_code;size:50;comment:订单PN码"`
 	InstrumentCategory       string                  `json:"instrumentCategory" gorm:"column:instrument_category;size:50;comment:仪器类别"`
-	Status                   int                     `json:"status" gorm:"column:status;default:0;comment:状态(0=待确认,1=待检测,2=检测中,3=已完成)"`
+	Status                   int                     `json:"status" gorm:"column:status;default:0;comment:状态(0=未派检,1=待检测接收,2=检测中,3=已完成)"`
 	SubmitterID              *uint                   `json:"submitterID" gorm:"column:submitter_id;comment:提交人ID"`
 	SubmitterName            string                  `json:"submitterName" gorm:"column:submitter_name;size:100;comment:提交人姓名"`
 	InspectorID              *uint                   `json:"inspectorID" gorm:"column:inspector_id;comment:检测人ID"`
@@ -51,7 +51,7 @@ type ProductionBatch struct {
 	BatchNumber       string                  `json:"batchNumber" gorm:"column:batch_number;size:100;not null;comment:批次号"`
 	TemplateID        *uint                   `json:"templateID" gorm:"column:template_id;comment:检测模板ID"`
 	Template          *InspectionTemplate     `json:"template" gorm:"foreignKey:TemplateID"`
-	Status            int                     `json:"status" gorm:"column:status;default:0;comment:状态(0=待确认,1=待检测,2=检测中,3=已完成)"`
+	Status            int                     `json:"status" gorm:"column:status;default:0;comment:状态(0=未派检,1=待检测接收,2=检测中,3=已完成)"`
 	InspectorID       *uint                   `json:"inspectorID" gorm:"column:inspector_id;comment:检测人ID"`
 	InspectorName     string                  `json:"inspectorName" gorm:"column:inspector_name;size:100;comment:检测人姓名"`
 	InspectionDate    *time.Time              `json:"inspectionDate" gorm:"column:inspection_date;comment:检测日期"`
@@ -63,6 +63,22 @@ type ProductionBatch struct {
 
 func (ProductionBatch) TableName() string {
 	return "production_batches"
+}
+
+type ProductionBatchStatusLog struct {
+	global.GVA_MODEL
+	ProductionBatchID uint             `json:"productionBatchID" gorm:"column:production_batch_id;index;not null;comment:生产批次ID"`
+	Batch             *ProductionBatch `json:"batch" gorm:"foreignKey:ProductionBatchID"`
+	FromStatus        int              `json:"fromStatus" gorm:"column:from_status;comment:变更前状态"`
+	ToStatus          int              `json:"toStatus" gorm:"column:to_status;comment:变更后状态"`
+	Action            string           `json:"action" gorm:"column:action;size:100;comment:动作"`
+	Reason            string           `json:"reason" gorm:"column:reason;size:500;comment:原因/备注"`
+	OperatorID        *uint            `json:"operatorID" gorm:"column:operator_id;comment:操作人ID"`
+	OperatorName      string           `json:"operatorName" gorm:"column:operator_name;size:100;comment:操作人姓名"`
+}
+
+func (ProductionBatchStatusLog) TableName() string {
+	return "production_batch_status_logs"
 }
 
 type InspectionBatchListItem struct {
@@ -131,7 +147,7 @@ type ProductionOrderDevice struct {
 	RegionLicense            string           `json:"regionLicense" gorm:"column:region_license;size:200;comment:围栏注册码"`
 	NtripCode                string           `json:"ntripCode" gorm:"column:ntrip_code;size:200;comment:Ntrip码"`
 	LineNumber               int              `json:"lineNumber" gorm:"column:line_number;default:0;comment:行号"`
-	Status                   string           `json:"status" gorm:"column:status;size:20;default:pending;comment:设备状态(pending/pass/fail/rework/pending_recheck/rechecking)"`
+	Status                   string           `json:"status" gorm:"column:status;size:20;default:pending;comment:设备状态(pending/pass/fail/returned/rework/pending_recheck/rechecking)"`
 	ReturnReason             string           `json:"returnReason" gorm:"column:return_reason;size:500;comment:退回原因"`
 	ReturnAt                 *time.Time       `json:"returnAt" gorm:"column:return_at;comment:退回时间"`
 	ReturnByID               *uint            `json:"returnByID" gorm:"column:return_by_id;comment:退回人ID"`

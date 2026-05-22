@@ -40,6 +40,10 @@ export const confirmReworkDone = (data) => {
   return service({ url: '/productionOrder/confirmReworkDone', method: 'post', data })
 }
 
+export const confirmReworkReceived = (data) => {
+  return service({ url: '/productionOrder/confirmReworkReceived', method: 'post', data })
+}
+
 export const scanAssignBatch = (data) => {
   return service({ url: '/productionOrder/scanAssignBatch', method: 'post', data })
 }
