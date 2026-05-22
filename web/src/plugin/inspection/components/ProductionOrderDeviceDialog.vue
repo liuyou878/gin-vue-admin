@@ -5,7 +5,6 @@
     width="980px"
     append-to-body
     class="device-dialog"
-    modal-class="device-dialog-modal"
     destroy-on-close
     @open="loadDevices"
   >
@@ -299,13 +298,8 @@
     background: var(--el-bg-color, #fff);
   }
 
-  :global(.device-dialog-modal) {
-    z-index: 3000 !important;
-  }
-
   :global(.device-dialog.el-dialog) {
     position: relative;
-    z-index: 3001 !important;
   }
 
   :global(.device-dialog .el-dialog__body) {

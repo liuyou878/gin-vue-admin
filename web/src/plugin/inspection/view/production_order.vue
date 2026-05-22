@@ -85,16 +85,6 @@
           <DeviceStatusCount :row="scope.row" type="pass" :count="scope.row.passCount" allow-rework-actions @changed="getList" />
         </template>
       </el-table-column>
-      <el-table-column label="不合格数" width="100">
-        <template #default="scope">
-          <DeviceStatusCount :row="scope.row" type="fail" :count="scope.row.failCount" allow-rework-actions @changed="getList" />
-        </template>
-      </el-table-column>
-      <el-table-column label="返工数" width="90">
-        <template #default="scope">
-          <DeviceStatusCount :row="scope.row" type="rework" :count="scope.row.reworkCount" allow-rework-actions @changed="getList" />
-        </template>
-      </el-table-column>
       <el-table-column label="异常数" width="90">
         <template #default="scope">
           <DeviceStatusCount :row="scope.row" type="abnormal" :count="scope.row.abnormalCount" allow-rework-actions @changed="getList" />
