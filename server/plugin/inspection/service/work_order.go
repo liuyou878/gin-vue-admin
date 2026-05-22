@@ -649,8 +649,17 @@ func (s *workOrderSvc) GetInspectionBatchList(search request.InspectionBatchSear
 	if search.Model != "" {
 		db = db.Where("po.model LIKE ?", "%"+search.Model+"%")
 	}
+	if search.BatchNumber != "" {
+		db = db.Where("pb.batch_number LIKE ?", "%"+search.BatchNumber+"%")
+	}
 	if search.Status != nil {
 		db = db.Where("pb.status = ?", *search.Status)
+	}
+	if search.SN != "" {
+		db = db.Where(
+			"EXISTS (SELECT 1 FROM production_order_devices pod WHERE pod.batch_id = pb.id AND pod.sn LIKE ?)",
+			"%"+search.SN+"%",
+		)
 	}
 	if search.DeviceStatus != "" {
 		statuses := splitDeviceStatuses(search.DeviceStatus)

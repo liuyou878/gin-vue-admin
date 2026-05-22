@@ -70,6 +70,8 @@ type ReturnDevices struct {
 type InspectionBatchSearch struct {
 	MONumber     string `json:"moNumber" form:"moNumber"`
 	Model        string `json:"model" form:"model"`
+	BatchNumber  string `json:"batchNumber" form:"batchNumber"`
+	SN           string `json:"sn" form:"sn"`
 	Status       *int   `json:"status" form:"status"`
 	DeviceStatus string `json:"deviceStatus" form:"deviceStatus"`
 	Page         int    `json:"page" form:"page"`

@@ -25,6 +25,38 @@
               size="small"
             />
           </el-form-item>
+          <el-form-item label="批次号">
+            <el-input
+              v-model="searchInfo.batchNumber"
+              placeholder="请输入"
+              clearable
+              size="small"
+            />
+          </el-form-item>
+          <el-form-item label="SN">
+            <el-input
+              v-model="searchInfo.sn"
+              placeholder="请输入"
+              clearable
+              size="small"
+            />
+          </el-form-item>
+          <!-- <el-form-item label="设备状态">
+            <el-select
+              v-model="searchInfo.deviceStatus"
+              placeholder="请选择"
+              clearable
+              size="small"
+              style="width: 140px"
+            >
+              <el-option
+                v-for="item in deviceStatusOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item> -->
           <el-form-item>
             <el-button type="primary" size="small" @click="getList"
               >查询</el-button
@@ -46,7 +78,11 @@
         >
           <el-table-column prop="moNumber" label="MO号" min-width="140" />
           <el-table-column prop="batchNumber" label="批次号" min-width="160" />
-          <el-table-column prop="productName" label="产品名称" min-width="150" />
+          <el-table-column
+            prop="productName"
+            label="产品名称"
+            min-width="150"
+          />
           <el-table-column prop="model" label="型号" width="100" />
           <el-table-column
             prop="firmwareVersion"
@@ -59,7 +95,9 @@
             }}</template>
           </el-table-column>
           <el-table-column label="模板" min-width="120">
-            <template #default="s2">{{ s2.row.template?.name || '-' }}</template>
+            <template #default="s2">{{
+              s2.row.template?.name || '-'
+            }}</template>
           </el-table-column>
           <el-table-column label="总数" width="70">
             <template #default="s3">
@@ -126,7 +164,9 @@
             <template #default="s4">{{ s4.row.inspectorName || '-' }}</template>
           </el-table-column>
           <el-table-column prop="CreatedAt" label="创建时间" width="160">
-            <template #default="s5">{{ formatDate(s5.row.CreatedAt) }}</template>
+            <template #default="s5">{{
+              formatDate(s5.row.CreatedAt)
+            }}</template>
           </el-table-column>
           <el-table-column label="操作" width="260" fixed="right">
             <template #default="s6">
@@ -151,12 +191,26 @@
                 type="primary"
                 @click="openDetail(s6.row)"
               >
-                {{ activeTab === 'completed' || activeTab === 'confirming' ? '查看' : '检测' }}
+                {{
+                  activeTab === 'completed' || activeTab === 'confirming'
+                    ? '查看'
+                    : '检测'
+                }}
               </el-button>
-              <el-button size="small" type="success" link @click="onExportExcel(s6.row)">
+              <el-button
+                size="small"
+                type="success"
+                link
+                @click="onExportExcel(s6.row)"
+              >
                 导出Excel
               </el-button>
-              <el-button size="small" type="primary" link @click="openPrint(s6.row)">
+              <el-button
+                size="small"
+                type="primary"
+                link
+                @click="openPrint(s6.row)"
+              >
                 打印
               </el-button>
             </template>
@@ -175,7 +229,18 @@
               <div class="card-title">{{ row.moNumber || '-' }}</div>
               <div class="card-subtitle">{{ row.batchNumber || '-' }}</div>
             </div>
-            <el-tag size="small" :type="activeTab === 'completed' ? 'success' : activeTab === 'confirming' ? 'warning' : activeTab === 'inspecting' ? 'primary' : 'info'">
+            <el-tag
+              size="small"
+              :type="
+                activeTab === 'completed'
+                  ? 'success'
+                  : activeTab === 'confirming'
+                  ? 'warning'
+                  : activeTab === 'inspecting'
+                  ? 'primary'
+                  : 'info'
+              "
+            >
               {{ activeTabLabel }}
             </el-tag>
           </div>
@@ -190,27 +255,60 @@
           <div class="card-counts">
             <div class="count-box">
               <span>总数</span>
-              <DeviceStatusCount :row="row" type="all" :count="row.deviceCount" :batch-id="row.ID" @changed="getList" />
+              <DeviceStatusCount
+                :row="row"
+                type="all"
+                :count="row.deviceCount"
+                :batch-id="row.ID"
+                @changed="getList"
+              />
             </div>
             <div class="count-box">
               <span>合格</span>
-              <DeviceStatusCount :row="row" type="pass" :count="row.passCount" :batch-id="row.ID" @changed="getList" />
+              <DeviceStatusCount
+                :row="row"
+                type="pass"
+                :count="row.passCount"
+                :batch-id="row.ID"
+                @changed="getList"
+              />
             </div>
             <div class="count-box">
               <span>不合格</span>
-              <DeviceStatusCount :row="row" type="fail" :count="row.failCount" :batch-id="row.ID" @changed="getList" />
+              <DeviceStatusCount
+                :row="row"
+                type="fail"
+                :count="row.failCount"
+                :batch-id="row.ID"
+                @changed="getList"
+              />
             </div>
             <div class="count-box">
               <span>返工</span>
-              <DeviceStatusCount :row="row" type="rework" :count="row.reworkCount" :batch-id="row.ID" @changed="getList" />
+              <DeviceStatusCount
+                :row="row"
+                type="rework"
+                :count="row.reworkCount"
+                :batch-id="row.ID"
+                @changed="getList"
+              />
             </div>
             <div class="count-box">
               <span>待复检</span>
-              <DeviceStatusCount :row="row" type="recheck" :count="row.recheckCount" :batch-id="row.ID" allow-recheck-actions @changed="getList" />
+              <DeviceStatusCount
+                :row="row"
+                type="recheck"
+                :count="row.recheckCount"
+                :batch-id="row.ID"
+                allow-recheck-actions
+                @changed="getList"
+              />
             </div>
             <div class="count-box rate">
               <span>合格率</span>
-              <strong>{{ passRateLabel(row.passCount, row.deviceCount) }}</strong>
+              <strong>{{
+                passRateLabel(row.passCount, row.deviceCount)
+              }}</strong>
             </div>
           </div>
 
@@ -237,11 +335,18 @@
               size="small"
               @click="openDetail(row)"
             >
-              {{ activeTab === 'completed' || activeTab === 'confirming' ? '查看' : '检测' }}
+              {{
+                activeTab === 'completed' || activeTab === 'confirming'
+                  ? '查看'
+                  : '检测'
+              }}
             </el-button>
           </div>
         </div>
-        <div v-if="!loading && tableData.length === 0" class="mobile-empty-state">
+        <div
+          v-if="!loading && tableData.length === 0"
+          class="mobile-empty-state"
+        >
           <el-empty description="暂无检测工单" />
         </div>
       </div>
@@ -283,10 +388,15 @@
   const total = ref(0)
   const requestSeq = ref(0)
   const savedTab = sessionStorage.getItem('inspectTab')
-  const activeTab = ref(savedTab === 'recheck' ? 'confirming' : (savedTab || 'pending'))
+  const activeTab = ref(
+    savedTab === 'recheck' ? 'confirming' : savedTab || 'pending'
+  )
   const searchInfo = reactive({
     moNumber: '',
     model: '',
+    batchNumber: '',
+    sn: '',
+    deviceStatus: '',
     page: 1,
     pageSize: 30
   })
@@ -303,9 +413,22 @@
     confirming: '待确认',
     completed: '已完成'
   }
-  const activeTabLabel = computed(() => activeTabLabelMap[activeTab.value] || '-')
+  const deviceStatusOptions = [
+    { label: '待检测设备', value: 'pending' },
+    { label: '合格', value: 'pass' },
+    { label: '不合格', value: 'fail' },
+    { label: '待生产接收', value: 'returned' },
+    { label: '返工中', value: 'rework' },
+    { label: '待复检', value: 'pending_recheck' },
+    { label: '复检中', value: 'rechecking' }
+  ]
+  const activeTabLabel = computed(
+    () => activeTabLabelMap[activeTab.value] || '-'
+  )
   const paginationLayout = computed(() =>
-    isMobile.value ? 'prev, pager, next' : 'total, sizes, prev, pager, next, jumper'
+    isMobile.value
+      ? 'prev, pager, next'
+      : 'total, sizes, prev, pager, next, jumper'
   )
   const passRateLabel = (passCount, deviceCount) => {
     const total = Number(deviceCount || 0)
@@ -316,7 +439,8 @@
     const deviceCount = Number(row.deviceCount || 0)
     if (!deviceCount) return false
     const passCount = Number(row.passCount || 0)
-    const pendingCount = Number(row.failCount || 0) +
+    const pendingCount =
+      Number(row.failCount || 0) +
       Number(row.reworkCount || 0) +
       Number(row.recheckCount || 0)
     return passCount === deviceCount && pendingCount === 0
@@ -352,6 +476,9 @@
   const resetSearch = () => {
     searchInfo.moNumber = ''
     searchInfo.model = ''
+    searchInfo.batchNumber = ''
+    searchInfo.sn = ''
+    searchInfo.deviceStatus = ''
     searchInfo.page = 1
     getList()
   }
@@ -388,11 +515,15 @@
   }
   const onExportExcel = async (row) => {
     const res = await exportInspectionExcel({ id: row.ID })
-    const filename = `${row.moNumber || 'MO'}-${row.batchNumber || row.ID}-检测工单.xlsx`
+    const filename = `${row.moNumber || 'MO'}-${
+      row.batchNumber || row.ID
+    }-检测工单.xlsx`
     downloadBlob(res.data || res, filename)
   }
   const onStartInspect = async (row) => {
-    await ElMessageBox.confirm('确定接收该批次并开始检测？', '提示', { type: 'info' })
+    await ElMessageBox.confirm('确定接收该批次并开始检测？', '提示', {
+      type: 'info'
+    })
     const res = await startInspection({ ID: row.ID })
     if (res.code === 0) {
       ElMessage.success({ message: '已接收并开始检测', duration: 1000 })
@@ -404,10 +535,14 @@
     }
   }
   const onConfirmComplete = async (row) => {
-    await ElMessageBox.confirm('确认该批次全部闭环并完成检测？确认后只能查看、打印和导出。', '确认完成', {
-      type: 'success',
-      confirmButtonText: '确认完成'
-    })
+    await ElMessageBox.confirm(
+      '确认该批次全部闭环并完成检测？确认后只能查看、打印和导出。',
+      '确认完成',
+      {
+        type: 'success',
+        confirmButtonText: '确认完成'
+      }
+    )
     const res = await confirmInspectionComplete({ ID: row.ID })
     if (res.code === 0) {
       ElMessage.success('已确认完成')

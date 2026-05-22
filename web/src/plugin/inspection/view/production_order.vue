@@ -18,6 +18,22 @@
             size="small"
           />
         </el-form-item>
+        <el-form-item label="批次号">
+          <el-input
+            v-model="searchInfo.batchNumber"
+            placeholder="请输入"
+            clearable
+            size="small"
+          />
+        </el-form-item>
+        <el-form-item label="SN">
+          <el-input
+            v-model="searchInfo.sn"
+            placeholder="请输入"
+            clearable
+            size="small"
+          />
+        </el-form-item>
         <el-form-item label="业务类型">
           <el-select
             v-model="searchInfo.instrumentCategory"
@@ -30,6 +46,22 @@
             <el-option label="线下" value="offline" />
             <el-option label="外贸" value="foreign_trade" />
             <el-option label="定制款" value="custom" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="订单状态">
+          <el-select
+            v-model="searchInfo.status"
+            placeholder="请选择"
+            clearable
+            size="small"
+            style="width: 130px"
+          >
+            <el-option
+              v-for="item in orderStatusOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -698,7 +730,10 @@
   const searchInfo = reactive({
     moNumber: '',
     model: '',
+    batchNumber: '',
+    sn: '',
     instrumentCategory: '',
+    status: undefined,
     page: 1,
     pageSize: 30
   })
@@ -729,6 +764,13 @@
     ({ 0: '未派检', 1: '待检测接收', 2: '检测中', 3: '待确认', 4: '已完成' }[value] || value)
   const orderStatusTagType = (value) =>
     ({ 0: 'info', 1: 'warning', 2: 'primary', 3: 'warning', 4: 'success' }[value] || 'info')
+  const orderStatusOptions = [
+    { label: '未派检', value: 0 },
+    { label: '待检测接收', value: 1 },
+    { label: '检测中', value: 2 },
+    { label: '待确认', value: 3 },
+    { label: '已完成', value: 4 }
+  ]
   const deviceStatusLabel = (value) =>
     ({
       pending: '待检测设备',
@@ -834,7 +876,10 @@
   const resetSearch = () => {
     searchInfo.moNumber = ''
     searchInfo.model = ''
+    searchInfo.batchNumber = ''
+    searchInfo.sn = ''
     searchInfo.instrumentCategory = ''
+    searchInfo.status = undefined
     searchInfo.page = 1
     getList()
   }

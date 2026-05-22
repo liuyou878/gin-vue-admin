@@ -167,6 +167,18 @@ func (s *productionOrderSvc) GetProductionOrderList(search request.ProductionOrd
 	if search.Model != "" {
 		db = db.Where("model LIKE ?", "%"+search.Model+"%")
 	}
+	if search.BatchNumber != "" {
+		db = db.Where(
+			"EXISTS (SELECT 1 FROM production_batches pb WHERE pb.production_order_id = production_orders.id AND pb.batch_number LIKE ?)",
+			"%"+search.BatchNumber+"%",
+		)
+	}
+	if search.SN != "" {
+		db = db.Where(
+			"EXISTS (SELECT 1 FROM production_order_devices pod WHERE pod.production_order_id = production_orders.id AND pod.sn LIKE ?)",
+			"%"+search.SN+"%",
+		)
+	}
 	if search.InstrumentCategory != "" {
 		db = db.Where("instrument_category = ?", search.InstrumentCategory)
 	}

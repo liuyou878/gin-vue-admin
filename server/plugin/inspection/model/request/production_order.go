@@ -5,6 +5,8 @@ import "github.com/flipped-aurora/gin-vue-admin/server/model/common/request"
 type ProductionOrderSearch struct {
 	MONumber           string `json:"moNumber" form:"moNumber"`
 	Model              string `json:"model" form:"model"`
+	BatchNumber        string `json:"batchNumber" form:"batchNumber"`
+	SN                 string `json:"sn" form:"sn"`
 	InstrumentCategory string `json:"instrumentCategory" form:"instrumentCategory"`
 	Status             *int   `json:"status" form:"status"`
 	request.PageInfo
