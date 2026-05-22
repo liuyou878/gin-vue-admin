@@ -3,6 +3,7 @@ package initialize
 import (
 	"context"
 
+	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	model "github.com/flipped-aurora/gin-vue-admin/server/model/system"
 	"github.com/flipped-aurora/gin-vue-admin/server/plugin/plugin-tool/utils"
 )
@@ -39,4 +40,26 @@ func Menu(ctx context.Context) {
 		Meta: model.Meta{Title: "生产提交数据", Icon: "data-board"},
 	}
 	utils.RegisterMenus(parent, child1, child2, child3, child4, child5)
+	ensureMenuButton(ctx, "inspectionItem", "delete", "删除")
+	ensureMenuButton(ctx, "inspectionTemplate", "delete", "删除")
+	ensureMenuButton(ctx, "productionOrder", "delete", "删除")
+	ensureMenuButton(ctx, "submittedDevice", "delete", "删除")
+}
+
+func ensureMenuButton(ctx context.Context, menuName string, btnName string, desc string) {
+	if global.GVA_DB == nil {
+		return
+	}
+	var menu model.SysBaseMenu
+	if err := global.GVA_DB.WithContext(ctx).Where("name = ?", menuName).First(&menu).Error; err != nil {
+		return
+	}
+	btn := model.SysBaseMenuBtn{
+		Name:          btnName,
+		Desc:          desc,
+		SysBaseMenuID: menu.ID,
+	}
+	_ = global.GVA_DB.WithContext(ctx).
+		Where("sys_base_menu_id = ? AND name = ?", menu.ID, btnName).
+		FirstOrCreate(&btn).Error
 }

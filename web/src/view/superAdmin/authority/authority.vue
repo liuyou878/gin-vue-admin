@@ -123,8 +123,9 @@
       v-model="drawer"
       :size="appStore.drawerSize"
       title="角色配置"
+      class="authority-config-drawer"
     >
-      <el-tabs :before-leave="autoEnter" type="border-card">
+      <el-tabs class="authority-config-tabs" :before-leave="autoEnter" type="border-card">
         <el-tab-pane label="角色菜单">
           <Menus ref="menus" :row="activeRow" @changeRow="changeRow" />
         </el-tab-pane>
@@ -589,7 +590,44 @@
   }
   .tree-content {
     margin-top: 10px;
-    height: calc(100vh - 158px);
+    height: calc(100vh - 240px);
     overflow: auto;
+  }
+
+  .authority-config-drawer {
+    .el-drawer__body {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .authority-config-tabs {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .authority-config-tabs > .el-tabs__content {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .authority-config-tabs .el-tab-pane {
+      height: 100%;
+      min-height: 0;
+    }
+
+    .tree-content {
+      height: calc(100vh - 248px);
+      min-height: 280px;
+      overflow: hidden;
+    }
+
+    .tree-content .el-scrollbar {
+      height: 100%;
+    }
   }
 </style>

@@ -47,7 +47,7 @@
       <el-table-column label="操作" width="180" fixed="right">
         <template #default="scope">
           <el-button type="primary" link size="small" @click="openDetail(scope.row)">GETALL详情</el-button>
-          <el-button type="danger" link size="small" @click="handleDelete(scope.row)">删除</el-button>
+          <el-button v-auth="btnAuth.delete" type="danger" link size="small" @click="handleDelete(scope.row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -69,7 +69,7 @@
     <el-drawer v-model="detailVisible" title="生产工具提交详情" size="60%" destroy-on-close>
       <template v-if="detailData">
         <div class="mb-3">
-          <el-button type="danger" size="small" @click="handleDelete(detailData, true)">删除这条提交数据</el-button>
+          <el-button v-auth="btnAuth.delete" type="danger" size="small" @click="handleDelete(detailData, true)">删除这条提交数据</el-button>
         </div>
         <el-descriptions :column="2" border size="small" class="mb-4">
           <el-descriptions-item label="生产号">{{ detailData.productionOrder?.moNumber || detailData.moNumber || '-' }}</el-descriptions-item>
@@ -107,8 +107,10 @@
 import { computed, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatDate } from '@/utils/format'
+import { useBtnAuth } from '@/utils/btnAuth'
 import { getSubmittedDeviceList, findSubmittedDevice, deleteSubmittedDevice } from '@/plugin/inspection/api/production_order'
 
+const btnAuth = useBtnAuth()
 const loading = ref(false)
 const tableData = ref([])
 const total = ref(0)

@@ -20,7 +20,7 @@
 
     <div class="gva-btn-list">
       <el-button type="primary" @click="openDialog('create')">新增</el-button>
-      <el-button :disabled="!multipleSelection.length" @click="onDeleteByIds">批量删除</el-button>
+      <el-button v-auth="btnAuth.delete" :disabled="!multipleSelection.length" @click="onDeleteByIds">批量删除</el-button>
     </div>
 
     <el-table
@@ -57,7 +57,7 @@
       <el-table-column label="操作" width="150" fixed="right">
         <template #default="scope">
           <el-button size="small" type="primary" link @click="openDialog('update', scope.row)">编辑</el-button>
-          <el-button size="small" type="danger" link @click="onDelete(scope.row.ID)">删除</el-button>
+          <el-button v-auth="btnAuth.delete" size="small" type="danger" link @click="onDelete(scope.row.ID)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -114,6 +114,7 @@
 import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatDate } from '@/utils/format'
+import { useBtnAuth } from '@/utils/btnAuth'
 import {
   getItemList,
   createItem,
@@ -123,6 +124,7 @@ import {
   findItem
 } from '@/plugin/inspection/api/inspection_item'
 
+const btnAuth = useBtnAuth()
 const loading = ref(false)
 const tableData = ref([])
 const total = ref(0)

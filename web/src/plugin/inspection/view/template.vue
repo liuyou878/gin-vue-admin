@@ -58,6 +58,7 @@
             >复制</el-button
           >
           <el-button
+            v-auth="btnAuth.delete"
             size="small"
             type="danger"
             link
@@ -226,6 +227,7 @@
   import { ref, reactive, nextTick } from 'vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { formatDate } from '@/utils/format'
+  import { useBtnAuth } from '@/utils/btnAuth'
   import draggable from 'vuedraggable'
   import {
     getTemplateList,
@@ -237,6 +239,7 @@
   } from '@/plugin/inspection/api/template'
   import { getItemList } from '@/plugin/inspection/api/inspection_item'
 
+  const btnAuth = useBtnAuth()
   const loading = ref(false)
   const tableData = ref([])
   const total = ref(0)

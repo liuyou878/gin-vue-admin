@@ -128,6 +128,7 @@
             >编辑</el-button
           > -->
           <el-button
+            v-auth="btnAuth.delete"
             v-if="scope.row.status === 0"
             size="small"
             type="danger"
@@ -136,6 +137,7 @@
             >删除</el-button
           >
           <el-button
+            v-auth="btnAuth.delete"
             v-else
             size="small"
             type="danger"
@@ -644,6 +646,7 @@
   import { computed, reactive, ref } from 'vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { formatDate } from '@/utils/format'
+  import { useBtnAuth } from '@/utils/btnAuth'
   import {
     getProductionOrderList,
     deleteProductionOrder,
@@ -663,6 +666,7 @@
   import DeviceStatusCount from '@/plugin/inspection/components/DeviceStatusCount.vue'
   import FlowLogDrawer from '@/plugin/inspection/components/FlowLogDrawer.vue'
 
+  const btnAuth = useBtnAuth()
   const loading = ref(false)
   const tableData = ref([])
   const total = ref(0)
