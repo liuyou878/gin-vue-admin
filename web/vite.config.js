@@ -18,6 +18,9 @@ export default ({ mode }) => {
   viteLogo(env)
 
   const timestamp = Date.parse(new Date())
+  const isProduction = mode === 'production'
+  const enableLegacy = env.VITE_LEGACY === 'true'
+  const enableRootValidator = !isProduction && env.VITE_CHECK_MULTIPLE_DOM !== 'false'
 
   const optimizeDeps = {}
 
@@ -26,7 +29,11 @@ export default ({ mode }) => {
     vue$: 'vue/dist/vue.runtime.esm-bundler.js'
   }
 
-  const esbuild = {}
+  const esbuild = isProduction
+    ? {
+        drop: ['console', 'debugger']
+      }
+    : {}
 
   const rollupOptions = {
     output: {
@@ -78,17 +85,11 @@ export default ({ mode }) => {
       }
     },
     build: {
-      minify: 'terser', // 是否进行压缩,boolean | 'terser' | 'esbuild',默认使用terser
+      minify: 'esbuild', // esbuild 比 terser 快很多，适合后台系统生产构建
       manifest: false, // 是否产出manifest.json
       sourcemap: false, // 是否产出sourcemap.json
+      reportCompressedSize: false, // 跳过 gzip/brotli 体积统计，减少构建等待
       outDir: outDir, // 产出目录
-      terserOptions: {
-        compress: {
-          //生产环境时移除console
-          drop_console: true,
-          drop_debugger: true
-        }
-      },
       rollupOptions
     },
     esbuild,
@@ -96,7 +97,7 @@ export default ({ mode }) => {
     plugins: [
       env.VITE_POSITION === 'open' &&
       vueDevTools({ launchEditor: env.VITE_EDITOR }),
-      legacyPlugin({
+      enableLegacy && legacyPlugin({
         targets: [
           'Android > 39',
           'Chrome >= 60',
@@ -111,8 +112,8 @@ export default ({ mode }) => {
       // [Banner(`\n Build based on gin-vue-admin \n Time : ${timestamp}`)],
       VueFilePathPlugin('./src/pathInfo.json'),
       UnoCSS(),
-      vueRootValidator()
-    ]
+      enableRootValidator && vueRootValidator()
+    ].filter(Boolean)
   }
   return config
 }
