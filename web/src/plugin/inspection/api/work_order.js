@@ -24,6 +24,10 @@ export const saveResults = (data) => {
   return service({ url: '/workOrder/saveResults', method: 'post', data })
 }
 
+export const saveSingleResult = (data) => {
+  return service({ url: '/workOrder/saveSingleResult', method: 'post', data })
+}
+
 export const completeInspection = (data) => {
   return service({ url: '/workOrder/completeInspection', method: 'post', data })
 }

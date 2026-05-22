@@ -132,7 +132,7 @@ func (s *workOrderSvc) AssignOrderTemplate(req *request.AssignOrderTemplate) err
 	})
 }
 
-func (s *workOrderSvc) SaveResults(req *request.SaveInspectionResult) error {
+func (s *workOrderSvc) SaveResults(req *request.SaveInspectionResult, inspectorID uint, inspectorName string) error {
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		var batch model.ProductionBatch
 		if err := tx.Where("id = ?", req.BatchID).First(&batch).Error; err != nil {
@@ -149,19 +149,40 @@ func (s *workOrderSvc) SaveResults(req *request.SaveInspectionResult) error {
 			var existing model.InspectionDeviceResult
 			err := tx.Where("production_order_device_id = ? AND item_id = ?", dr.DeviceID, dr.ItemID).First(&existing).Error
 			if err == nil {
-				tx.Model(&existing).Updates(map[string]interface{}{
+				updates := map[string]interface{}{
 					"pass_result":   dr.PassResult,
 					"number_result": dr.NumberResult,
 					"remark":        dr.Remark,
-				})
-			} else {
-				tx.Create(&model.InspectionDeviceResult{
+				}
+				if resultFieldsChanged(existing, dr.PassResult, dr.NumberResult, dr.Remark) ||
+					(existing.InspectedAt == nil && resultHasValue(dr.PassResult, dr.NumberResult, dr.Remark)) {
+					now := time.Now()
+					updates["inspector_id"] = inspectorID
+					updates["inspector_name"] = inspectorName
+					updates["inspected_at"] = &now
+				}
+				if err := tx.Model(&existing).Updates(updates).Error; err != nil {
+					return err
+				}
+			} else if errors.Is(err, gorm.ErrRecordNotFound) {
+				if !resultHasValue(dr.PassResult, dr.NumberResult, dr.Remark) {
+					continue
+				}
+				now := time.Now()
+				if err := tx.Create(&model.InspectionDeviceResult{
 					ProductionOrderDeviceID: dr.DeviceID,
 					ItemID:                  dr.ItemID,
 					PassResult:              dr.PassResult,
 					NumberResult:            dr.NumberResult,
 					Remark:                  dr.Remark,
-				})
+					InspectorID:             &inspectorID,
+					InspectorName:           inspectorName,
+					InspectedAt:             &now,
+				}).Error; err != nil {
+					return err
+				}
+			} else {
+				return err
 			}
 		}
 		for _, ds := range req.DeviceStatuses {
@@ -178,6 +199,100 @@ func (s *workOrderSvc) SaveResults(req *request.SaveInspectionResult) error {
 		}
 		return nil
 	})
+}
+
+func resultHasValue(passResult *bool, numberResult *float64, remark string) bool {
+	return passResult != nil || numberResult != nil || strings.TrimSpace(remark) != ""
+}
+
+func resultFieldsChanged(existing model.InspectionDeviceResult, passResult *bool, numberResult *float64, remark string) bool {
+	return !boolPtrEqual(existing.PassResult, passResult) ||
+		!floatPtrEqual(existing.NumberResult, numberResult) ||
+		existing.Remark != remark
+}
+
+func boolPtrEqual(a, b *bool) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
+func floatPtrEqual(a, b *float64) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
+func (s *workOrderSvc) SaveSingleResult(req *request.SaveSingleInspectionResult, inspectorID uint, inspectorName string) (*model.InspectionDeviceResult, error) {
+	var saved model.InspectionDeviceResult
+	err := global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var batch model.ProductionBatch
+		if err := tx.Where("id = ?", req.BatchID).First(&batch).Error; err != nil {
+			return err
+		}
+		var device model.ProductionOrderDevice
+		if err := tx.Where("id = ? AND batch_id = ?", req.DeviceID, req.BatchID).First(&device).Error; err != nil {
+			return err
+		}
+		if batch.Status == 3 && device.Status != "rechecking" {
+			return fmt.Errorf("设备 %s 当前不是复检中，不能修改检测结果", device.SN)
+		}
+
+		now := time.Now()
+		var existing model.InspectionDeviceResult
+		err := tx.Where("production_order_device_id = ? AND item_id = ?", req.DeviceID, req.ItemID).First(&existing).Error
+		if err == nil {
+			if err := tx.Model(&existing).Updates(map[string]interface{}{
+				"pass_result":    req.PassResult,
+				"number_result":  req.NumberResult,
+				"remark":         req.Remark,
+				"inspector_id":   inspectorID,
+				"inspector_name": inspectorName,
+				"inspected_at":   &now,
+			}).Error; err != nil {
+				return err
+			}
+			existing.PassResult = req.PassResult
+			existing.NumberResult = req.NumberResult
+			existing.Remark = req.Remark
+			existing.InspectorID = &inspectorID
+			existing.InspectorName = inspectorName
+			existing.InspectedAt = &now
+			saved = existing
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			if !resultHasValue(req.PassResult, req.NumberResult, req.Remark) {
+				return errors.New("没有可保存的检测结果")
+			}
+			saved = model.InspectionDeviceResult{
+				ProductionOrderDeviceID: req.DeviceID,
+				ItemID:                  req.ItemID,
+				PassResult:              req.PassResult,
+				NumberResult:            req.NumberResult,
+				Remark:                  req.Remark,
+				InspectorID:             &inspectorID,
+				InspectorName:           inspectorName,
+				InspectedAt:             &now,
+			}
+			if err := tx.Create(&saved).Error; err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+
+		if strings.TrimSpace(req.Status) != "" {
+			if err := updateDeviceStatusWithLog(tx, device, req.Status, "保存单项检测结果", nil, ""); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &saved, nil
 }
 
 func (s *workOrderSvc) ReturnDevices(req *request.ReturnDevices, returnByID uint, returnByName string) error {
@@ -390,15 +505,18 @@ func inspectionResultCompleted(resultType string, result model.InspectionDeviceR
 }
 
 type InspectionResultItem struct {
-	ItemID       uint     `json:"itemID"`
-	ItemName     string   `json:"itemName"`
-	ResultType   string   `json:"resultType"`
-	Unit         string   `json:"unit"`
-	MinValue     *float64 `json:"minValue"`
-	MaxValue     *float64 `json:"maxValue"`
-	PassResult   *bool    `json:"passResult"`
-	NumberResult *float64 `json:"numberResult"`
-	Remark       string   `json:"remark"`
+	ItemID        uint       `json:"itemID"`
+	ItemName      string     `json:"itemName"`
+	ResultType    string     `json:"resultType"`
+	Unit          string     `json:"unit"`
+	MinValue      *float64   `json:"minValue"`
+	MaxValue      *float64   `json:"maxValue"`
+	PassResult    *bool      `json:"passResult"`
+	NumberResult  *float64   `json:"numberResult"`
+	Remark        string     `json:"remark"`
+	InspectorID   *uint      `json:"inspectorID"`
+	InspectorName string     `json:"inspectorName"`
+	InspectedAt   *time.Time `json:"inspectedAt"`
 }
 
 func (s *workOrderSvc) GetInspectionBatchList(search request.InspectionBatchSearch) ([]model.InspectionBatchListItem, int64, error) {
@@ -561,6 +679,7 @@ func (s *workOrderSvc) GetInspectionDetailData(batchID string) (map[string]inter
 				ItemID: ti.ItemID, ItemName: ti.Item.Name, ResultType: ti.Item.ResultType,
 				Unit: ti.Item.Unit, MinValue: ti.Item.MinValue, MaxValue: ti.Item.MaxValue,
 				PassResult: r.PassResult, NumberResult: r.NumberResult, Remark: r.Remark,
+				InspectorID: r.InspectorID, InspectorName: r.InspectorName, InspectedAt: r.InspectedAt,
 			}
 		}
 	}

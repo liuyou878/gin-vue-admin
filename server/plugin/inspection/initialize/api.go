@@ -3,8 +3,11 @@ package initialize
 import (
 	"context"
 
+	adapter "github.com/casbin/gorm-adapter/v3"
+	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	model "github.com/flipped-aurora/gin-vue-admin/server/model/system"
-	"github.com/flipped-aurora/gin-vue-admin/server/plugin/plugin-tool/utils"
+	pluginUtils "github.com/flipped-aurora/gin-vue-admin/server/plugin/plugin-tool/utils"
+	serverUtils "github.com/flipped-aurora/gin-vue-admin/server/utils"
 )
 
 func Api(ctx context.Context) {
@@ -41,6 +44,7 @@ func Api(ctx context.Context) {
 		{Path: "/workOrder/startInspection", Description: "开始检测", ApiGroup: "检测工单", Method: "POST"},
 		{Path: "/workOrder/startRecheck", Description: "开始复检", ApiGroup: "检测工单", Method: "POST"},
 		{Path: "/workOrder/saveResults", Description: "保存检测结果", ApiGroup: "检测工单", Method: "POST"},
+		{Path: "/workOrder/saveSingleResult", Description: "保存单项检测结果", ApiGroup: "检测工单", Method: "POST"},
 		{Path: "/workOrder/completeInspection", Description: "完成检测", ApiGroup: "检测工单", Method: "POST"},
 		{Path: "/workOrder/completeRecheck", Description: "完成复检", ApiGroup: "检测工单", Method: "POST"},
 		{Path: "/workOrder/returnDevices", Description: "设备打回生产", ApiGroup: "检测工单", Method: "POST"},
@@ -48,5 +52,30 @@ func Api(ctx context.Context) {
 		{Path: "/workOrder/getInspectionDetail", Description: "获取检测详情", ApiGroup: "检测工单", Method: "GET"},
 		{Path: "/workOrder/exportInspectionExcel", Description: "导出检测工单Excel", ApiGroup: "检测工单", Method: "GET"},
 	}
-	utils.RegisterApis(entities...)
+	pluginUtils.RegisterApis(entities...)
+	grantSaveSingleResultPermission()
+}
+
+func grantSaveSingleResultPermission() {
+	if global.GVA_DB == nil {
+		return
+	}
+	var rules []adapter.CasbinRule
+	if err := global.GVA_DB.
+		Where("ptype = ? AND v1 = ? AND v2 = ?", "p", "/workOrder/saveResults", "POST").
+		Find(&rules).Error; err != nil {
+		return
+	}
+	for _, rule := range rules {
+		newRule := adapter.CasbinRule{
+			Ptype: "p",
+			V0:    rule.V0,
+			V1:    "/workOrder/saveSingleResult",
+			V2:    "POST",
+		}
+		_ = global.GVA_DB.
+			Where("ptype = ? AND v0 = ? AND v1 = ? AND v2 = ?", newRule.Ptype, newRule.V0, newRule.V1, newRule.V2).
+			FirstOrCreate(&newRule).Error
+	}
+	_ = serverUtils.GetCasbin().LoadPolicy()
 }

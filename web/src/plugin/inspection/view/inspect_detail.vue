@@ -85,6 +85,9 @@
                 {{ resultStatusLabel(row.result) }}
               </el-tag>
               <span v-if="row.meta">{{ row.meta }}</span>
+              <span class="save-meta" :class="saveStateClass(row.result)">
+                {{ resultSaveLabel(row.result) }}
+              </span>
             </div>
           </div>
 
@@ -94,7 +97,7 @@
                 class="action-btn action-pass"
                 :class="{ active: row.result._checked === true }"
                 :disabled="isReadonly"
-                @click="setPass(row.device, row.resultIndex, true)"
+                @click="setPassAndSave(row.device, row.resultIndex, true)"
               >
                 通过
               </button>
@@ -102,7 +105,7 @@
                 class="action-btn action-fail"
                 :class="{ active: row.result._checked === false }"
                 :disabled="isReadonly"
-                @click="setPass(row.device, row.resultIndex, false)"
+                @click="setPassAndSave(row.device, row.resultIndex, false)"
               >
                 不通过
               </button>
@@ -115,7 +118,7 @@
               controls-position="right"
               class="number-input"
               :class="getRangeClass(row.result)"
-              @change="onNumChange(row.device, row.resultIndex)"
+              @change="onNumChangeAndSave(row.device, row.resultIndex)"
             />
 
             <el-input
@@ -124,6 +127,7 @@
               placeholder="备注"
               class="remark-input"
               clearable
+              @blur="saveSingleResult(row.device, row.resultIndex)"
             />
           </div>
         </div>
@@ -156,7 +160,6 @@
         </div>
 
         <div class="footer-actions" v-if="detail.order.status === 2 || hasRecheckingDevices">
-          <el-button type="primary" size="large" @click="saveResults">保存进度</el-button>
           <el-button v-if="detail.order.status === 2" type="success" size="large" @click="onComplete">完成检测</el-button>
           <el-button v-if="hasRecheckingDevices" type="success" size="large" @click="onCompleteRecheck">完成复检</el-button>
         </div>
@@ -174,7 +177,8 @@ import {
   completeRecheck,
   getInspectionDetail,
   returnDevices as apiReturnDevices,
-  saveResults as apiSaveResults
+  saveResults as apiSaveResults,
+  saveSingleResult as apiSaveSingleResult
 } from '@/plugin/inspection/api/work_order'
 
 const route = useRoute()
@@ -321,6 +325,11 @@ const setPass = (device, resultIndex, value) => {
   calcDeviceStatus(device)
 }
 
+const setPassAndSave = async (device, resultIndex, value) => {
+  setPass(device, resultIndex, value)
+  await saveSingleResult(device, resultIndex)
+}
+
 const onNumChange = (device, resultIndex) => {
   const result = device.results[resultIndex]
   if (result._numVal === undefined || result._numVal === null || result._numVal === '') {
@@ -335,6 +344,91 @@ const onNumChange = (device, resultIndex) => {
     }
   }
   calcDeviceStatus(device)
+}
+
+const onNumChangeAndSave = async (device, resultIndex) => {
+  onNumChange(device, resultIndex)
+  await saveSingleResult(device, resultIndex)
+}
+
+const saveStateClass = (result) => {
+  if (result._saveState === 'saving') return 'saving'
+  if (result._saveState === 'error') return 'error'
+  if (result.inspectorName || result.inspectedAt) return 'saved'
+  return ''
+}
+
+const formatShortTime = (value) => {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  return `${month}-${day} ${hour}:${minute}`
+}
+
+const resultSaveLabel = (result) => {
+  if (result._saveState === 'saving') return '保存中...'
+  if (result._saveState === 'error') return '保存失败'
+  if (result.inspectorName || result.inspectedAt) {
+    return `${result.inspectorName || '已保存'}${result.inspectedAt ? ` · ${formatShortTime(result.inspectedAt)}` : ''}`
+  }
+  return '未保存'
+}
+
+const resultHasValue = (result) => {
+  if (!result) return false
+  return result._checked === true ||
+    result._checked === false ||
+    (result._numVal !== undefined && result._numVal !== null && result._numVal !== '') ||
+    Boolean((result.remark || '').trim())
+}
+
+const resultWasSaved = (result) => {
+  if (!result) return false
+  return Boolean(result.inspectorName || result.inspectedAt) ||
+    result.passResult === true ||
+    result.passResult === false ||
+    result.numberResult !== undefined && result.numberResult !== null ||
+    Boolean((result.remark || '').trim())
+}
+
+const saveSingleResult = async (device, resultIndex) => {
+  if (isReadonly.value) return false
+  const result = device?.results?.[resultIndex]
+  if (!result) return false
+  if (!resultHasValue(result) && !resultWasSaved(result)) return false
+  result._saveState = 'saving'
+  try {
+    const numberResult = result._numVal !== undefined && result._numVal !== null && result._numVal !== '' ? Number(result._numVal) : null
+    const res = await apiSaveSingleResult({
+      batchID: detail.value.order.ID,
+      deviceID: device.ID,
+      itemID: result.itemID,
+      passResult: result._checked,
+      numberResult,
+      remark: result.remark || '',
+      status: device._status || 'pending'
+    })
+    if (res.code !== 0) {
+      result._saveState = 'error'
+      return false
+    }
+    const data = res.data || {}
+    result.passResult = data.passResult
+    result.numberResult = data.numberResult
+    result.remark = data.remark || ''
+    result.inspectorID = data.inspectorID
+    result.inspectorName = data.inspectorName
+    result.inspectedAt = data.inspectedAt
+    result._saveState = 'saved'
+    return true
+  } catch (error) {
+    result._saveState = 'error'
+    return false
+  }
 }
 
 const calcDeviceStatus = (device) => {
@@ -418,6 +512,7 @@ const saveResults = async (silent = false) => {
   const res = await apiSaveResults(buildSavePayload())
   if (res.code === 0) {
     if (!silent) ElMessage.success('保存成功')
+    await loadDetail()
     return true
   }
   return false
@@ -529,6 +624,7 @@ const loadDetail = async () => {
     device.results.forEach((result) => {
       result._checked = result.passResult
       result._numVal = result.numberResult
+      result._saveState = ''
     })
     device._startedRecheck = device._status === 'rechecking'
     if (device._status !== 'rework' && device._status !== 'pending_recheck' && device._status !== 'rechecking') {
@@ -666,10 +762,27 @@ loadDetail()
 .row-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 6px;
   color: var(--el-text-color-secondary, #909399);
   font-size: 12px;
+}
+
+.save-meta {
+  color: var(--el-text-color-placeholder, #a8abb2);
+}
+
+.save-meta.saved {
+  color: var(--el-color-success, #67c23a);
+}
+
+.save-meta.saving {
+  color: var(--el-color-primary, #409eff);
+}
+
+.save-meta.error {
+  color: var(--el-color-danger, #f56c6c);
 }
 
 .row-controls {

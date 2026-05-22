@@ -118,11 +118,36 @@ func (a *workOrderApi) SaveResults(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := serviceWorkOrder.SaveResults(&req); err != nil {
+	claims, _ := utils.GetClaims(c)
+	if err := serviceWorkOrder.SaveResults(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
 		response.FailWithMessage("保存失败: "+err.Error(), c)
 		return
 	}
 	response.OkWithMessage("保存成功", c)
+}
+
+// SaveSingleResult 保存单项检测结果
+// @Tags     WorkOrder
+// @Summary  保存单项检测结果并记录检测人
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.SaveSingleInspectionResult true "单项检测结果"
+// @Success  200 {object} response.Response{data=object,msg=string} "保存成功"
+// @Router   /workOrder/saveSingleResult [post]
+func (a *workOrderApi) SaveSingleResult(c *gin.Context) {
+	var req request.SaveSingleInspectionResult
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	claims, _ := utils.GetClaims(c)
+	result, err := serviceWorkOrder.SaveSingleResult(&req, claims.BaseClaims.ID, claims.NickName)
+	if err != nil {
+		response.FailWithMessage("保存失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithDetailed(result, "保存成功", c)
 }
 
 // CompleteInspection 完成检测

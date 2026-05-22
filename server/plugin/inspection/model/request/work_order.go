@@ -34,6 +34,16 @@ type DeviceResultItem struct {
 	Remark       string   `json:"remark"`
 }
 
+type SaveSingleInspectionResult struct {
+	BatchID      uint     `json:"batchID" binding:"required"`
+	DeviceID     uint     `json:"deviceID" binding:"required"`
+	ItemID       uint     `json:"itemID" binding:"required"`
+	PassResult   *bool    `json:"passResult"`
+	NumberResult *float64 `json:"numberResult"`
+	Remark       string   `json:"remark"`
+	Status       string   `json:"status"`
+}
+
 type CompleteInspection struct {
 	ID uint `json:"ID" binding:"required"`
 }
