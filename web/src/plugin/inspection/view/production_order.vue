@@ -419,6 +419,8 @@
                     ? 'warning'
                     : scope.row.status === 2
                     ? 'primary'
+                    : scope.row.status === 3
+                    ? 'warning'
                     : 'success'
                 "
               >
@@ -566,6 +568,8 @@
                     ? 'warning'
                     : batch.status === 2
                     ? 'primary'
+                    : batch.status === 3
+                    ? 'warning'
                     : 'success'
                 "
               >
@@ -754,9 +758,9 @@
       custom: '定制款'
     }[value] || value)
   const batchStatusLabel = (value) =>
-    ({ 0: '未派检', 1: '待检测接收', 2: '检测中', 3: '已完成' }[value] || value)
+    ({ 0: '未派检', 1: '待检测接收', 2: '检测中', 3: '待确认', 4: '已完成' }[value] || value)
   const orderStatusTagType = (value) =>
-    ({ 0: 'info', 1: 'warning', 2: 'primary', 3: 'success' }[value] || 'info')
+    ({ 0: 'info', 1: 'warning', 2: 'primary', 3: 'warning', 4: 'success' }[value] || 'info')
   const deviceStatusLabel = (value) =>
     ({
       pending: '待检测设备',

@@ -57,7 +57,7 @@ func (s *workOrderSvc) StartRecheck(req *request.StartRecheck, inspectorID uint,
 				return err
 			}
 		}
-		return updateBatchStatusLogOnly(tx, batch, "开始复检", inspectorID, inspectorName, "")
+		return nil
 	})
 }
 
@@ -159,7 +159,7 @@ func (s *workOrderSvc) SaveResults(req *request.SaveInspectionResult, inspectorI
 			if err := tx.Where("id = ? AND batch_id = ?", dr.DeviceID, req.BatchID).First(&device).Error; err != nil {
 				return err
 			}
-			if batch.Status == 3 && device.Status != "rechecking" {
+			if batch.Status >= 3 && device.Status != "rechecking" {
 				return fmt.Errorf("设备 %s 当前不是复检中，不能修改检测结果", device.SN)
 			}
 			var existing model.InspectionDeviceResult
@@ -206,7 +206,7 @@ func (s *workOrderSvc) SaveResults(req *request.SaveInspectionResult, inspectorI
 			if err := tx.Where("id = ? AND batch_id = ?", ds.DeviceID, req.BatchID).First(&device).Error; err != nil {
 				return err
 			}
-			if batch.Status == 3 && device.Status != "rechecking" {
+			if batch.Status >= 3 && device.Status != "rechecking" {
 				return fmt.Errorf("设备 %s 当前不是复检中，不能修改检测结果", device.SN)
 			}
 			if err := updateDeviceStatusWithLog(tx, device, ds.Status, "保存检测结果", nil, ""); err != nil {
@@ -252,7 +252,7 @@ func (s *workOrderSvc) SaveSingleResult(req *request.SaveSingleInspectionResult,
 		if err := tx.Where("id = ? AND batch_id = ?", req.DeviceID, req.BatchID).First(&device).Error; err != nil {
 			return err
 		}
-		if batch.Status == 3 && device.Status != "rechecking" {
+		if batch.Status >= 3 && device.Status != "rechecking" {
 			return fmt.Errorf("设备 %s 当前不是复检中，不能修改检测结果", device.SN)
 		}
 
@@ -298,7 +298,7 @@ func (s *workOrderSvc) SaveSingleResult(req *request.SaveSingleInspectionResult,
 			return err
 		}
 
-		if strings.TrimSpace(req.Status) != "" && !(batch.Status == 3 && device.Status == "rechecking") {
+		if strings.TrimSpace(req.Status) != "" && !(batch.Status >= 3 && device.Status == "rechecking") {
 			if err := updateDeviceStatusWithLog(tx, device, req.Status, "保存单项检测结果", nil, ""); err != nil {
 				return err
 			}
@@ -318,7 +318,7 @@ func (s *workOrderSvc) ReturnDevices(req *request.ReturnDevices, returnByID uint
 			return err
 		}
 		if batch.Status != 3 {
-			return errors.New("只有检测完成后的不合格设备才可以打回生产")
+			return errors.New("只有待确认批次的不合格设备才可以打回生产")
 		}
 
 		now := time.Now()
@@ -460,7 +460,28 @@ func (s *workOrderSvc) CompleteInspection(req *request.CompleteInspection, opera
 			}
 		}
 
-		return updateBatchStatusWithLog(tx, batch, 3, "完成检测", operatorID, operatorName, "")
+		return updateBatchStatusWithLog(tx, batch, 3, "检测提交待确认", operatorID, operatorName, "")
+	})
+}
+
+func (s *workOrderSvc) ConfirmInspectionComplete(req *request.ConfirmInspectionComplete, operatorID uint, operatorName string) error {
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var batch model.ProductionBatch
+		if err := tx.Where("id = ? AND status = 3", req.ID).First(&batch).Error; err != nil {
+			return err
+		}
+
+		var pendingCount int64
+		if err := tx.Model(&model.ProductionOrderDevice{}).
+			Where("batch_id = ? AND status IN ?", req.ID, []string{"pending", "fail", "returned", "rework", "pending_recheck", "rechecking"}).
+			Count(&pendingCount).Error; err != nil {
+			return err
+		}
+		if pendingCount > 0 {
+			return errors.New("还有未闭环设备，不能确认完成")
+		}
+
+		return updateBatchStatusWithLog(tx, batch, 4, "完成检测", operatorID, operatorName, "")
 	})
 }
 
@@ -539,7 +560,7 @@ func (s *workOrderSvc) CompleteRecheck(req *request.CompleteRecheck, operatorID 
 			}
 		}
 
-		return updateBatchStatusLogOnly(tx, batch, "完成复检", operatorID, operatorName, "")
+		return nil
 	})
 }
 
@@ -879,6 +900,9 @@ func (s *workOrderSvc) GetFlowLogs(batchID string, deviceID string) ([]FlowLogIt
 		batchLogErr := global.GVA_DB.Where("production_batch_id = ?", batchID).Order("id asc").Find(&batchLogs).Error
 		if batchLogErr == nil && len(batchLogs) > 0 {
 			for _, log := range batchLogs {
+				if isDeviceRecheckBatchLog(log.Action) {
+					continue
+				}
 				items = append(items, FlowLogItem{
 					ID:           log.ID,
 					Scope:        "batch",
@@ -905,6 +929,15 @@ func (s *workOrderSvc) GetFlowLogs(batchID string, deviceID string) ([]FlowLogIt
 		return items[i].CreatedAt.After(items[j].CreatedAt)
 	})
 	return items, nil
+}
+
+func isDeviceRecheckBatchLog(action string) bool {
+	switch strings.TrimSpace(action) {
+	case "开始复检", "完成复检":
+		return true
+	default:
+		return false
+	}
 }
 
 func deviceFlowAction(fromStatus string, toStatus string, reason string) string {
@@ -995,9 +1028,23 @@ func syntheticBatchFlowLogs(batch model.ProductionBatch) []FlowLogItem {
 			Scope:      "batch",
 			ScopeLabel: "批次",
 			BatchID:    batch.ID,
-			Title:      "完成检测",
+			Title:      "检测提交待确认",
 			FromStatus: "2",
 			ToStatus:   "3",
+			Action:     "检测提交待确认",
+			Reason:     "历史数据无原始待确认日志，系统自动补显",
+			CreatedAt:  logTime,
+		})
+	}
+	if batch.Status >= 4 {
+		logs = append(logs, FlowLogItem{
+			ID:         batch.ID*10 + 4,
+			Scope:      "batch",
+			ScopeLabel: "批次",
+			BatchID:    batch.ID,
+			Title:      "完成检测",
+			FromStatus: "3",
+			ToStatus:   "4",
 			Action:     "完成检测",
 			Reason:     "历史数据无原始完成日志，系统自动补显",
 			CreatedAt:  logTime,

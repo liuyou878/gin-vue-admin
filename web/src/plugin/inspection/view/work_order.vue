@@ -4,7 +4,7 @@
       <el-tabs v-model="activeTab" @tab-change="onTabChange">
         <el-tab-pane label="待接收" name="pending" />
         <el-tab-pane label="检测中" name="inspecting" />
-        <el-tab-pane label="待复检" name="recheck" />
+        <el-tab-pane label="待确认" name="confirming" />
         <el-tab-pane label="已完成" name="completed" />
       </el-tabs>
       <div class="search-bar">
@@ -102,7 +102,7 @@
               >接收并开始检测</el-button
             >
             <el-button
-              v-else-if="activeTab === 'recheck'"
+              v-if="activeTab === 'confirming' && (s6.row.recheckCount > 0 || s6.row.recheckingCount > 0)"
               size="small"
               type="warning"
               @click="onRecheckAction(s6.row)"
@@ -110,12 +110,20 @@
               {{ s6.row.recheckingCount > 0 ? '继续复检' : '开始复检' }}
             </el-button>
             <el-button
-              v-else
+              v-if="activeTab === 'confirming' && canConfirmComplete(s6.row)"
+              size="small"
+              type="success"
+              @click="onConfirmComplete(s6.row)"
+            >
+              确认完成
+            </el-button>
+            <el-button
+              v-if="activeTab !== 'pending'"
               size="small"
               type="primary"
               @click="openDetail(s6.row)"
             >
-              {{ activeTab === 'completed' ? '查看' : '检测' }}
+              {{ activeTab === 'completed' || activeTab === 'confirming' ? '查看' : '检测' }}
             </el-button>
             <el-button size="small" type="success" link @click="onExportExcel(s6.row)">
               导出Excel
@@ -151,6 +159,7 @@
   import {
     getInspectionBatchList,
     exportInspectionExcel,
+    confirmInspectionComplete,
     startInspection,
     startRecheck
   } from '@/plugin/inspection/api/work_order'
@@ -158,7 +167,8 @@
   const loading = ref(false)
   const tableData = ref([])
   const total = ref(0)
-  const activeTab = ref(sessionStorage.getItem('inspectTab') || 'pending')
+  const savedTab = sessionStorage.getItem('inspectTab')
+  const activeTab = ref(savedTab === 'recheck' ? 'confirming' : (savedTab || 'pending'))
   const searchInfo = reactive({
     moNumber: '',
     model: '',
@@ -177,16 +187,23 @@
     if (!total) return '-'
     return `${((Number(passCount || 0) / total) * 100).toFixed(1)}%`
   }
+  const canConfirmComplete = (row) => {
+    const deviceCount = Number(row.deviceCount || 0)
+    if (!deviceCount) return false
+    const passCount = Number(row.passCount || 0)
+    const pendingCount = Number(row.failCount || 0) +
+      Number(row.reworkCount || 0) +
+      Number(row.recheckCount || 0)
+    return passCount === deviceCount && pendingCount === 0
+  }
 
   const getList = async () => {
     loading.value = true
-    const statusMap = { pending: 1, inspecting: 2, completed: 3, recheck: 3 }
-    const deviceStatusMap = { recheck: 'pending_recheck,rechecking' }
+    const statusMap = { pending: 1, inspecting: 2, confirming: 3, completed: 4 }
     try {
       const res = await getInspectionBatchList({
         ...searchInfo,
-        status: statusMap[activeTab.value],
-        deviceStatus: deviceStatusMap[activeTab.value]
+        status: statusMap[activeTab.value]
       })
       if (res.code === 0) {
         tableData.value = res.data.list
@@ -255,6 +272,17 @@
       ElMessage.success('已开始复检')
       getList()
       openDetail(row)
+    }
+  }
+  const onConfirmComplete = async (row) => {
+    await ElMessageBox.confirm('确认该批次全部闭环并完成检测？确认后只能查看、打印和导出。', '确认完成', {
+      type: 'success',
+      confirmButtonText: '确认完成'
+    })
+    const res = await confirmInspectionComplete({ ID: row.ID })
+    if (res.code === 0) {
+      ElMessage.success('已确认完成')
+      getList()
     }
   }
   getList()

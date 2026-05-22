@@ -19,6 +19,7 @@ func (r *workOrderRouter) Init(private *gin.RouterGroup) {
 		group.POST("saveResults", apiWorkOrder.SaveResults)
 		group.POST("saveSingleResult", apiWorkOrder.SaveSingleResult)
 		group.POST("completeInspection", apiWorkOrder.CompleteInspection)
+		group.POST("confirmInspectionComplete", apiWorkOrder.ConfirmInspectionComplete)
 		group.POST("completeRecheck", apiWorkOrder.CompleteRecheck)
 		group.POST("returnDevices", apiWorkOrder.ReturnDevices)
 	}

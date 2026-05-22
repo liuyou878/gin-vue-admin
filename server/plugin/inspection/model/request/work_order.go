@@ -48,6 +48,10 @@ type CompleteInspection struct {
 	ID uint `json:"ID" binding:"required"`
 }
 
+type ConfirmInspectionComplete struct {
+	ID uint `json:"ID" binding:"required"`
+}
+
 type StartRecheck struct {
 	ID uint `json:"ID" binding:"required"`
 }

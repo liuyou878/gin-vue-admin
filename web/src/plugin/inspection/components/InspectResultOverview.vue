@@ -7,7 +7,11 @@
           {{ detail.order.moNumber || '-' }} / {{ detail.order.batchNumber || '-' }}
         </div>
       </div>
-      <el-tag type="success" size="large">已完成</el-tag>
+      <div class="overview-actions">
+        <el-tag :type="isFinalCompleted ? 'success' : 'warning'" size="large">
+          {{ isFinalCompleted ? '已完成' : '待确认' }}
+        </el-tag>
+      </div>
     </section>
 
     <section class="info-grid">
@@ -90,6 +94,16 @@
         打回生产
       </el-button>
     </section>
+
+    <el-alert
+      v-if="canConfirmComplete && hasPendingDevices"
+      class="confirm-alert"
+      type="warning"
+      show-icon
+      :closable="false"
+      title="还有未闭环设备，不能确认完成"
+      :description="pendingSummaryText"
+    />
 
     <el-table :data="deviceRows" border stripe size="small" class="result-table">
       <el-table-column prop="lineNumber" label="序号" width="70" />
@@ -212,6 +226,25 @@ const summary = computed(() => {
 const passRate = computed(() => {
   if (!summary.value.total) return '-'
   return `${((summary.value.pass / summary.value.total) * 100).toFixed(1)}%`
+})
+
+const isFinalCompleted = computed(() => props.detail.order?.status === 4)
+const canConfirmComplete = computed(() => props.detail.order?.status === 3)
+const pendingStatusKeys = ['pending', 'fail', 'returned', 'rework', 'pending_recheck', 'rechecking']
+const pendingDevices = computed(() =>
+  normalizedDevices.value.filter((device) => pendingStatusKeys.includes(device.status || device._status || 'pending'))
+)
+const hasPendingDevices = computed(() => pendingDevices.value.length > 0)
+const pendingSummaryText = computed(() => {
+  const counts = pendingDevices.value.reduce((acc, device) => {
+    const status = device.status || device._status || 'pending'
+    acc[status] = (acc[status] || 0) + 1
+    return acc
+  }, {})
+  return pendingStatusKeys
+    .filter((status) => counts[status])
+    .map((status) => `${deviceStatusLabel({ status })} ${counts[status]} 台`)
+    .join('，')
 })
 
 const hasRecheckDevices = computed(() =>
@@ -358,6 +391,7 @@ const onReturnDevices = async () => {
   returnReason.value = ''
   emit('refresh')
 }
+
 </script>
 
 <style scoped>
@@ -372,6 +406,18 @@ const onReturnDevices = async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.overview-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.confirm-alert {
   margin-bottom: 14px;
 }
 

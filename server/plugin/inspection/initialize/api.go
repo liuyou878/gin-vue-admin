@@ -46,7 +46,8 @@ func Api(ctx context.Context) {
 		{Path: "/workOrder/startRecheck", Description: "开始复检", ApiGroup: "检测工单", Method: "POST"},
 		{Path: "/workOrder/saveResults", Description: "保存检测结果", ApiGroup: "检测工单", Method: "POST"},
 		{Path: "/workOrder/saveSingleResult", Description: "保存单项检测结果", ApiGroup: "检测工单", Method: "POST"},
-		{Path: "/workOrder/completeInspection", Description: "完成检测", ApiGroup: "检测工单", Method: "POST"},
+		{Path: "/workOrder/completeInspection", Description: "提交检测待确认", ApiGroup: "检测工单", Method: "POST"},
+		{Path: "/workOrder/confirmInspectionComplete", Description: "确认完成检测", ApiGroup: "检测工单", Method: "POST"},
 		{Path: "/workOrder/completeRecheck", Description: "完成复检", ApiGroup: "检测工单", Method: "POST"},
 		{Path: "/workOrder/returnDevices", Description: "设备打回生产", ApiGroup: "检测工单", Method: "POST"},
 		{Path: "/workOrder/getInspectionBatchList", Description: "获取检测批次列表", ApiGroup: "检测工单", Method: "GET"},
@@ -57,6 +58,7 @@ func Api(ctx context.Context) {
 	}
 	pluginUtils.RegisterApis(entities...)
 	grantInheritedPermission("/workOrder/saveResults", "POST", "/workOrder/saveSingleResult", "POST")
+	grantInheritedPermission("/workOrder/completeInspection", "POST", "/workOrder/confirmInspectionComplete", "POST")
 	grantInheritedPermission("/productionOrder/confirmReworkDone", "POST", "/productionOrder/confirmReworkReceived", "POST")
 	grantInheritedPermission("/workOrder/getInspectionDetail", "GET", "/workOrder/getBatchStatusLogs", "GET")
 	grantInheritedPermission("/workOrder/getInspectionDetail", "GET", "/workOrder/getFlowLogs", "GET")

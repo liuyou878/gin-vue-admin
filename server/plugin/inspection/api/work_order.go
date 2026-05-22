@@ -152,9 +152,9 @@ func (a *workOrderApi) SaveSingleResult(c *gin.Context) {
 	response.OkWithDetailed(result, "保存成功", c)
 }
 
-// CompleteInspection 完成检测
+// CompleteInspection 提交检测待确认
 // @Tags     WorkOrder
-// @Summary  完成检测（状态:检测中→已完成）
+// @Summary  提交检测待确认（状态:检测中→待确认）
 // @Security ApiKeyAuth
 // @accept   application/json
 // @Produce  application/json
@@ -172,7 +172,30 @@ func (a *workOrderApi) CompleteInspection(c *gin.Context) {
 		response.FailWithMessage("操作失败: "+err.Error(), c)
 		return
 	}
-	response.OkWithMessage("检测完成", c)
+	response.OkWithMessage("已提交待确认", c)
+}
+
+// ConfirmInspectionComplete 确认完成检测
+// @Tags     WorkOrder
+// @Summary  确认完成检测（状态:待确认→已完成）
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.ConfirmInspectionComplete true "批次ID"
+// @Success  200 {object} response.Response{msg=string} "操作成功"
+// @Router   /workOrder/confirmInspectionComplete [post]
+func (a *workOrderApi) ConfirmInspectionComplete(c *gin.Context) {
+	var req request.ConfirmInspectionComplete
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	claims, _ := utils.GetClaims(c)
+	if err := serviceWorkOrder.ConfirmInspectionComplete(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
+		response.FailWithMessage("操作失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("已确认完成", c)
 }
 
 // CompleteRecheck 完成复检

@@ -32,6 +32,10 @@ export const completeInspection = (data) => {
   return service({ url: '/workOrder/completeInspection', method: 'post', data })
 }
 
+export const confirmInspectionComplete = (data) => {
+  return service({ url: '/workOrder/confirmInspectionComplete', method: 'post', data })
+}
+
 export const completeRecheck = (data) => {
   return service({ url: '/workOrder/completeRecheck', method: 'post', data })
 }
