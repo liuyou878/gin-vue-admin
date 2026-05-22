@@ -849,6 +849,7 @@ func (s *workOrderSvc) GetFlowLogs(batchID string, deviceID string) ([]FlowLogIt
 			return nil, err
 		}
 		for _, log := range deviceLogs {
+			action := deviceFlowAction(log.FromStatus, log.ToStatus, log.Reason)
 			items = append(items, FlowLogItem{
 				ID:           log.ID,
 				Scope:        "device",
@@ -856,10 +857,10 @@ func (s *workOrderSvc) GetFlowLogs(batchID string, deviceID string) ([]FlowLogIt
 				BatchID:      valueOrZero(device.BatchID),
 				DeviceID:     device.ID,
 				DeviceSN:     device.SN,
-				Title:        firstNonEmpty(log.Reason, "设备状态变更"),
+				Title:        action,
 				FromStatus:   log.FromStatus,
 				ToStatus:     log.ToStatus,
-				Action:       firstNonEmpty(log.Reason, "设备状态变更"),
+				Action:       action,
 				Reason:       log.Reason,
 				OperatorID:   log.OperatorID,
 				OperatorName: log.OperatorName,
@@ -904,6 +905,33 @@ func (s *workOrderSvc) GetFlowLogs(batchID string, deviceID string) ([]FlowLogIt
 		return items[i].CreatedAt.After(items[j].CreatedAt)
 	})
 	return items, nil
+}
+
+func deviceFlowAction(fromStatus string, toStatus string, reason string) string {
+	fromStatus = strings.TrimSpace(fromStatus)
+	toStatus = strings.TrimSpace(toStatus)
+	reason = strings.TrimSpace(reason)
+
+	switch {
+	case toStatus == "returned":
+		return "退回生产"
+	case fromStatus == "returned" && toStatus == "rework":
+		return "生产接收返工"
+	case fromStatus == "rework" && toStatus == "pending_recheck":
+		return "返工完成"
+	case toStatus == "rechecking":
+		return "开始复检"
+	case fromStatus == "rechecking" && (toStatus == "pass" || toStatus == "fail"):
+		return "完成复检"
+	case toStatus == "pass":
+		return "判定合格"
+	case toStatus == "fail":
+		return "判定不合格"
+	case reason == "保存检测结果" || reason == "保存单项检测结果":
+		return reason
+	default:
+		return "设备状态变更"
+	}
 }
 
 func syntheticBatchFlowLogs(batch model.ProductionBatch) []FlowLogItem {
