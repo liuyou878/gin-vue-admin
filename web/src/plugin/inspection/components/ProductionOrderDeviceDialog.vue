@@ -316,10 +316,13 @@
 
     const res = await startRecheck({ ID: row.batchID, deviceID: row.ID })
     if (res.code !== 0) return
-    ElMessage.success('已开始复检')
+    ElMessage.success({ message: '已开始复检', duration: 1000 })
     await loadDevices()
     emit('changed')
-    openInspectDetail(row)
+    window.setTimeout(() => {
+      ElMessage.closeAll()
+      openInspectDetail(row)
+    }, 300)
   }
 
   const openFlowLogs = async (row) => {
