@@ -298,7 +298,7 @@ func (s *workOrderSvc) SaveSingleResult(req *request.SaveSingleInspectionResult,
 			return err
 		}
 
-		if strings.TrimSpace(req.Status) != "" {
+		if strings.TrimSpace(req.Status) != "" && !(batch.Status == 3 && device.Status == "rechecking") {
 			if err := updateDeviceStatusWithLog(tx, device, req.Status, "保存单项检测结果", nil, ""); err != nil {
 				return err
 			}
@@ -520,14 +520,22 @@ func (s *workOrderSvc) CompleteRecheck(req *request.CompleteRecheck, operatorID 
 		}
 
 		for _, device := range devices {
+			hasFail := false
 			for _, templateItem := range templateItems {
 				result, ok := resultMap[resultKey{DeviceID: device.ID, ItemID: templateItem.ItemID}]
 				if !ok || !inspectionResultCompleted(templateItem.Item.ResultType, result) {
 					return fmt.Errorf("设备 %s 的复检项 %s 未完成", device.SN, templateItem.Item.Name)
 				}
+				if resultIndicatesFail(templateItem.Item, result) {
+					hasFail = true
+				}
 			}
-			if device.Status == "rechecking" {
-				return fmt.Errorf("设备 %s 还没有复检判定，请先保存复检结果", device.SN)
+			nextStatus := "pass"
+			if hasFail {
+				nextStatus = "fail"
+			}
+			if err := updateDeviceStatusWithLog(tx, device, nextStatus, "完成复检", operatorID, operatorName); err != nil {
+				return err
 			}
 		}
 
@@ -562,6 +570,25 @@ func inspectionResultCompleted(resultType string, result model.InspectionDeviceR
 		return result.PassResult != nil
 	default:
 		return result.PassResult != nil && result.NumberResult != nil
+	}
+}
+
+func resultIndicatesFail(item model.InspectionItem, result model.InspectionDeviceResult) bool {
+	switch item.ResultType {
+	case "number":
+		if result.NumberResult == nil {
+			return false
+		}
+		return (item.MinValue != nil && *result.NumberResult < *item.MinValue) ||
+			(item.MaxValue != nil && *result.NumberResult > *item.MaxValue)
+	case "pass_fail":
+		return result.PassResult != nil && !*result.PassResult
+	default:
+		passFailFailed := result.PassResult != nil && !*result.PassResult
+		numberFailed := result.NumberResult != nil &&
+			((item.MinValue != nil && *result.NumberResult < *item.MinValue) ||
+				(item.MaxValue != nil && *result.NumberResult > *item.MaxValue))
+		return passFailFailed || numberFailed
 	}
 }
 

@@ -403,6 +403,9 @@ const saveSingleResult = async (device, resultIndex) => {
   result._saveState = 'saving'
   try {
     const numberResult = result._numVal !== undefined && result._numVal !== null && result._numVal !== '' ? Number(result._numVal) : null
+    const status = detail.value.order.status === 3 && (device._startedRecheck || device.status === 'rechecking')
+      ? ''
+      : (device._status || 'pending')
     const res = await apiSaveSingleResult({
       batchID: detail.value.order.ID,
       deviceID: device.ID,
@@ -410,7 +413,7 @@ const saveSingleResult = async (device, resultIndex) => {
       passResult: result._checked,
       numberResult,
       remark: result.remark || '',
-      status: device._status || 'pending'
+      status
     })
     if (res.code !== 0) {
       result._saveState = 'error'
@@ -444,7 +447,7 @@ const calcDeviceStatus = (device) => {
     if (result._checked === false) failed = true
     else passed = true
   })
-  if (device._startedRecheck && unfinished) {
+  if (device._startedRecheck) {
     device._status = 'rechecking'
     return
   }
