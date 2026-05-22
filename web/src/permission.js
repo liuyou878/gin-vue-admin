@@ -202,7 +202,7 @@ router.beforeEach(async (to, from) => {
     // 处理异步路由
     if (!routerStore.asyncRouterFlag && !WHITE_LIST.includes(from.name)) {
       await setupRouter(userStore)
-      return to
+      return { ...to, replace: true }
     }
 
     if (!to.matched.length) {
