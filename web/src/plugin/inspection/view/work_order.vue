@@ -60,25 +60,59 @@
         <el-table-column label="模板" min-width="120">
           <template #default="s2">{{ s2.row.template?.name || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="deviceCount" label="总数" width="60" />
+        <el-table-column label="总数" width="70">
+          <template #default="s3">
+            <DeviceStatusCount
+              :row="s3.row"
+              type="all"
+              :count="s3.row.deviceCount"
+              :batch-id="s3.row.ID"
+              @changed="getList"
+            />
+          </template>
+        </el-table-column>
         <el-table-column label="合格数" width="90">
           <template #default="s3">
-            <span class="count-pass">{{ s3.row.passCount || 0 }}</span>
+            <DeviceStatusCount
+              :row="s3.row"
+              type="pass"
+              :count="s3.row.passCount"
+              :batch-id="s3.row.ID"
+              @changed="getList"
+            />
           </template>
         </el-table-column>
         <el-table-column label="不合格数" width="100">
           <template #default="s3">
-            <span class="count-fail">{{ s3.row.failCount || 0 }}</span>
+            <DeviceStatusCount
+              :row="s3.row"
+              type="fail"
+              :count="s3.row.failCount"
+              :batch-id="s3.row.ID"
+              @changed="getList"
+            />
           </template>
         </el-table-column>
         <el-table-column label="返工数" width="90">
           <template #default="s3">
-            <span class="count-return">{{ s3.row.reworkCount || 0 }}</span>
+            <DeviceStatusCount
+              :row="s3.row"
+              type="rework"
+              :count="s3.row.reworkCount"
+              :batch-id="s3.row.ID"
+              @changed="getList"
+            />
           </template>
         </el-table-column>
         <el-table-column label="待复检" width="90">
           <template #default="s3">
-            <span class="count-recheck">{{ s3.row.recheckCount || 0 }}</span>
+            <DeviceStatusCount
+              :row="s3.row"
+              type="recheck"
+              :count="s3.row.recheckCount"
+              :batch-id="s3.row.ID"
+              @changed="getList"
+            />
           </template>
         </el-table-column>
         <el-table-column label="合格率" width="100">
@@ -156,6 +190,7 @@
   import { onMounted, onUnmounted, ref, reactive } from 'vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { formatDate } from '@/utils/format'
+  import DeviceStatusCount from '@/plugin/inspection/components/DeviceStatusCount.vue'
   import {
     getInspectionBatchList,
     exportInspectionExcel,
@@ -322,22 +357,6 @@
     flex: 1;
     overflow-y: auto;
     padding: 0 16px 16px;
-  }
-  .count-pass {
-    color: #16a34a;
-    font-weight: 600;
-  }
-  .count-fail {
-    color: #dc2626;
-    font-weight: 600;
-  }
-  .count-return {
-    color: #d97706;
-    font-weight: 600;
-  }
-  .count-recheck {
-    color: #2563eb;
-    font-weight: 600;
   }
   .pagination-wrap {
     display: flex;

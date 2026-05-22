@@ -77,44 +77,32 @@
       <el-table-column prop="submitterName" label="提交人" width="100" />
       <el-table-column label="设备数" width="80">
         <template #default="scope">
-          <button class="count-link" @click="openDeviceDialog(scope.row, 'all')">
-            {{ scope.row.deviceCount || 0 }}
-          </button>
+          <DeviceStatusCount :row="scope.row" type="all" :count="scope.row.deviceCount" allow-rework-actions @changed="getList" />
         </template>
       </el-table-column>
       <el-table-column label="合格数" width="90">
         <template #default="scope">
-          <button class="count-link count-pass" @click="openDeviceDialog(scope.row, 'pass')">
-            {{ scope.row.passCount || 0 }}
-          </button>
+          <DeviceStatusCount :row="scope.row" type="pass" :count="scope.row.passCount" allow-rework-actions @changed="getList" />
         </template>
       </el-table-column>
       <el-table-column label="不合格数" width="100">
         <template #default="scope">
-          <button class="count-link count-fail" @click="openDeviceDialog(scope.row, 'fail')">
-            {{ scope.row.failCount || 0 }}
-          </button>
+          <DeviceStatusCount :row="scope.row" type="fail" :count="scope.row.failCount" allow-rework-actions @changed="getList" />
         </template>
       </el-table-column>
       <el-table-column label="返工数" width="90">
         <template #default="scope">
-          <button class="count-link count-return" @click="openDeviceDialog(scope.row, 'rework')">
-            {{ scope.row.reworkCount || 0 }}
-          </button>
+          <DeviceStatusCount :row="scope.row" type="rework" :count="scope.row.reworkCount" allow-rework-actions @changed="getList" />
         </template>
       </el-table-column>
       <el-table-column label="待复检" width="90">
         <template #default="scope">
-          <button class="count-link count-recheck" @click="openDeviceDialog(scope.row, 'recheck')">
-            {{ scope.row.recheckCount || 0 }}
-          </button>
+          <DeviceStatusCount :row="scope.row" type="recheck" :count="scope.row.recheckCount" allow-rework-actions @changed="getList" />
         </template>
       </el-table-column>
       <el-table-column label="异常数" width="90">
         <template #default="scope">
-          <button class="count-link count-abnormal" @click="openDeviceDialog(scope.row, 'abnormal')">
-            {{ scope.row.abnormalCount || 0 }}
-          </button>
+          <DeviceStatusCount :row="scope.row" type="abnormal" :count="scope.row.abnormalCount" allow-rework-actions @changed="getList" />
         </template>
       </el-table-column>
       <el-table-column label="合格率" width="100">
@@ -664,12 +652,6 @@
       :mode="flowLogMode"
     />
 
-    <ProductionOrderDeviceDialog
-      v-model="deviceDialogVisible"
-      :order="deviceDialogOrder"
-      :filter-type="deviceDialogFilter"
-      @changed="getList"
-    />
   </div>
 </template>
 
@@ -693,7 +675,7 @@
     exportInspectionExcel,
     getFlowLogs
   } from '@/plugin/inspection/api/work_order'
-  import ProductionOrderDeviceDialog from '@/plugin/inspection/components/ProductionOrderDeviceDialog.vue'
+  import DeviceStatusCount from '@/plugin/inspection/components/DeviceStatusCount.vue'
   import FlowLogDrawer from '@/plugin/inspection/components/FlowLogDrawer.vue'
 
   const loading = ref(false)
@@ -714,9 +696,6 @@
   const flowLogDrawerTitle = ref('流转日志')
   const flowLogMode = ref('flow')
   const flowLogs = ref([])
-  const deviceDialogVisible = ref(false)
-  const deviceDialogOrder = ref(null)
-  const deviceDialogFilter = ref('all')
   const dispatchForm = reactive({
     templateID: null,
     instrumentCategory: ''
@@ -787,12 +766,6 @@
     const total = Number(deviceCount || 0)
     if (!total) return '-'
     return `${((Number(passCount || 0) / total) * 100).toFixed(1)}%`
-  }
-
-  const openDeviceDialog = (row, filterType = 'all') => {
-    deviceDialogOrder.value = row
-    deviceDialogFilter.value = filterType
-    deviceDialogVisible.value = true
   }
 
   const unbatchedDevices = computed(() => {
@@ -1134,31 +1107,6 @@
 </script>
 
 <style scoped>
-  .count-pass {
-    color: #16a34a;
-    font-weight: 600;
-  }
-
-  .count-fail {
-    color: #dc2626;
-    font-weight: 600;
-  }
-
-  .count-return {
-    color: #d97706;
-    font-weight: 600;
-  }
-
-  .count-recheck {
-    color: #2563eb;
-    font-weight: 600;
-  }
-
-  .count-abnormal {
-    color: #9333ea;
-    font-weight: 600;
-  }
-
   .dispatch-form {
     margin-top: 12px;
   }

@@ -222,6 +222,9 @@ func (s *productionOrderSvc) GetSubmittedDeviceList(search request.SubmittedDevi
 	if search.ProductionOrderID > 0 {
 		db = db.Where("pod.production_order_id = ?", search.ProductionOrderID)
 	}
+	if search.BatchID > 0 {
+		db = db.Where("pod.batch_id = ?", search.BatchID)
+	}
 	if search.MONumber != "" {
 		db = db.Where("po.mo_number LIKE ?", "%"+search.MONumber+"%")
 	}

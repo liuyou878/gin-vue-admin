@@ -3,6 +3,9 @@
     v-model="visible"
     :title="dialogTitle"
     width="980px"
+    append-to-body
+    class="device-dialog"
+    modal-class="device-dialog-modal"
     destroy-on-close
     @open="loadDevices"
   >
@@ -43,7 +46,7 @@
       <el-table-column label="操作" width="170" fixed="right">
         <template #default="scope">
           <el-button
-            v-if="scope.row.status === 'returned'"
+            v-if="allowReworkActions && scope.row.status === 'returned'"
             type="warning"
             link
             size="small"
@@ -52,7 +55,7 @@
             接收返工
           </el-button>
           <el-button
-            v-if="scope.row.status === 'rework'"
+            v-if="allowReworkActions && scope.row.status === 'rework'"
             type="warning"
             link
             size="small"
@@ -111,6 +114,10 @@
       type: Object,
       default: null
     },
+    batchId: {
+      type: [Number, String],
+      default: ''
+    },
     filterType: {
       type: String,
       default: 'all'
@@ -118,6 +125,10 @@
     title: {
       type: String,
       default: ''
+    },
+    allowReworkActions: {
+      type: Boolean,
+      default: false
     }
   })
 
@@ -185,6 +196,7 @@
 
   const buildParams = () => ({
     productionOrderID: props.order?.ID,
+    batchID: props.batchId,
     sn: searchInfo.sn,
     page: searchInfo.page,
     pageSize: searchInfo.pageSize,
@@ -192,7 +204,7 @@
   })
 
   const loadDevices = async () => {
-    if (!props.order?.ID) return
+    if (!props.order?.ID && !props.batchId) return
     loading.value = true
     try {
       const res = await getSubmittedDeviceList(buildParams())
@@ -263,7 +275,7 @@
   }
 
   watch(
-    () => [props.order?.ID, props.filterType],
+    () => [props.order?.ID, props.batchId, props.filterType],
     () => {
       searchInfo.sn = ''
       searchInfo.page = 1
@@ -275,6 +287,23 @@
 </script>
 
 <style scoped>
+  :global(.device-dialog) {
+    background: var(--el-bg-color, #fff);
+  }
+
+  :global(.device-dialog-modal) {
+    z-index: 3000 !important;
+  }
+
+  :global(.device-dialog.el-dialog) {
+    position: relative;
+    z-index: 3001 !important;
+  }
+
+  :global(.device-dialog .el-dialog__body) {
+    background: var(--el-bg-color, #fff);
+  }
+
   .device-dialog-toolbar {
     display: flex;
     align-items: center;

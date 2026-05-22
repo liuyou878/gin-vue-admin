@@ -78,6 +78,7 @@ type CreateBatch struct {
 
 type SubmittedDeviceSearch struct {
 	ProductionOrderID uint   `json:"productionOrderID" form:"productionOrderID"`
+	BatchID           uint   `json:"batchID" form:"batchID"`
 	MONumber          string `json:"moNumber" form:"moNumber"`
 	BatchNumber       string `json:"batchNumber" form:"batchNumber"`
 	SN                string `json:"sn" form:"sn"`
