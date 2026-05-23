@@ -23,7 +23,9 @@
               </el-tag>
             </div>
             <div v-if="log.deviceSN" class="log-line">设备：{{ log.deviceSN }}</div>
-            <div v-if="displayReason(log)" class="log-line">备注：{{ displayReason(log) }}</div>
+            <div v-if="displayReason(log)" class="log-line">
+              {{ reasonLabel(log) }}：{{ displayReason(log) }}
+            </div>
             <div v-if="log.operatorName" class="log-operator">操作人：{{ log.operatorName }}</div>
           </div>
         </el-timeline-item>
@@ -143,6 +145,12 @@ const displayReason = (log) => {
   if (!reason || systemReasons.has(reason)) return ''
   if (reason === log.title || reason === log.action) return ''
   return reason
+}
+
+const reasonLabel = (log) => {
+  if (log.scope === 'batch') return '流转说明'
+  if (['returned', 'rework', 'pending_recheck'].includes(log.toStatus)) return '原因'
+  return '说明'
 }
 </script>
 

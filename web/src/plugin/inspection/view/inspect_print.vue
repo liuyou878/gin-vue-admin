@@ -67,6 +67,10 @@
         计量检定规程参照：JJG 1200-2023<br />
         抽样检测参照：GB/T 2828.1-2021
       </div>
+
+      <div class="print-footer">
+        打印人：{{ printerName }}
+      </div>
     </div>
   </div>
 </template>
@@ -74,14 +78,22 @@
 <script setup>
 import { computed, nextTick, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { useUserStore } from '@/pinia/modules/user'
 import { getInspectionDetail } from '@/plugin/inspection/api/work_order'
 
 const route = useRoute()
+const userStore = useUserStore()
 const loaded = ref(false)
 const detail = ref({ order: {}, devices: [], templateItems: [] })
 
 const order = computed(() => detail.value.order || {})
 const templateItems = computed(() => detail.value.templateItems || [])
+const printerName = computed(() =>
+  userStore.userInfo?.nickName ||
+  userStore.userInfo?.userName ||
+  userStore.userInfo?.username ||
+  '当前用户'
+)
 const sheetDensityClass = computed(() => {
   const itemCount = templateItems.value.length
   if (itemCount >= 12) return 'sheet-compact'
@@ -103,8 +115,17 @@ const catLabel = (v) =>
     custom: '定制款'
   }[v] || v)
 
-const deviceResultLabel = (row) =>
-  ({
+const hasAnyResult = (row) =>
+  (row?.results || []).some((result) =>
+    result.passResult === true ||
+    result.passResult === false ||
+    (result.numberResult !== undefined && result.numberResult !== null && result.numberResult !== '') ||
+    Boolean((result.remark || '').trim())
+  )
+
+const deviceResultLabel = (row) => {
+  if (!row?.status || (row.status === 'pending' && !hasAnyResult(row))) return ''
+  return ({
     pass: '合格',
     fail: '不合格',
     pending: '未完成',
@@ -112,7 +133,8 @@ const deviceResultLabel = (row) =>
     rework: '返工中',
     pending_recheck: '待复检',
     rechecking: '复检中'
-  }[row?.status || ''] || '')
+  }[row.status] || '')
+}
 
 const resultText = (row, item) => {
   if (!row?.results?.length || !item) return ''
@@ -167,7 +189,7 @@ loadDetail()
 <style scoped>
 .print-page {
   min-height: 100vh;
-  background: #f3f4f6;
+  background: #fff;
   padding: 16px;
   color: #111827;
 }
@@ -184,6 +206,8 @@ loadDetail()
   padding: 12px;
   box-sizing: border-box;
   overflow: hidden;
+  box-shadow: none;
+  filter: none;
 }
 .title {
   text-align: center;
@@ -310,6 +334,12 @@ loadDetail()
   font-size: 12px;
   line-height: 1.6;
 }
+.print-footer {
+  margin-top: 12px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 700;
+}
 
 @page {
   size: A4 landscape;
@@ -317,21 +347,45 @@ loadDetail()
 }
 
 @media print {
+  html,
+  body {
+    width: 100%;
+  }
   .no-print {
     display: none !important;
   }
   .print-page {
     padding: 0;
     background: #fff;
+    box-shadow: none;
+    filter: none;
   }
   .sheet {
+    width: 100%;
+    max-width: none;
+    min-height: calc(210mm - 16mm);
+    display: flex;
+    flex-direction: column;
     padding: 0;
+    box-shadow: none;
+    filter: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .sheet-compact {
     transform-origin: top left;
   }
+  .info-table,
+  .inspect-print-table {
+    width: 100%;
+    max-width: 100%;
+  }
   .inspect-print-table tr {
     break-inside: avoid;
+  }
+  .print-footer {
+    margin-top: auto;
+    padding-top: 8px;
   }
 }
 </style>

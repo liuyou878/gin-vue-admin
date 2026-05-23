@@ -82,6 +82,18 @@
         <el-table-column prop="timeLicense" label="时间码" min-width="110" />
         <el-table-column prop="regionLicense" label="围栏码" min-width="110" />
         <el-table-column prop="ntripCode" label="Ntrip码" min-width="120" />
+        <el-table-column label="操作" width="110" fixed="right">
+          <template #default="scope">
+            <el-button
+              type="primary"
+              link
+              size="small"
+              @click="regenerateDeviceSN(scope.$index)"
+            >
+              重生成SN
+            </el-button>
+          </template>
+        </el-table-column>
       </el-table>
     </el-card>
   </div>
@@ -130,6 +142,7 @@
 
   const buildDeviceInfo = (device) =>
     JSON.stringify({
+      sn: device.sn,
       model: device.model,
       pnCode: device.pnCode,
       firmwareVersion: device.firmwareVersion,
@@ -144,6 +157,9 @@
       mock: true,
       generatedAt: new Date().toISOString()
     })
+
+  const buildMockSN = (snBase, index) =>
+    `G3X${String(snBase + index).padStart(6, '0')}`
 
   const generateMockData = () => {
     const now = new Date()
@@ -186,7 +202,7 @@
   }) =>
     Array.from({ length: count }, (_, offset) => {
       const index = startIndex + offset
-      const sn = `G3X${String(snBase + index).padStart(6, '0')}`
+      const sn = buildMockSN(snBase, index)
       const device = {
         sn,
         model,
@@ -228,6 +244,27 @@
         mainboardFirmwareVersion: first.mainboardFirmwareVersion
       })
     )
+  }
+
+  const nextAvailableSN = () => {
+    const used = new Set(form.devices.map((device) => device.sn))
+    const now = new Date()
+    const dateText = formatDate(now)
+    const timeText = formatTimeCode(now)
+    const snBase = Number(`${dateText.slice(2)}${timeText}`.slice(-6))
+    for (let index = 0; index < 1000; index++) {
+      const sn = buildMockSN(snBase, index)
+      if (!used.has(sn)) return sn
+    }
+    return `G3X${Date.now().toString().slice(-9)}`
+  }
+
+  const regenerateDeviceSN = (index) => {
+    const device = form.devices[index]
+    if (!device) return
+    device.sn = nextAvailableSN()
+    device.deviceInfo = buildDeviceInfo(device)
+    ElMessage.success('已重生成该设备SN')
   }
 
   const submitMockData = async () => {

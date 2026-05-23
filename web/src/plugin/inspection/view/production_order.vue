@@ -48,7 +48,7 @@
             <el-option label="定制款" value="custom" />
           </el-select>
         </el-form-item>
-        <el-form-item label="订单状态">
+        <el-form-item label="完成状态">
           <el-select
             v-model="searchInfo.status"
             placeholder="请选择"
@@ -63,6 +63,19 @@
               :value="item.value"
             />
           </el-select>
+        </el-form-item>
+        <el-form-item label="提交时间">
+          <el-date-picker
+            v-model="submitDateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+            size="small"
+            style="width: 240px"
+            clearable
+          />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" size="small" @click="getList"
@@ -82,6 +95,16 @@
           }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="未分批" width="90">
+        <template #default="scope">
+          <el-tag
+            size="small"
+            :type="scope.row.unbatchedCount > 0 ? 'warning' : 'info'"
+          >
+            {{ scope.row.unbatchedCount || 0 }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="model" label="型号" width="100" />
       <el-table-column
         prop="firmwareVersion"
@@ -99,27 +122,53 @@
           catLabel(scope.row.instrumentCategory)
         }}</template>
       </el-table-column>
-      <el-table-column label="订单状态" width="110">
+      <el-table-column label="完成状态" width="110">
         <template #default="scope">
-          <el-tag :type="orderStatusTagType(scope.row.status)" size="small">
-            {{ batchStatusLabel(scope.row.status) }}
+          <el-tag
+            :type="productionStatusTagType(scope.row.status)"
+            size="small"
+          >
+            {{ productionStatusLabel(scope.row.status) }}
           </el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="submitterName" label="提交人" width="100" />
+      <el-table-column label="提交时间" width="170">
+        <template #default="scope">
+          {{ formatDate(scope.row.submitDate) || '-' }}
+        </template>
+      </el-table-column>
       <el-table-column label="设备数" width="80">
         <template #default="scope">
-          <DeviceStatusCount :row="scope.row" type="all" :count="scope.row.deviceCount" allow-rework-actions @changed="getList" />
+          <DeviceStatusCount
+            :row="scope.row"
+            type="all"
+            :count="scope.row.deviceCount"
+            allow-rework-actions
+            @changed="getList"
+          />
         </template>
       </el-table-column>
       <el-table-column label="合格数" width="90">
         <template #default="scope">
-          <DeviceStatusCount :row="scope.row" type="pass" :count="scope.row.passCount" allow-rework-actions @changed="getList" />
+          <DeviceStatusCount
+            :row="scope.row"
+            type="pass"
+            :count="scope.row.passCount"
+            allow-rework-actions
+            @changed="getList"
+          />
         </template>
       </el-table-column>
       <el-table-column label="异常数" width="90">
         <template #default="scope">
-          <DeviceStatusCount :row="scope.row" type="abnormal" :count="scope.row.abnormalCount" allow-rework-actions @changed="getList" />
+          <DeviceStatusCount
+            :row="scope.row"
+            type="abnormal"
+            :count="scope.row.abnormalCount"
+            allow-rework-actions
+            @changed="getList"
+          />
         </template>
       </el-table-column>
       <el-table-column label="合格率" width="100">
@@ -161,16 +210,6 @@
           > -->
           <el-button
             v-auth="btnAuth.delete"
-            v-if="scope.row.status === 0"
-            size="small"
-            type="danger"
-            link
-            @click="onDelete(scope.row.ID)"
-            >删除</el-button
-          >
-          <el-button
-            v-auth="btnAuth.delete"
-            v-else
             size="small"
             type="danger"
             link
@@ -286,7 +325,10 @@
           <div class="scan-basket">
             <div class="scan-title">批次</div>
             <div class="scan-list">
-              <el-empty v-if="!scanBasket.length" description="还没有加入设备" />
+              <el-empty
+                v-if="!scanBasket.length"
+                description="还没有加入设备"
+              />
               <template v-else>
                 <div
                   v-for="(item, index) in scanBasket"
@@ -466,204 +508,217 @@
       v-model="detailVisible"
       title="生产订单详情"
       width="1100px"
+      class="production-detail-dialog"
       destroy-on-close
     >
-      <div v-if="detailOrder">
-        <el-descriptions :column="2" border size="small" class="mb-4">
-          <el-descriptions-item label="MO号">{{
-            detailOrder.moNumber || '-'
-          }}</el-descriptions-item>
-          <el-descriptions-item label="内部型号">{{
-            detailOrder.model || '-'
-          }}</el-descriptions-item>
-          <el-descriptions-item label="固件版本">{{
-            detailOrder.firmwareVersion || '-'
-          }}</el-descriptions-item>
-          <el-descriptions-item label="主板固件版本">{{
-            detailOrder.mainboardFirmwareVersion || '-'
-          }}</el-descriptions-item>
-          <el-descriptions-item label="PN码">{{
-            detailOrder.pnCode || '-'
-          }}</el-descriptions-item>
-          <el-descriptions-item label="业务类型">{{
-            catLabel(detailOrder.instrumentCategory) || '-'
-          }}</el-descriptions-item>
-          <el-descriptions-item label="批次数">{{
-            detailOrder.batchCount ?? detailOrder.batches?.length ?? 0
-          }}</el-descriptions-item>
-          <el-descriptions-item label="设备数">{{
-            detailOrder.deviceCount ?? detailOrder.devices?.length ?? 0
-          }}</el-descriptions-item>
-        </el-descriptions>
-
-        <div class="mb-3">
-          <el-alert
-            title="当前页面用于查看设备、批次和日志；派检请回到列表点击“派检”，一个生产号只选一次检测模板。"
-            type="info"
-            :closable="false"
-          />
+      <div v-if="detailOrder" class="production-detail-layout">
+        <div class="production-detail-fixed">
+          <el-descriptions :column="2" border size="small" class="mb-4">
+            <el-descriptions-item label="MO号">{{
+              detailOrder.moNumber || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="内部型号">{{
+              detailOrder.model || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="固件版本">{{
+              detailOrder.firmwareVersion || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="主板固件版本">{{
+              detailOrder.mainboardFirmwareVersion || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="PN码">{{
+              detailOrder.pnCode || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="业务类型">{{
+              catLabel(detailOrder.instrumentCategory) || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="批次数">{{
+              detailOrder.batchCount ?? detailOrder.batches?.length ?? 0
+            }}</el-descriptions-item>
+            <el-descriptions-item label="未分批">{{
+              detailOrder.unbatchedCount ?? unbatchedDevices.length
+            }}</el-descriptions-item>
+            <el-descriptions-item label="设备数">{{
+              detailOrder.deviceCount ?? detailOrder.devices?.length ?? 0
+            }}</el-descriptions-item>
+          </el-descriptions>
         </div>
 
-        <div v-if="unbatchedDevices.length" class="mb-4">
-          <el-text type="info" size="small"
-            >无批次 ({{ unbatchedDevices.length }}台)</el-text
-          >
-          <el-table :data="unbatchedDevices" border size="small" class="mt-1">
-            <el-table-column prop="sn" label="SN" min-width="140" />
-            <el-table-column label="状态" width="100">
-              <template #default="scope">
-                <el-tag
-                  :type="deviceStatusTagType(scope.row.status)"
-                  size="small"
-                >
-                  {{ deviceStatusLabel(scope.row.status) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="model" label="型号" width="90" />
-            <el-table-column prop="pnCode" label="PN码" width="130" />
-            <el-table-column prop="firmwareVersion" label="固件" width="110" />
-            <el-table-column
-              prop="mainboardFirmwareVersion"
-              label="主板固件"
-              width="130"
-            />
-            <el-table-column label="操作" width="170" fixed="right">
-              <template #default="scope">
-                <el-button
-                  v-if="scope.row.status === 'returned'"
-                  type="warning"
-                  link
-                  size="small"
-                  @click="handleConfirmReworkReceived(scope.row)"
-                >
-                  确认接收返工
-                </el-button>
-                <el-button
-                  v-if="scope.row.status === 'rework'"
-                  type="warning"
-                  link
-                  size="small"
-                  @click="handleConfirmRework(scope.row)"
-                >
-                  确认返工完成
-                </el-button>
-                <el-button
-                  type="primary"
-                  link
-                  size="small"
-                  @click="openFlowLogs({ device: scope.row })"
-                >
-                  设备日志
-                </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
-
-        <div v-for="batch in detailOrder.batches" :key="batch.ID" class="mb-4">
-          <div class="flex items-center justify-between mb-2">
-            <el-text type="primary" size="small"
-              >批次: {{ batch.batchNumber || '-' }}</el-text
+        <div class="production-detail-scroll">
+          <el-collapse v-model="detailActivePanels">
+            <el-collapse-item
+              v-for="batch in sortedDetailBatches"
+              :key="batch.ID"
+              :name="`batch-${batch.ID}`"
             >
-            <div class="flex items-center gap-2">
-              <div class="text-sm text-gray-500">
-                设备数: {{ batch.devices?.length || 0 }}
-              </div>
-              <el-tag v-if="batch.template" size="small" type="info">
-                模板: {{ batch.template.name }}
-              </el-tag>
-              <el-tag
-                size="small"
-                :type="
-                  batch.status === 1
-                    ? 'warning'
-                    : batch.status === 2
-                    ? 'primary'
-                    : batch.status === 3
-                    ? 'warning'
-                    : 'success'
-                "
-              >
-                {{ batchStatusLabel(batch.status) }}
-              </el-tag>
-              <el-button
-                size="small"
-                type="success"
-                link
-                @click="onExportBatchExcel(batch)"
-              >
-                导出Excel
-              </el-button>
-              <el-button
-                size="small"
-                type="primary"
-                link
-                @click="openBatchPrint(batch)"
-              >
-                打印
-              </el-button>
-              <el-button
-                size="small"
-                type="primary"
-                link
-                @click="openFlowLogs({ batch })"
-              >
-                流转日志
-              </el-button>
-            </div>
-          </div>
-          <el-table :data="batch.devices" border size="small" class="mt-1">
-            <el-table-column prop="sn" label="SN" min-width="140" />
-            <el-table-column label="状态" width="100">
-              <template #default="scope">
-                <el-tag
-                  :type="deviceStatusTagType(scope.row.status)"
-                  size="small"
-                >
-                  {{ deviceStatusLabel(scope.row.status) }}
-                </el-tag>
+              <template #title>
+                <div class="detail-collapse-title">
+                  <span>批次: {{ batch.batchNumber || '-' }}</span>
+                  <el-tag size="small" type="info"
+                    >{{ batch.devices?.length || 0 }} 台</el-tag
+                  >
+                  <el-tag v-if="batch.template" size="small" type="info">
+                    模板: {{ batch.template.name }}
+                  </el-tag>
+                  <el-tag size="small" :type="orderStatusTagType(batch.status)">
+                    {{ batchStatusLabel(batch.status) }}
+                  </el-tag>
+                </div>
               </template>
-            </el-table-column>
-            <el-table-column prop="model" label="型号" width="90" />
-            <el-table-column prop="pnCode" label="PN码" width="130" />
-            <el-table-column prop="firmwareVersion" label="固件" width="110" />
-            <el-table-column
-              prop="mainboardFirmwareVersion"
-              label="主板固件"
-              width="130"
-            />
-            <el-table-column label="操作" width="170" fixed="right">
-              <template #default="scope">
+              <div class="detail-section-actions">
                 <el-button
-                  v-if="scope.row.status === 'returned'"
-                  type="warning"
-                  link
                   size="small"
-                  @click="handleConfirmReworkReceived(scope.row)"
+                  type="success"
+                  link
+                  @click.stop="onExportBatchExcel(batch)"
                 >
-                  确认接收返工
+                  导出Excel
                 </el-button>
                 <el-button
-                  v-if="scope.row.status === 'rework'"
-                  type="warning"
-                  link
                   size="small"
-                  @click="handleConfirmRework(scope.row)"
-                >
-                  确认返工完成
-                </el-button>
-                <el-button
                   type="primary"
                   link
-                  size="small"
-                  @click="openFlowLogs({ batch, device: scope.row })"
+                  @click.stop="openBatchPrint(batch)"
                 >
-                  设备日志
+                  打印
                 </el-button>
+                <el-button
+                  size="small"
+                  type="primary"
+                  link
+                  @click.stop="openFlowLogs({ batch })"
+                >
+                  流转日志
+                </el-button>
+              </div>
+              <el-table :data="batch.devices" border size="small" class="mt-1">
+                <el-table-column prop="sn" label="SN" min-width="140" />
+                <el-table-column label="状态" width="100">
+                  <template #default="scope">
+                    <el-tag
+                      :type="deviceStatusTagType(scope.row.status)"
+                      size="small"
+                    >
+                      {{ deviceStatusLabel(scope.row.status) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="model" label="型号" width="90" />
+                <el-table-column prop="pnCode" label="PN码" width="130" />
+                <el-table-column
+                  prop="firmwareVersion"
+                  label="固件"
+                  width="110"
+                />
+                <el-table-column
+                  prop="mainboardFirmwareVersion"
+                  label="主板固件"
+                  width="130"
+                />
+                <el-table-column label="操作" width="170" fixed="right">
+                  <template #default="scope">
+                    <el-button
+                      v-if="scope.row.status === 'returned'"
+                      type="warning"
+                      link
+                      size="small"
+                      @click="handleConfirmReworkReceived(scope.row)"
+                    >
+                      确认接收返工
+                    </el-button>
+                    <el-button
+                      v-if="scope.row.status === 'rework'"
+                      type="warning"
+                      link
+                      size="small"
+                      @click="handleConfirmRework(scope.row)"
+                    >
+                      确认返工完成
+                    </el-button>
+                    <el-button
+                      type="primary"
+                      link
+                      size="small"
+                      @click="openFlowLogs({ batch, device: scope.row })"
+                    >
+                      设备日志
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-collapse-item>
+
+            <el-collapse-item v-if="unbatchedDevices.length" name="unbatched">
+              <template #title>
+                <div class="detail-collapse-title">
+                  <span>无批次设备</span>
+                  <el-tag size="small" type="warning"
+                    >{{ unbatchedDevices.length }} 台</el-tag
+                  >
+                </div>
               </template>
-            </el-table-column>
-          </el-table>
+              <el-table
+                :data="unbatchedDevices"
+                border
+                size="small"
+                class="mt-1"
+              >
+                <el-table-column prop="sn" label="SN" min-width="140" />
+                <el-table-column label="状态" width="100">
+                  <template #default="scope">
+                    <el-tag
+                      :type="deviceStatusTagType(scope.row.status)"
+                      size="small"
+                    >
+                      {{ deviceStatusLabel(scope.row.status) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="model" label="型号" width="90" />
+                <el-table-column prop="pnCode" label="PN码" width="130" />
+                <el-table-column
+                  prop="firmwareVersion"
+                  label="固件"
+                  width="110"
+                />
+                <el-table-column
+                  prop="mainboardFirmwareVersion"
+                  label="主板固件"
+                  width="130"
+                />
+                <el-table-column label="操作" width="170" fixed="right">
+                  <template #default="scope">
+                    <el-button
+                      v-if="scope.row.status === 'returned'"
+                      type="warning"
+                      link
+                      size="small"
+                      @click="handleConfirmReworkReceived(scope.row)"
+                    >
+                      确认接收返工
+                    </el-button>
+                    <el-button
+                      v-if="scope.row.status === 'rework'"
+                      type="warning"
+                      link
+                      size="small"
+                      @click="handleConfirmRework(scope.row)"
+                    >
+                      确认返工完成
+                    </el-button>
+                    <el-button
+                      type="primary"
+                      link
+                      size="small"
+                      @click="openFlowLogs({ device: scope.row })"
+                    >
+                      设备日志
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-collapse-item>
+          </el-collapse>
         </div>
       </div>
     </el-dialog>
@@ -675,7 +730,6 @@
       :logs="flowLogs"
       :mode="flowLogMode"
     />
-
   </div>
 </template>
 
@@ -686,13 +740,12 @@
   import { useBtnAuth } from '@/utils/btnAuth'
   import {
     getProductionOrderList,
-    deleteProductionOrder,
     forceDeleteProductionOrder,
     updateProductionOrder,
     findProductionOrder,
     confirmReworkReceived,
     confirmReworkDone,
-    scanAssignBatch,
+    scanAssignBatch
   } from '@/plugin/inspection/api/production_order'
   import { getTemplateList } from '@/plugin/inspection/api/template'
   import {
@@ -714,6 +767,7 @@
   const formRef = ref(null)
   const scanInputRef = ref(null)
   const detailOrder = ref(null)
+  const detailActivePanels = ref([])
   const batchScanOrder = ref(null)
   const dispatchOrder = ref(null)
   const templateList = ref([])
@@ -731,6 +785,7 @@
     scanSN: ''
   })
   const scanBasket = ref([])
+  const submitDateRange = ref([])
 
   const searchInfo = reactive({
     moNumber: '',
@@ -739,6 +794,8 @@
     sn: '',
     instrumentCategory: '',
     status: undefined,
+    startSubmitDate: '',
+    endSubmitDate: '',
     page: 1,
     pageSize: 30
   })
@@ -766,13 +823,19 @@
       custom: '定制款'
     }[value] || value)
   const batchStatusLabel = (value) =>
-    ({ 0: '未派检', 1: '待检测接收', 2: '检测中', 3: '检测中', 4: '已完成' }[value] || value)
+    ({ 0: '未派检', 1: '待检测接收', 2: '检测中', 3: '检测中', 4: '已完成' }[
+      value
+    ] || value)
   const orderStatusTagType = (value) =>
-    ({ 0: 'info', 1: 'warning', 2: 'primary', 3: 'warning', 4: 'success' }[value] || 'info')
+    ({ 0: 'info', 1: 'warning', 2: 'primary', 3: 'warning', 4: 'success' }[
+      value
+    ] || 'info')
+  const productionStatusLabel = (value) =>
+    Number(value) === 4 ? '已完成' : '未完成'
+  const productionStatusTagType = (value) =>
+    Number(value) === 4 ? 'success' : 'warning'
   const orderStatusOptions = [
-    { label: '未派检', value: 0 },
-    { label: '待检测接收', value: 1 },
-    { label: '检测中', value: 2 },
+    { label: '未完成', value: 0 },
     { label: '已完成', value: 4 }
   ]
   const deviceStatusLabel = (value) =>
@@ -812,6 +875,15 @@
     )
     return allDevices.filter((device) => !batchedSet.has(device.ID))
   })
+
+  const sortedDetailBatches = computed(() =>
+    [...(detailOrder.value?.batches || [])].sort((a, b) => {
+      const bTime = new Date(b.CreatedAt || b.createdAt || 0).getTime()
+      const aTime = new Date(a.CreatedAt || a.createdAt || 0).getTime()
+      if (bTime !== aTime) return bTime - aTime
+      return Number(b.ID || 0) - Number(a.ID || 0)
+    })
+  )
 
   const unbatchedForScan = computed(() => {
     if (!batchScanOrder.value) return []
@@ -860,13 +932,17 @@
   const onExportBatchExcel = async (batch) => {
     if (!ensureBatchPrintable(batch)) return
     const res = await exportInspectionExcel({ id: batch.ID })
-    const filename = `${detailOrder.value?.moNumber || 'MO'}-${batch.batchNumber || batch.ID}-检测工单.xlsx`
+    const filename = `${detailOrder.value?.moNumber || 'MO'}-${
+      batch.batchNumber || batch.ID
+    }-检测工单.xlsx`
     downloadBlob(res.data || res, filename)
   }
 
   const getList = async () => {
     loading.value = true
     try {
+      searchInfo.startSubmitDate = submitDateRange.value?.[0] || ''
+      searchInfo.endSubmitDate = submitDateRange.value?.[1] || ''
       const res = await getProductionOrderList(searchInfo)
       if (res.code === 0) {
         tableData.value = res.data.list
@@ -884,6 +960,9 @@
     searchInfo.sn = ''
     searchInfo.instrumentCategory = ''
     searchInfo.status = undefined
+    searchInfo.startSubmitDate = ''
+    searchInfo.endSubmitDate = ''
+    submitDateRange.value = []
     searchInfo.page = 1
     getList()
   }
@@ -922,6 +1001,7 @@
     const res = await findProductionOrder({ id: row.ID })
     if (res.code !== 0) return
     detailOrder.value = res.data
+    detailActivePanels.value = []
     detailVisible.value = true
   }
 
@@ -1113,18 +1193,6 @@
     }
   }
 
-  const onDelete = (id) => {
-    ElMessageBox.confirm('确定删除？', '提示', { type: 'warning' })
-      .then(async () => {
-        const res = await deleteProductionOrder({ id })
-        if (res.code === 0) {
-          ElMessage.success('删除成功')
-          getList()
-        }
-      })
-      .catch(() => {})
-  }
-
   const onForceDelete = (row) => {
     ElMessageBox.confirm(
       `确定强制删除生产订单 ${row.moNumber} 吗？这会一并删除设备、批次和检测结果。`,
@@ -1200,6 +1268,61 @@
     flex: none;
   }
 
+  :global(.production-detail-dialog.el-dialog) {
+    height: min(860px, calc(100vh - 48px));
+    margin-top: 24px !important;
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  :global(.production-detail-dialog .el-dialog__header),
+  :global(.production-detail-dialog .el-dialog__footer) {
+    flex: none;
+  }
+
+  :global(.production-detail-dialog .el-dialog__body) {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 12px;
+  }
+
+  .production-detail-layout {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .production-detail-fixed {
+    flex: none;
+  }
+
+  .production-detail-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  .detail-collapse-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex-wrap: wrap;
+    font-weight: 600;
+  }
+
+  .detail-section-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
   .scan-board {
     flex: 1;
     min-height: 0;
@@ -1252,5 +1375,4 @@
     background: var(--el-bg-color, #fff);
     border: 1px solid var(--el-border-color-lighter, #ebeef5);
   }
-
 </style>

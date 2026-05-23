@@ -36,6 +36,7 @@ type ProductionOrder struct {
 	ReworkCount              int                     `json:"reworkCount" gorm:"-"`
 	RecheckCount             int                     `json:"recheckCount" gorm:"-"`
 	AbnormalCount            int                     `json:"abnormalCount" gorm:"-"`
+	UnbatchedCount           int                     `json:"unbatchedCount" gorm:"-"`
 	BatchCount               int                     `json:"batchCount" gorm:"-"`
 	BatchSummary             string                  `json:"batchSummary" gorm:"-"`
 }

@@ -130,7 +130,15 @@ func (s *productionOrderSvc) UpdateProductionOrder(req *request.UpdateProduction
 
 func (s *productionOrderSvc) FindProductionOrder(id string) (model.ProductionOrder, error) {
 	var po model.ProductionOrder
-	err := global.GVA_DB.Preload("Template").Preload("Batches.Template").Preload("Batches.Devices").Where("id = ?", id).First(&po).Error
+	err := global.GVA_DB.
+		Preload("Template").
+		Preload("Batches", func(db *gorm.DB) *gorm.DB {
+			return db.Order("created_at desc, id desc")
+		}).
+		Preload("Batches.Template").
+		Preload("Batches.Devices").
+		Where("id = ?", id).
+		First(&po).Error
 	if err != nil {
 		return po, err
 	}
@@ -141,6 +149,7 @@ func (s *productionOrderSvc) FindProductionOrder(id string) (model.ProductionOrd
 	po.Devices = devices
 	fillOrderHeaderFromDevices(&po, devices)
 	po.DeviceCount = len(devices)
+	po.UnbatchedCount = countUnbatchedDevices(devices)
 	for i := range po.Batches {
 		po.Batches[i].DeviceCount = len(po.Batches[i].Devices)
 	}
@@ -182,28 +191,36 @@ func (s *productionOrderSvc) GetProductionOrderList(search request.ProductionOrd
 	if search.InstrumentCategory != "" {
 		db = db.Where("instrument_category = ?", search.InstrumentCategory)
 	}
+	if start, ok := parseDateStart(search.StartSubmitDate); ok {
+		db = db.Where("submit_date >= ?", start)
+	}
+	if end, ok := parseDateEnd(search.EndSubmitDate); ok {
+		db = db.Where("submit_date <= ?", end)
+	}
 	if search.Status != nil {
-		db = db.Where("status = ?", *search.Status)
+		db = applyProductionCompletionStatusFilter(db, *search.Status)
 	}
 	err = db.Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
-	err = db.Limit(search.PageSize).Offset(search.PageSize * (search.Page - 1)).Order("id desc").Find(&list).Error
+	err = db.Limit(search.PageSize).Offset(search.PageSize * (search.Page - 1)).Order("submit_date desc, id desc").Find(&list).Error
 	for i := range list {
-		var count, pass, fail, returned, rework, recheck int64
+		var count, pass, fail, returned, rework, recheck, unbatched int64
 		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ?", list[i].ID).Count(&count)
 		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", list[i].ID, "pass").Count(&pass)
 		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", list[i].ID, "fail").Count(&fail)
 		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", list[i].ID, "returned").Count(&returned)
 		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status = ?", list[i].ID, "rework").Count(&rework)
 		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND status IN ?", list[i].ID, []string{"pending_recheck", "rechecking"}).Count(&recheck)
+		global.GVA_DB.Model(&model.ProductionOrderDevice{}).Where("production_order_id = ? AND batch_id IS NULL", list[i].ID).Count(&unbatched)
 		list[i].DeviceCount = int(count)
 		list[i].PassCount = int(pass)
 		list[i].FailCount = int(fail)
 		list[i].ReworkCount = int(returned + rework)
 		list[i].RecheckCount = int(recheck)
 		list[i].AbnormalCount = int(fail + returned + rework + recheck)
+		list[i].UnbatchedCount = int(unbatched)
 		if list[i].TemplateID != nil {
 			var tmpl model.InspectionTemplate
 			if global.GVA_DB.Where("id = ?", *list[i].TemplateID).First(&tmpl).Error == nil {
@@ -632,7 +649,7 @@ func (s *productionOrderSvc) ScanAssignBatch(req *request.ScanAssignBatch, opera
 }
 
 func createBatchFlowLog(tx *gorm.DB, batch model.ProductionBatch, action string, operatorID uint, operatorName string) error {
-	reason, err := batchDeviceSummaryReason(tx, batch.ID, action)
+	reason, err := batchDeviceTotalReason(tx, batch.ID, action)
 	if err != nil {
 		return err
 	}
@@ -831,6 +848,16 @@ func fillOrderHeaderFromDevices(order *model.ProductionOrder, devices []model.Pr
 	}
 }
 
+func countUnbatchedDevices(devices []model.ProductionOrderDevice) int {
+	count := 0
+	for _, device := range devices {
+		if device.BatchID == nil {
+			count++
+		}
+	}
+	return count
+}
+
 func extractModelFromDeviceInfo(deviceInfo string) string {
 	if deviceInfo == "" {
 		return ""
@@ -886,10 +913,11 @@ func extractMainboardFirmwareVersion(deviceInfo string) string {
 func fillBatchSummary(order *model.ProductionOrder) {
 	order.BatchCount = len(order.Batches)
 	if len(order.Batches) == 0 {
+		order.Status = 0
 		order.BatchSummary = "-"
 		return
 	}
-	order.Status = aggregateOrderStatus(order.Status, order.Batches)
+	order.Status = productionOrderCompletionStatus(order)
 	if len(order.Batches) == 1 {
 		order.BatchSummary = order.Batches[0].BatchNumber
 		return
@@ -912,12 +940,52 @@ func fillBatchSummary(order *model.ProductionOrder) {
 	order.BatchSummary = fmt.Sprintf("%s 等%d个批次", names[0], len(order.Batches))
 }
 
-func aggregateOrderStatus(current int, batches []model.ProductionBatch) int {
-	status := current
-	for _, batch := range batches {
-		if batch.Status > status {
-			status = batch.Status
+func productionOrderCompletionStatus(order *model.ProductionOrder) int {
+	if order.DeviceCount == 0 || order.UnbatchedCount > 0 || len(order.Batches) == 0 {
+		return 0
+	}
+	for _, batch := range order.Batches {
+		if batch.Status != 4 {
+			return 0
 		}
 	}
-	return status
+	return 4
+}
+
+func applyProductionCompletionStatusFilter(db *gorm.DB, status int) *gorm.DB {
+	completeCondition := `
+		EXISTS (SELECT 1 FROM production_order_devices pod WHERE pod.production_order_id = production_orders.id)
+		AND NOT EXISTS (SELECT 1 FROM production_order_devices pod WHERE pod.production_order_id = production_orders.id AND pod.batch_id IS NULL)
+		AND EXISTS (SELECT 1 FROM production_batches pb WHERE pb.production_order_id = production_orders.id)
+		AND NOT EXISTS (SELECT 1 FROM production_batches pb WHERE pb.production_order_id = production_orders.id AND pb.status <> 4)
+	`
+	if status == 4 {
+		return db.Where(completeCondition)
+	}
+	return db.Where("NOT (" + completeCondition + ")")
+}
+
+func parseDateStart(value string) (time.Time, bool) {
+	date, ok := parseDateOnly(value)
+	if !ok {
+		return time.Time{}, false
+	}
+	return date, true
+}
+
+func parseDateEnd(value string) (time.Time, bool) {
+	date, ok := parseDateOnly(value)
+	if !ok {
+		return time.Time{}, false
+	}
+	return date.AddDate(0, 0, 1).Add(-time.Nanosecond), true
+}
+
+func parseDateOnly(value string) (time.Time, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, false
+	}
+	date, err := time.ParseInLocation("2006-01-02", value, time.Local)
+	return date, err == nil
 }

@@ -93,7 +93,7 @@ func (s *workOrderSvc) AssignBatchTemplate(req *request.AssignBatchTemplate, ope
 		}).Error; err != nil {
 			return err
 		}
-		reason, err := batchDeviceSummaryReason(tx, batch.ID, "生产提交检测接收")
+		reason, err := batchDeviceTotalReason(tx, batch.ID, "生产提交检测接收")
 		if err != nil {
 			return err
 		}
@@ -146,7 +146,7 @@ func (s *workOrderSvc) AssignOrderTemplate(req *request.AssignOrderTemplate, ope
 			if batch.Status != 0 {
 				continue
 			}
-			reason, err := batchDeviceSummaryReason(tx, batch.ID, "生产提交检测接收")
+			reason, err := batchDeviceTotalReason(tx, batch.ID, "生产提交检测接收")
 			if err != nil {
 				return err
 			}
@@ -644,6 +644,14 @@ func batchDeviceSummaryReason(tx *gorm.DB, batchID uint, prefix string) (string,
 	}
 	abnormal := fail + returned + rework + recheck
 	return fmt.Sprintf("%s；总数%d台，合格%d台，待测%d台，异常%d台", prefix, total, pass, pending, abnormal), nil
+}
+
+func batchDeviceTotalReason(tx *gorm.DB, batchID uint, prefix string) (string, error) {
+	var total int64
+	if err := tx.Model(&model.ProductionOrderDevice{}).Where("batch_id = ?", batchID).Count(&total).Error; err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s；总数%d台", prefix, total), nil
 }
 
 func updateBatchStatusLogOnly(tx *gorm.DB, batch model.ProductionBatch, action string, operatorID interface{}, operatorName string, reason string) error {

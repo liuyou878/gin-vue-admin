@@ -9,6 +9,8 @@ type ProductionOrderSearch struct {
 	SN                 string `json:"sn" form:"sn"`
 	InstrumentCategory string `json:"instrumentCategory" form:"instrumentCategory"`
 	Status             *int   `json:"status" form:"status"`
+	StartSubmitDate    string `json:"startSubmitDate" form:"startSubmitDate"`
+	EndSubmitDate      string `json:"endSubmitDate" form:"endSubmitDate"`
 	request.PageInfo
 }
 

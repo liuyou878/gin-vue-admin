@@ -17,7 +17,7 @@
       <el-tab-pane label="按台检测" name="byDevice" />
     </el-tabs>
 
-    <div class="detail-scroll">
+    <div ref="detailScrollRef" class="detail-scroll">
       <section class="workbench-header">
         <div class="subject-row">
           <el-button
@@ -152,7 +152,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import InspectResultOverview from '@/plugin/inspection/components/InspectResultOverview.vue'
@@ -165,12 +165,28 @@ import {
 } from '@/plugin/inspection/api/work_order'
 
 const route = useRoute()
+const INSPECT_MODE_STORAGE_KEY = 'inspection.inspectDetail.mode'
+const readSavedInspectMode = () => {
+  const mode = localStorage.getItem(INSPECT_MODE_STORAGE_KEY)
+  return ['byItem', 'byDevice'].includes(mode) ? mode : 'byDevice'
+}
 
 const detailLoaded = ref(false)
-const inspectMode = ref('byDevice')
+const inspectMode = ref(readSavedInspectMode())
 const currentItemIndex = ref(0)
 const currentDeviceIndex = ref(0)
+const detailScrollRef = ref(null)
 const detail = ref({ order: {}, devices: [], templateItems: [] })
+
+watch(inspectMode, (mode) => {
+  if (['byItem', 'byDevice'].includes(mode)) {
+    localStorage.setItem(INSPECT_MODE_STORAGE_KEY, mode)
+  }
+})
+
+watch([currentItemIndex, currentDeviceIndex], () => {
+  scrollDetailToTop()
+})
 
 const currentDevice = computed(() => detail.value.devices[currentDeviceIndex.value] || null)
 const currentItem = computed(() => detail.value.templateItems[currentItemIndex.value] || null)
@@ -246,6 +262,11 @@ const inspectionRows = computed(() => {
 
 const goBack = () => {
   window.location.hash = '/inspectWorkOrder'
+}
+
+const scrollDetailToTop = async () => {
+  await nextTick()
+  detailScrollRef.value?.scrollTo?.({ top: 0, behavior: 'smooth' })
 }
 
 const prevSubject = () => {
