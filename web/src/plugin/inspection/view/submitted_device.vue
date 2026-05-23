@@ -151,6 +151,9 @@
           <el-descriptions-item label="固件版本">{{
             detailData.firmwareVersion || '-'
           }}</el-descriptions-item>
+          <el-descriptions-item label="主板固件版本">{{
+            detailMainboardFirmwareVersion || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="时间码">{{
             detailData.timeLicense || '-'
           }}</el-descriptions-item>
@@ -159,6 +162,9 @@
           }}</el-descriptions-item>
           <el-descriptions-item label="Ntrip状态">{{
             detailData.ntripCode || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item v-if="detailNetworkModel" label="网络型号">{{
+            detailNetworkModel
           }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="statusTagType(detailData.status)" size="small">
@@ -225,6 +231,33 @@
     } catch {
       return raw
     }
+  })
+
+  const parsedDeviceInfo = computed(() => {
+    const raw = detailData.value?.deviceInfo
+    if (!raw) return {}
+    try {
+      return JSON.parse(raw)
+    } catch {
+      return {}
+    }
+  })
+
+  const detailNetworkModel = computed(() => {
+    const value =
+      parsedDeviceInfo.value?.network?.model ||
+      parsedDeviceInfo.value?.networkModel ||
+      ''
+    return String(value || '').trim()
+  })
+
+  const detailMainboardFirmwareVersion = computed(() => {
+    const value =
+      detailData.value?.mainboardFirmwareVersion ||
+      parsedDeviceInfo.value?.device?.mainboardFirmwareVersion ||
+      parsedDeviceInfo.value?.mainboardFirmwareVersion ||
+      ''
+    return String(value || '').trim()
   })
 
   const statusLabel = (status) =>
