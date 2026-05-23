@@ -4,6 +4,10 @@ export const createProductionOrder = (data) => {
   return service({ url: '/productionOrder/createProductionOrder', method: 'post', data })
 }
 
+export const submitDeviceData = (data) => {
+  return service({ url: '/productionOrder/submitDeviceData', method: 'post', data })
+}
+
 export const deleteProductionOrder = (params) => {
   return service({ url: '/productionOrder/deleteProductionOrder', method: 'delete', params })
 }

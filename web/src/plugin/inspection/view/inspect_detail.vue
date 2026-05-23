@@ -143,7 +143,7 @@
       </section>
 
       <div class="detail-footer" v-if="detail.order.status === 2 || hasRecheckingDevices">
-        <el-button v-if="detail.order.status === 2" type="success" size="large" @click="onComplete">完成检测</el-button>
+        <el-button v-if="detail.order.status === 2 && !hasRecheckingDevices" type="success" size="large" @click="onComplete">完成检测</el-button>
         <el-button v-if="hasRecheckingDevices" type="success" size="large" @click="onCompleteRecheck">完成复检</el-button>
       </div>
     </div>
@@ -175,8 +175,16 @@ const detail = ref({ order: {}, devices: [], templateItems: [] })
 const currentDevice = computed(() => detail.value.devices[currentDeviceIndex.value] || null)
 const currentItem = computed(() => detail.value.templateItems[currentItemIndex.value] || null)
 const hasRecheckingDevices = computed(() => detail.value.devices.some((device) => device._startedRecheck || (device._status || device.status) === 'rechecking'))
-const showResultOverview = computed(() => detail.value.order.status >= 3 && !hasRecheckingDevices.value)
-const isReadonly = computed(() => detail.value.order.status >= 3 && !hasRecheckingDevices.value)
+const hasPersistedAbnormalDevices = computed(() =>
+  detail.value.devices.some((device) =>
+    ['fail', 'returned', 'rework', 'pending_recheck'].includes(device.status)
+  )
+)
+const showResultOverview = computed(() =>
+  (detail.value.order.status === 4 || hasPersistedAbnormalDevices.value) &&
+  !hasRecheckingDevices.value
+)
+const isReadonly = computed(() => detail.value.order.status === 4 && !hasRecheckingDevices.value)
 
 const detailInfo = computed(() => {
   const order = detail.value.order
@@ -382,7 +390,7 @@ const saveSingleResult = async (device, resultIndex) => {
   result._saveState = 'saving'
   try {
     const numberResult = result._numVal !== undefined && result._numVal !== null && result._numVal !== '' ? Number(result._numVal) : null
-    const status = detail.value.order.status >= 3 && (device._startedRecheck || device.status === 'rechecking')
+    const status = detail.value.order.status === 4 && (device._startedRecheck || device.status === 'rechecking')
       ? ''
       : (device._status || 'pending')
     const res = await apiSaveSingleResult({
@@ -476,7 +484,7 @@ const buildSavePayload = () => {
   const deviceResults = []
   detail.value.devices.forEach((device) => {
     if (isReadonly.value) return
-    if (detail.value.order.status >= 3 && !device._startedRecheck) return
+    if (detail.value.order.status === 4 && !device._startedRecheck) return
     deviceStatuses.push({ deviceID: device.ID, status: device._status || 'pending' })
     device.results.forEach((result) => {
       deviceResults.push({
@@ -536,7 +544,7 @@ const onComplete = async () => {
   await ElMessageBox.confirm('确定完成该工单的检测？完成后才能处理不合格设备打回生产。', '提示', { type: 'info' })
   const res = await completeInspection({ ID: detail.value.order.ID })
   if (res.code === 0) {
-    ElMessage.success('已提交待确认')
+    ElMessage.success('检测结果已提交')
     await loadDetail()
   }
 }

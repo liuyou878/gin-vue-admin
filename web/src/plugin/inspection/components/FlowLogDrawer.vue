@@ -68,7 +68,7 @@ const visible = computed({
 })
 
 const batchStatusLabel = (value) =>
-  ({ 0: '未派检', 1: '待检测接收', 2: '检测中', 3: '待确认', 4: '已完成' }[Number(value)] || value)
+  ({ 0: '未派检', 1: '待检测接收', 2: '检测中', 3: '检测中', 4: '已完成' }[Number(value)] || value)
 
 const batchStatusTagType = (value) =>
   ({ 0: 'info', 1: 'warning', 2: 'primary', 3: 'warning', 4: 'success' }[Number(value)] || 'info')
@@ -134,7 +134,7 @@ const systemReasons = new Set([
   '批次流转',
   '历史数据无原始派检日志，系统自动补显',
   '历史数据无原始接收日志，系统自动补显',
-  '历史数据无原始待确认日志，系统自动补显',
+  '历史数据无原始提交日志，系统自动补显',
   '历史数据无原始完成日志，系统自动补显'
 ])
 

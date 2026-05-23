@@ -4,7 +4,6 @@
       <el-tabs v-model="activeTab" @tab-change="onTabChange">
         <el-tab-pane label="待接收" name="pending" />
         <el-tab-pane label="检测中" name="inspecting" />
-        <el-tab-pane label="待确认" name="confirming" />
         <el-tab-pane label="已完成" name="completed" />
       </el-tabs>
       <div class="search-bar">
@@ -99,65 +98,57 @@
               s2.row.template?.name || '-'
             }}</template>
           </el-table-column>
-          <el-table-column label="总数" width="70">
+          <el-table-column label="状态 / 设备进度" min-width="320">
             <template #default="s3">
-              <DeviceStatusCount
-                :row="s3.row"
-                type="all"
-                :count="s3.row.deviceCount"
-                :batch-id="s3.row.ID"
-                @changed="getList"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="合格数" width="90">
-            <template #default="s3">
-              <DeviceStatusCount
-                :row="s3.row"
-                type="pass"
-                :count="s3.row.passCount"
-                :batch-id="s3.row.ID"
-                @changed="getList"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="不合格数" width="100">
-            <template #default="s3">
-              <DeviceStatusCount
-                :row="s3.row"
-                type="fail"
-                :count="s3.row.failCount"
-                :batch-id="s3.row.ID"
-                @changed="getList"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="返工数" width="90">
-            <template #default="s3">
-              <DeviceStatusCount
-                :row="s3.row"
-                type="rework"
-                :count="s3.row.reworkCount"
-                :batch-id="s3.row.ID"
-                @changed="getList"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="待复检" width="90">
-            <template #default="s3">
-              <DeviceStatusCount
-                :row="s3.row"
-                type="recheck"
-                :count="s3.row.recheckCount"
-                :batch-id="s3.row.ID"
-                allow-recheck-actions
-                @changed="getList"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="合格率" width="100">
-            <template #default="s3">
-              {{ passRateLabel(s3.row.passCount, s3.row.deviceCount) }}
+              <div class="batch-progress">
+                <el-tag size="small" :type="activeTabTagType">
+                  {{ activeTabLabel }}
+                </el-tag>
+                <span class="progress-pill">
+                  总数
+                  <DeviceStatusCount
+                    :row="s3.row"
+                    type="all"
+                    :count="s3.row.deviceCount"
+                    :batch-id="s3.row.ID"
+                    @changed="getList"
+                  />
+                </span>
+                <span class="progress-pill">
+                  合格
+                  <DeviceStatusCount
+                    :row="s3.row"
+                    type="pass"
+                    :count="s3.row.passCount"
+                    :batch-id="s3.row.ID"
+                    @changed="getList"
+                  />
+                </span>
+                <span class="progress-pill is-warning">
+                  待测
+                  <DeviceStatusCount
+                    :row="s3.row"
+                    type="pending"
+                    :count="pendingCount(s3.row)"
+                    :batch-id="s3.row.ID"
+                    @changed="getList"
+                  />
+                </span>
+                <span class="progress-pill is-danger">
+                  异常
+                  <DeviceStatusCount
+                    :row="s3.row"
+                    type="abnormal"
+                    :count="abnormalCount(s3.row)"
+                    :batch-id="s3.row.ID"
+                    allow-recheck-actions
+                    @changed="getList"
+                  />
+                </span>
+                <span class="progress-rate">
+                  合格率 {{ passRateLabel(s3.row.passCount, s3.row.deviceCount) }}
+                </span>
+              </div>
             </template>
           </el-table-column>
           <el-table-column label="检测人" width="100">
@@ -178,21 +169,13 @@
                 >接收并开始检测</el-button
               >
               <el-button
-                v-if="activeTab === 'confirming' && canConfirmComplete(s6.row)"
-                size="small"
-                type="success"
-                @click="onConfirmComplete(s6.row)"
-              >
-                确认完成
-              </el-button>
-              <el-button
                 v-if="activeTab !== 'pending'"
                 size="small"
                 type="primary"
                 @click="openDetail(s6.row)"
               >
                 {{
-                  activeTab === 'completed' || activeTab === 'confirming'
+                  activeTab === 'completed'
                     ? '查看'
                     : '检测'
                 }}
@@ -234,8 +217,6 @@
               :type="
                 activeTab === 'completed'
                   ? 'success'
-                  : activeTab === 'confirming'
-                  ? 'warning'
                   : activeTab === 'inspecting'
                   ? 'primary'
                   : 'info'
@@ -274,31 +255,21 @@
               />
             </div>
             <div class="count-box">
-              <span>不合格</span>
+              <span>待测</span>
               <DeviceStatusCount
                 :row="row"
-                type="fail"
-                :count="row.failCount"
+                type="pending"
+                :count="pendingCount(row)"
                 :batch-id="row.ID"
                 @changed="getList"
               />
             </div>
             <div class="count-box">
-              <span>返工</span>
+              <span>异常</span>
               <DeviceStatusCount
                 :row="row"
-                type="rework"
-                :count="row.reworkCount"
-                :batch-id="row.ID"
-                @changed="getList"
-              />
-            </div>
-            <div class="count-box">
-              <span>待复检</span>
-              <DeviceStatusCount
-                :row="row"
-                type="recheck"
-                :count="row.recheckCount"
+                type="abnormal"
+                :count="abnormalCount(row)"
                 :batch-id="row.ID"
                 allow-recheck-actions
                 @changed="getList"
@@ -322,21 +293,13 @@
               接收并开始检测
             </el-button>
             <el-button
-              v-if="activeTab === 'confirming' && canConfirmComplete(row)"
-              type="success"
-              size="small"
-              @click="onConfirmComplete(row)"
-            >
-              确认完成
-            </el-button>
-            <el-button
               v-if="activeTab !== 'pending'"
               type="primary"
               size="small"
               @click="openDetail(row)"
             >
               {{
-                activeTab === 'completed' || activeTab === 'confirming'
+                activeTab === 'completed'
                   ? '查看'
                   : '检测'
               }}
@@ -377,7 +340,6 @@
   import {
     getInspectionBatchList,
     exportInspectionExcel,
-    confirmInspectionComplete,
     startInspection
   } from '@/plugin/inspection/api/work_order'
 
@@ -389,7 +351,9 @@
   const requestSeq = ref(0)
   const savedTab = sessionStorage.getItem('inspectTab')
   const activeTab = ref(
-    savedTab === 'recheck' ? 'confirming' : savedTab || 'pending'
+    savedTab === 'recheck' || savedTab === 'confirming'
+      ? 'inspecting'
+      : savedTab || 'pending'
   )
   const searchInfo = reactive({
     moNumber: '',
@@ -410,7 +374,6 @@
   const activeTabLabelMap = {
     pending: '待接收',
     inspecting: '检测中',
-    confirming: '待确认',
     completed: '已完成'
   }
   const deviceStatusOptions = [
@@ -425,6 +388,14 @@
   const activeTabLabel = computed(
     () => activeTabLabelMap[activeTab.value] || '-'
   )
+  const activeTabTagType = computed(
+    () =>
+      ({
+        pending: 'info',
+        inspecting: 'primary',
+        completed: 'success'
+      }[activeTab.value] || 'info')
+  )
   const paginationLayout = computed(() =>
     isMobile.value
       ? 'prev, pager, next'
@@ -435,17 +406,16 @@
     if (!total) return '-'
     return `${((Number(passCount || 0) / total) * 100).toFixed(1)}%`
   }
-  const canConfirmComplete = (row) => {
-    const deviceCount = Number(row.deviceCount || 0)
-    if (!deviceCount) return false
-    const passCount = Number(row.passCount || 0)
-    const pendingCount =
-      Number(row.failCount || 0) +
+  const abnormalCount = (row) =>
+    Number(row.abnormalCount ?? 0) ||
+    Number(row.failCount || 0) +
       Number(row.reworkCount || 0) +
       Number(row.recheckCount || 0)
-    return passCount === deviceCount && pendingCount === 0
+  const pendingCount = (row) => {
+    const total = Number(row.deviceCount || 0)
+    const count = total - Number(row.passCount || 0) - abnormalCount(row)
+    return count > 0 ? count : 0
   }
-
   const getList = async (options = {}) => {
     const smooth = options.smooth === true && isMobile.value
     const seq = requestSeq.value + 1
@@ -455,7 +425,7 @@
     } else {
       loading.value = true
     }
-    const statusMap = { pending: 1, inspecting: 2, confirming: 3, completed: 4 }
+    const statusMap = { pending: 1, inspecting: 2, completed: 4 }
     try {
       const res = await getInspectionBatchList({
         ...searchInfo,
@@ -534,21 +504,6 @@
       }, 300)
     }
   }
-  const onConfirmComplete = async (row) => {
-    await ElMessageBox.confirm(
-      '确认该批次全部闭环并完成检测？确认后只能查看、打印和导出。',
-      '确认完成',
-      {
-        type: 'success',
-        confirmButtonText: '确认完成'
-      }
-    )
-    const res = await confirmInspectionComplete({ ID: row.ID })
-    if (res.code === 0) {
-      ElMessage.success('已确认完成')
-      getList()
-    }
-  }
   const updateIsMobile = () => {
     isMobile.value = window.matchMedia('(max-width: 768px)').matches
   }
@@ -620,6 +575,36 @@
     border: 1px dashed var(--el-border-color-light, #e4e7ed);
     border-radius: 14px;
     background: var(--el-bg-color, #fff);
+  }
+  .batch-progress {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .progress-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--el-fill-color-lighter, #fafafa);
+    color: var(--el-text-color-regular, #606266);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .progress-pill.is-warning {
+    background: #fff7ed;
+    color: #9a3412;
+  }
+  .progress-pill.is-danger {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+  .progress-rate {
+    color: var(--el-text-color-secondary, #909399);
+    font-size: 12px;
+    white-space: nowrap;
   }
   .card-head {
     display: flex;

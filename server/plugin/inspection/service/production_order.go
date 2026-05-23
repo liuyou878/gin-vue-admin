@@ -632,8 +632,12 @@ func (s *productionOrderSvc) ScanAssignBatch(req *request.ScanAssignBatch, opera
 }
 
 func createBatchFlowLog(tx *gorm.DB, batch model.ProductionBatch, action string, operatorID uint, operatorName string) error {
+	reason, err := batchDeviceSummaryReason(tx, batch.ID, action)
+	if err != nil {
+		return err
+	}
 	var existing model.ProductionBatchStatusLog
-	err := tx.Where("production_batch_id = ? AND from_status = ? AND to_status = ? AND action = ?", batch.ID, batch.Status, batch.Status, action).
+	err = tx.Where("production_batch_id = ? AND from_status = ? AND to_status = ? AND action = ?", batch.ID, batch.Status, batch.Status, action).
 		First(&existing).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return tx.Create(&model.ProductionBatchStatusLog{
@@ -641,6 +645,7 @@ func createBatchFlowLog(tx *gorm.DB, batch model.ProductionBatch, action string,
 			FromStatus:        batch.Status,
 			ToStatus:          batch.Status,
 			Action:            action,
+			Reason:            reason,
 			OperatorID:        &operatorID,
 			OperatorName:      operatorName,
 		}).Error

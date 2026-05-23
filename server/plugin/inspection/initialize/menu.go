@@ -39,7 +39,12 @@ func Menu(ctx context.Context) {
 		Component: "plugin/inspection/view/submitted_device.vue", Sort: 5,
 		Meta: model.Meta{Title: "生产提交数据", Icon: "data-board"},
 	}
-	utils.RegisterMenus(parent, child1, child2, child3, child4, child5)
+	child6 := model.SysBaseMenu{
+		ParentId: 0, Path: "productionMockSubmit", Name: "productionMockSubmit", Hidden: false,
+		Component: "plugin/inspection/view/production_mock_submit.vue", Sort: 6,
+		Meta: model.Meta{Title: "模拟生产提交", Icon: "cpu"},
+	}
+	utils.RegisterMenus(parent, child1, child2, child3, child4, child5, child6)
 	ensureMenuButton(ctx, "inspectionItem", "delete", "删除")
 	ensureMenuButton(ctx, "inspectionTemplate", "delete", "删除")
 	ensureMenuButton(ctx, "productionOrder", "delete", "删除")

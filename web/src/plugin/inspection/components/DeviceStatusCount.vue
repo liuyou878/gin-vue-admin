@@ -68,6 +68,7 @@
   const typeConfig = computed(() => {
     const map = {
       all: { label: '全部设备', className: '' },
+      pending: { label: '待测设备', className: 'count-pending' },
       pass: { label: '合格设备', className: 'count-pass' },
       fail: { label: '不合格设备', className: 'count-fail' },
       rework: { label: '返工设备', className: 'count-return' },
@@ -111,6 +112,10 @@
 
   .count-pass {
     color: #16a34a;
+  }
+
+  .count-pending {
+    color: #d97706;
   }
 
   .count-fail {

@@ -8,8 +8,8 @@
         </div>
       </div>
       <div class="overview-actions">
-        <el-tag :type="isFinalCompleted ? 'success' : 'warning'" size="large">
-          {{ isFinalCompleted ? '已完成' : '待确认' }}
+        <el-tag :type="isFinalCompleted ? 'success' : 'primary'" size="large">
+          {{ isFinalCompleted ? '已完成' : '检测中' }}
         </el-tag>
       </div>
     </section>
@@ -95,16 +95,6 @@
       </el-button>
     </section>
 
-    <el-alert
-      v-if="canConfirmComplete && hasPendingDevices"
-      class="confirm-alert"
-      type="warning"
-      show-icon
-      :closable="false"
-      title="还有未闭环设备，不能确认完成"
-      :description="pendingSummaryText"
-    />
-
     <el-table :data="deviceRows" border stripe size="small" class="result-table">
       <el-table-column prop="lineNumber" label="序号" width="70" />
       <el-table-column prop="sn" label="SN" min-width="150" />
@@ -132,10 +122,28 @@
       <el-table-column prop="returnReason" label="打回原因" min-width="160" show-overflow-tooltip>
         <template #default="scope">{{ scope.row.returnReason || '-' }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="150" fixed="right">
+      <el-table-column label="操作" width="210" fixed="right">
         <template #default="scope">
           <el-button type="primary" link size="small" @click="openDeviceDetail(scope.row)">
             查看明细
+          </el-button>
+          <el-button
+            v-if="canStartRecheck(scope.row)"
+            type="warning"
+            link
+            size="small"
+            @click="handleStartRecheck(scope.row)"
+          >
+            开始复检
+          </el-button>
+          <el-button
+            v-if="canContinueRecheck(scope.row)"
+            type="warning"
+            link
+            size="small"
+            @click="openInspectDetail(scope.row)"
+          >
+            继续复检
           </el-button>
           <el-button
             v-if="canReturn && scope.row.status === 'fail'"
@@ -187,7 +195,7 @@
 import { computed, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatDate } from '@/utils/format'
-import { returnDevices as apiReturnDevices } from '@/plugin/inspection/api/work_order'
+import { returnDevices as apiReturnDevices, startRecheck } from '@/plugin/inspection/api/work_order'
 
 const props = defineProps({
   detail: {
@@ -229,29 +237,13 @@ const passRate = computed(() => {
 })
 
 const isFinalCompleted = computed(() => props.detail.order?.status === 4)
-const canConfirmComplete = computed(() => props.detail.order?.status === 3)
 const pendingStatusKeys = ['pending', 'fail', 'returned', 'rework', 'pending_recheck', 'rechecking']
-const pendingDevices = computed(() =>
-  normalizedDevices.value.filter((device) => pendingStatusKeys.includes(device.status || device._status || 'pending'))
-)
-const hasPendingDevices = computed(() => pendingDevices.value.length > 0)
-const pendingSummaryText = computed(() => {
-  const counts = pendingDevices.value.reduce((acc, device) => {
-    const status = device.status || device._status || 'pending'
-    acc[status] = (acc[status] || 0) + 1
-    return acc
-  }, {})
-  return pendingStatusKeys
-    .filter((status) => counts[status])
-    .map((status) => `${deviceStatusLabel({ status })} ${counts[status]} 台`)
-    .join('，')
-})
 
 const hasRecheckDevices = computed(() =>
   normalizedDevices.value.some((device) => ['pending_recheck', 'rechecking'].includes(device.status || device._status))
 )
 
-const canReturn = computed(() => props.detail.order?.status === 3 && !hasRecheckDevices.value)
+const canReturn = computed(() => props.detail.order?.status === 2 && !hasRecheckDevices.value)
 
 const failDevices = computed(() =>
   normalizedDevices.value.filter((device) => (device.status || device._status) === 'fail')
@@ -359,6 +351,40 @@ const deviceStatusTag = (device) =>
 const openDeviceDetail = (device) => {
   currentDevice.value = device
   detailVisible.value = true
+}
+
+const canStartRecheck = (device) =>
+  !isFinalCompleted.value && (device.status || device._status) === 'pending_recheck'
+
+const canContinueRecheck = (device) =>
+  !isFinalCompleted.value && (device.status || device._status) === 'rechecking'
+
+const openInspectDetail = () => {
+  window.location.hash = `/inspectDetail?batchId=${props.detail.order.ID}`
+}
+
+const handleStartRecheck = async (device) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定开始复检 ${device.sn}？开始后检测端才能录入复检结果。`,
+      '开始复检',
+      {
+        type: 'warning',
+        confirmButtonText: '开始复检'
+      }
+    )
+  } catch {
+    return
+  }
+
+  const res = await startRecheck({ ID: props.detail.order.ID, deviceID: device.ID })
+  if (res.code !== 0) return
+  ElMessage.success({ message: '已开始复检', duration: 1000 })
+  emit('refresh')
+  window.setTimeout(() => {
+    ElMessage.closeAll()
+    openInspectDetail()
+  }, 300)
 }
 
 const returnOne = (device) => {

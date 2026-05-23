@@ -152,9 +152,9 @@ func (a *workOrderApi) SaveSingleResult(c *gin.Context) {
 	response.OkWithDetailed(result, "保存成功", c)
 }
 
-// CompleteInspection 提交检测待确认
+// CompleteInspection 提交检测结果
 // @Tags     WorkOrder
-// @Summary  提交检测待确认（状态:检测中→待确认）
+// @Summary  提交检测结果（全部合格自动完成，否则保持检测中）
 // @Security ApiKeyAuth
 // @accept   application/json
 // @Produce  application/json
@@ -172,12 +172,12 @@ func (a *workOrderApi) CompleteInspection(c *gin.Context) {
 		response.FailWithMessage("操作失败: "+err.Error(), c)
 		return
 	}
-	response.OkWithMessage("已提交待确认", c)
+	response.OkWithMessage("检测结果已提交", c)
 }
 
 // ConfirmInspectionComplete 确认完成检测
 // @Tags     WorkOrder
-// @Summary  确认完成检测（状态:待确认→已完成）
+// @Summary  确认完成检测
 // @Security ApiKeyAuth
 // @accept   application/json
 // @Produce  application/json

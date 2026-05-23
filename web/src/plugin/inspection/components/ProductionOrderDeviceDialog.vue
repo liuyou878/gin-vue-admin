@@ -177,6 +177,7 @@
   const filterConfig = computed(() => {
     const map = {
       all: { label: '全部设备', params: {} },
+      pending: { label: '待测设备', params: { status: 'pending' } },
       pass: { label: '合格设备', params: { status: 'pass' } },
       fail: { label: '不合格设备', params: { status: 'fail' } },
       rework: { label: '返工设备', params: { statuses: 'returned,rework' } },

@@ -46,6 +46,15 @@ const routes = [
     component: () => import('@/plugin/inspection/view/work_order.vue')
   },
   {
+    path: '/productionMockSubmit',
+    name: 'ProductionMockSubmit',
+    meta: {
+      title: '模拟生产工具提交',
+      client: true
+    },
+    component: () => import('@/plugin/inspection/view/production_mock_submit.vue')
+  },
+  {
     path: '/publicFirmwareDownload',
     name: 'PublicFirmwareDownload',
     meta: {

@@ -20,7 +20,7 @@ type ProductionOrder struct {
 	MainboardFirmwareVersion string                  `json:"mainboardFirmwareVersion" gorm:"column:mainboard_firmware_version;size:100;comment:主板固件版本"`
 	PNCode                   string                  `json:"pnCode" gorm:"column:pn_code;size:50;comment:订单PN码"`
 	InstrumentCategory       string                  `json:"instrumentCategory" gorm:"column:instrument_category;size:50;comment:仪器类别"`
-	Status                   int                     `json:"status" gorm:"column:status;default:0;comment:状态(0=未派检,1=待检测接收,2=检测中,3=待确认,4=已完成)"`
+	Status                   int                     `json:"status" gorm:"column:status;default:0;comment:状态(0=未派检,1=待检测接收,2=检测中,4=已完成)"`
 	SubmitterID              *uint                   `json:"submitterID" gorm:"column:submitter_id;comment:提交人ID"`
 	SubmitterName            string                  `json:"submitterName" gorm:"column:submitter_name;size:100;comment:提交人姓名"`
 	InspectorID              *uint                   `json:"inspectorID" gorm:"column:inspector_id;comment:检测人ID"`
@@ -51,7 +51,7 @@ type ProductionBatch struct {
 	BatchNumber       string                  `json:"batchNumber" gorm:"column:batch_number;size:100;not null;comment:批次号"`
 	TemplateID        *uint                   `json:"templateID" gorm:"column:template_id;comment:检测模板ID"`
 	Template          *InspectionTemplate     `json:"template" gorm:"foreignKey:TemplateID"`
-	Status            int                     `json:"status" gorm:"column:status;default:0;comment:状态(0=未派检,1=待检测接收,2=检测中,3=待确认,4=已完成)"`
+	Status            int                     `json:"status" gorm:"column:status;default:0;comment:状态(0=未派检,1=待检测接收,2=检测中,4=已完成)"`
 	InspectorID       *uint                   `json:"inspectorID" gorm:"column:inspector_id;comment:检测人ID"`
 	InspectorName     string                  `json:"inspectorName" gorm:"column:inspector_name;size:100;comment:检测人姓名"`
 	InspectionDate    *time.Time              `json:"inspectionDate" gorm:"column:inspection_date;comment:检测日期"`

@@ -244,60 +244,65 @@
       v-model="batchScanVisible"
       title="生产分批"
       width="820px"
+      class="batch-scan-dialog"
       destroy-on-close
       @opened="focusScanInput"
     >
-      <div v-if="batchScanOrder">
-        <el-descriptions :column="3" border size="small" class="mb-4">
-          <el-descriptions-item label="MO号">{{
-            batchScanOrder.moNumber || '-'
-          }}</el-descriptions-item>
-          <el-descriptions-item label="未分批">{{
-            unbatchedForScan.length
-          }}</el-descriptions-item>
-          <el-descriptions-item label="已入篮">{{
-            scanBasket.length
-          }}</el-descriptions-item>
-        </el-descriptions>
+      <div v-if="batchScanOrder" class="batch-scan-layout">
+        <div class="batch-scan-fixed">
+          <el-descriptions :column="3" border size="small" class="mb-4">
+            <el-descriptions-item label="MO号">{{
+              batchScanOrder.moNumber || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="未分批">{{
+              unbatchedForScan.length
+            }}</el-descriptions-item>
+            <el-descriptions-item label="已入篮">{{
+              scanBasket.length
+            }}</el-descriptions-item>
+          </el-descriptions>
 
-        <el-form label-width="90px">
-          <el-form-item label="批次号">
-            <el-input
-              v-model="batchScanForm.batchNumber"
-              readonly
-              style="width: 320px"
-            />
-          </el-form-item>
-          <el-form-item label="扫码SN">
-            <el-input
-              ref="scanInputRef"
-              v-model="batchScanForm.scanSN"
-              placeholder="扫描设备条码后回车加入批次"
-              class="scan-input"
-              @keyup.enter="addScannedSN"
-            />
-          </el-form-item>
-        </el-form>
+          <el-form label-width="90px">
+            <el-form-item label="批次号">
+              <el-input
+                v-model="batchScanForm.batchNumber"
+                readonly
+                style="width: 320px"
+              />
+            </el-form-item>
+            <el-form-item label="扫码SN">
+              <el-input
+                ref="scanInputRef"
+                v-model="batchScanForm.scanSN"
+                placeholder="扫描设备条码后回车加入批次"
+                class="scan-input"
+                @keyup.enter="addScannedSN"
+              />
+            </el-form-item>
+          </el-form>
+        </div>
 
         <div class="scan-board">
           <div class="scan-basket">
             <div class="scan-title">批次</div>
-            <el-empty v-if="!scanBasket.length" description="还没有加入设备" />
-            <div v-else class="scan-list">
-              <div
-                v-for="(item, index) in scanBasket"
-                :key="item.sn"
-                class="scan-item"
-              >
-                <span>{{ index + 1 }}. {{ item.sn }}</span>
-                <el-button
-                  type="danger"
-                  link
-                  size="small"
-                  @click="removeScanItem(item.sn)"
-                  >移除</el-button
+            <div class="scan-list">
+              <el-empty v-if="!scanBasket.length" description="还没有加入设备" />
+              <template v-else>
+                <div
+                  v-for="(item, index) in scanBasket"
+                  :key="item.sn"
+                  class="scan-item"
                 >
-              </div>
+                  <span>{{ index + 1 }}. {{ item.sn }}</span>
+                  <el-button
+                    type="danger"
+                    link
+                    size="small"
+                    @click="removeScanItem(item.sn)"
+                    >移除</el-button
+                  >
+                </div>
+              </template>
             </div>
           </div>
           <div class="scan-waiting">
@@ -761,14 +766,13 @@
       custom: '定制款'
     }[value] || value)
   const batchStatusLabel = (value) =>
-    ({ 0: '未派检', 1: '待检测接收', 2: '检测中', 3: '待确认', 4: '已完成' }[value] || value)
+    ({ 0: '未派检', 1: '待检测接收', 2: '检测中', 3: '检测中', 4: '已完成' }[value] || value)
   const orderStatusTagType = (value) =>
     ({ 0: 'info', 1: 'warning', 2: 'primary', 3: 'warning', 4: 'success' }[value] || 'info')
   const orderStatusOptions = [
     { label: '未派检', value: 0 },
     { label: '待检测接收', value: 1 },
     { label: '检测中', value: 2 },
-    { label: '待确认', value: 3 },
     { label: '已完成', value: 4 }
   ]
   const deviceStatusLabel = (value) =>
@@ -1163,15 +1167,54 @@
     width: 420px;
   }
 
+  :global(.batch-scan-dialog.el-dialog) {
+    height: min(860px, calc(100vh - 48px));
+    margin-top: 24px !important;
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  :global(.batch-scan-dialog .el-dialog__header),
+  :global(.batch-scan-dialog .el-dialog__footer) {
+    flex: none;
+  }
+
+  :global(.batch-scan-dialog .el-dialog__body) {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 12px;
+    padding-bottom: 0;
+  }
+
+  .batch-scan-layout {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .batch-scan-fixed {
+    flex: none;
+  }
+
   .scan-board {
+    flex: 1;
+    min-height: 0;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 14px;
+    overflow: hidden;
   }
 
   .scan-basket,
   .scan-waiting {
-    min-height: 280px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
     padding: 12px;
     border: 1px solid var(--el-border-color-light, #e4e7ed);
     border-radius: 10px;
@@ -1184,16 +1227,18 @@
   }
 
   .scan-tip {
+    flex: none;
     margin-bottom: 8px;
     font-size: 12px;
     color: var(--el-text-color-secondary, #909399);
   }
 
   .scan-list {
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 6px;
-    max-height: 360px;
     overflow-y: auto;
   }
 
