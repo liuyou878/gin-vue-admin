@@ -920,7 +920,7 @@ func firmwareActionStatusLabel(status string) string {
 	case "tested_pass":
 		return "测试通过"
 	case "test_failed":
-		return "测试不通过"
+		return "测试未通过"
 	case "pending_release":
 		return "待发布"
 	default:

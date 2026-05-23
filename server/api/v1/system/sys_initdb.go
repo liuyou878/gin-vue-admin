@@ -26,8 +26,8 @@ func (i *DBApi) InitDB(c *gin.Context) {
 	}
 	var dbInfo request.InitDB
 	if err := c.ShouldBindJSON(&dbInfo); err != nil {
-		global.GVA_LOG.Error("参数校验不通过!", zap.Error(err))
-		response.FailWithMessage("参数校验不通过", c)
+		global.GVA_LOG.Error("参数校验未通过!", zap.Error(err))
+		response.FailWithMessage("参数校验未通过", c)
 		return
 	}
 	if err := initDBService.InitDB(dbInfo); err != nil {

@@ -373,7 +373,7 @@ func buildModelFirmwareTestResultMailPayload(
 	resultLabel := map[string]string{
 		"testing":     "测试中",
 		"tested_pass": "测试通过",
-		"test_failed": "测试不通过",
+		"test_failed": "测试未通过",
 		"pending":     "待测试",
 	}[result]
 	if resultLabel == "" {

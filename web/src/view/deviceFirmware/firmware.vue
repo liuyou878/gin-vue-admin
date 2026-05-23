@@ -656,7 +656,7 @@
         <el-form-item label="测试结果">
           <el-radio-group v-model="testResultForm.result">
             <el-radio value="tested_pass">通过</el-radio>
-            <el-radio value="test_failed">不通过</el-radio>
+            <el-radio value="test_failed">未通过</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item
@@ -934,7 +934,7 @@
     { label: '待测试', value: 'pending_test' },
     { label: '测试中', value: 'testing' },
     { label: '测试通过', value: 'tested_pass' },
-    { label: '测试不通过', value: 'test_failed' }
+    { label: '测试未通过', value: 'test_failed' }
   ]
   const versionTagOptions = [
     { label: '最新版本', value: 'latest' },
@@ -1342,8 +1342,8 @@
       testing: '测试中',
       tested_pass: '已通过',
       passed: '已通过',
-      test_failed: '测试不通过',
-      failed: '测试不通过',
+      test_failed: '测试未通过',
+      failed: '测试未通过',
       pending_release: '测试通过'
     }[status] ||
     status ||
@@ -1898,7 +1898,7 @@
       !testResultForm.value.reasonTypes.length &&
       !testResultForm.value.description?.trim()
     ) {
-      ElMessage.warning('测试不通过时，请至少选择一个原因或填写说明')
+      ElMessage.warning('测试未通过时，请至少选择一个原因或填写说明')
       return
     }
     const reasonText =
@@ -1911,7 +1911,7 @@
       [reasonText, descriptionText].filter(Boolean).join('；') ||
       (testResultForm.value.result === 'tested_pass'
         ? '测试通过'
-        : '测试不通过')
+        : '测试未通过')
     testResultSubmitting.value = true
     try {
       const notifyTo = buildNotifyRecipients(testResultForm.value)

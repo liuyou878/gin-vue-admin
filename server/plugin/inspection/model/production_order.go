@@ -106,6 +106,7 @@ type InspectionBatchListItem struct {
 	RecheckCount             int                 `json:"recheckCount"`
 	RecheckingCount          int                 `json:"recheckingCount"`
 	CreatedAt                time.Time           `json:"CreatedAt"`
+	UpdatedAt                time.Time           `json:"UpdatedAt"`
 }
 
 type SubmittedDeviceListItem struct {

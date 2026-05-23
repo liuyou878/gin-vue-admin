@@ -727,7 +727,7 @@ func (s *workOrderSvc) GetInspectionBatchList(search request.InspectionBatchSear
 	}
 
 	db := global.GVA_DB.Table("production_batches AS pb").
-		Select("pb.id, pb.production_order_id, po.mo_number, pb.batch_number, COALESCE(it.product_name, po.product_name) AS product_name, COALESCE(it.model, po.model) AS model, po.firmware_version, po.mainboard_firmware_version, po.pn_code, po.instrument_category, pb.status, pb.template_id, pb.inspector_id, pb.inspector_name, pb.inspection_date, pb.created_at").
+		Select("pb.id, pb.production_order_id, po.mo_number, pb.batch_number, COALESCE(it.product_name, po.product_name) AS product_name, COALESCE(it.model, po.model) AS model, po.firmware_version, po.mainboard_firmware_version, po.pn_code, po.instrument_category, pb.status, pb.template_id, pb.inspector_id, pb.inspector_name, pb.inspection_date, pb.created_at, pb.updated_at").
 		Joins("JOIN production_orders po ON po.id = pb.production_order_id").
 		Joins("LEFT JOIN inspection_templates it ON it.id = pb.template_id")
 
@@ -767,7 +767,7 @@ func (s *workOrderSvc) GetInspectionBatchList(search request.InspectionBatchSear
 	}
 
 	var list []model.InspectionBatchListItem
-	if err := db.Order("pb.id desc").Limit(search.PageSize).Offset(search.PageSize * (search.Page - 1)).Scan(&list).Error; err != nil {
+	if err := db.Order("pb.updated_at desc, pb.id desc").Limit(search.PageSize).Offset(search.PageSize * (search.Page - 1)).Scan(&list).Error; err != nil {
 		return nil, 0, err
 	}
 

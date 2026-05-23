@@ -98,65 +98,69 @@
               s2.row.template?.name || '-'
             }}</template>
           </el-table-column>
-          <el-table-column label="状态 / 设备进度" min-width="320">
+          <el-table-column label="状态" width="90">
             <template #default="s3">
-              <div class="batch-progress">
-                <el-tag size="small" :type="activeTabTagType">
-                  {{ activeTabLabel }}
-                </el-tag>
-                <span class="progress-pill">
-                  总数
-                  <DeviceStatusCount
-                    :row="s3.row"
-                    type="all"
-                    :count="s3.row.deviceCount"
-                    :batch-id="s3.row.ID"
-                    @changed="getList"
-                  />
-                </span>
-                <span class="progress-pill">
-                  合格
-                  <DeviceStatusCount
-                    :row="s3.row"
-                    type="pass"
-                    :count="s3.row.passCount"
-                    :batch-id="s3.row.ID"
-                    @changed="getList"
-                  />
-                </span>
-                <span class="progress-pill is-warning">
-                  待测
-                  <DeviceStatusCount
-                    :row="s3.row"
-                    type="pending"
-                    :count="pendingCount(s3.row)"
-                    :batch-id="s3.row.ID"
-                    @changed="getList"
-                  />
-                </span>
-                <span class="progress-pill is-danger">
-                  异常
-                  <DeviceStatusCount
-                    :row="s3.row"
-                    type="abnormal"
-                    :count="abnormalCount(s3.row)"
-                    :batch-id="s3.row.ID"
-                    allow-recheck-actions
-                    @changed="getList"
-                  />
-                </span>
-                <span class="progress-rate">
-                  合格率 {{ passRateLabel(s3.row.passCount, s3.row.deviceCount) }}
-                </span>
-              </div>
+              <el-tag size="small" :type="activeTabTagType">
+                {{ activeTabLabel }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="总数" width="80" align="center">
+            <template #default="s3">
+              <DeviceStatusCount
+                :row="s3.row"
+                type="all"
+                :count="s3.row.deviceCount"
+                :batch-id="s3.row.ID"
+                @changed="getList"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="合格" width="80" align="center">
+            <template #default="s3">
+              <DeviceStatusCount
+                :row="s3.row"
+                type="pass"
+                :count="s3.row.passCount"
+                :batch-id="s3.row.ID"
+                @changed="getList"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="待测" width="80" align="center">
+            <template #default="s3">
+              <DeviceStatusCount
+                :row="s3.row"
+                type="pending"
+                :count="pendingCount(s3.row)"
+                :batch-id="s3.row.ID"
+                @changed="getList"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="异常" width="80" align="center">
+            <template #default="s3">
+              <DeviceStatusCount
+                :row="s3.row"
+                type="abnormal"
+                :count="abnormalCount(s3.row)"
+                :batch-id="s3.row.ID"
+                allow-recheck-actions
+                @changed="getList"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="合格率" width="90" align="center">
+            <template #default="s3">
+              {{ passRateLabel(s3.row.passCount, s3.row.deviceCount) }}
             </template>
           </el-table-column>
           <el-table-column label="检测人" width="100">
             <template #default="s4">{{ s4.row.inspectorName || '-' }}</template>
           </el-table-column>
-          <el-table-column prop="CreatedAt" label="创建时间" width="160">
+          <el-table-column label="更新时间" width="160">
             <template #default="s5">{{
-              formatDate(s5.row.CreatedAt)
+              formatDate(s5.row.UpdatedAt || s5.row.CreatedAt)
             }}</template>
           </el-table-column>
           <el-table-column label="操作" width="260" fixed="right">
@@ -491,9 +495,14 @@
     downloadBlob(res.data || res, filename)
   }
   const onStartInspect = async (row) => {
-    await ElMessageBox.confirm('确定接收该批次并开始检测？', '提示', {
+    const countText = `本批次共 ${Number(row.deviceCount || 0)} 台设备`
+    await ElMessageBox.confirm(
+      `确定接收该批次并开始检测？\n\n批次号：${row.batchNumber || '-'}\n${countText}`,
+      '提示',
+      {
       type: 'info'
-    })
+      }
+    )
     const res = await startInspection({ ID: row.ID })
     if (res.code === 0) {
       ElMessage.success({ message: '已接收并开始检测', duration: 1000 })
@@ -575,36 +584,6 @@
     border: 1px dashed var(--el-border-color-light, #e4e7ed);
     border-radius: 14px;
     background: var(--el-bg-color, #fff);
-  }
-  .batch-progress {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .progress-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    padding: 2px 7px;
-    border-radius: 999px;
-    background: var(--el-fill-color-lighter, #fafafa);
-    color: var(--el-text-color-regular, #606266);
-    font-size: 12px;
-    white-space: nowrap;
-  }
-  .progress-pill.is-warning {
-    background: #fff7ed;
-    color: #9a3412;
-  }
-  .progress-pill.is-danger {
-    background: #fef2f2;
-    color: #991b1b;
-  }
-  .progress-rate {
-    color: var(--el-text-color-secondary, #909399);
-    font-size: 12px;
-    white-space: nowrap;
   }
   .card-head {
     display: flex;

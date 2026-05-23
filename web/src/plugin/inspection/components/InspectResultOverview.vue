@@ -147,13 +147,14 @@
         }}</template>
       </el-table-column>
       <el-table-column
+        v-if="!isFinalCompleted"
         prop="returnReason"
         label="打回原因"
         min-width="160"
         show-overflow-tooltip
       >
         <template #default="scope">{{
-          scope.row.returnReason || '-'
+          visibleReturnReason(scope.row)
         }}</template>
       </el-table-column>
       <el-table-column label="操作" width="150" fixed="right">
@@ -174,6 +175,24 @@
             @click="returnOne(scope.row)"
           >
             打回
+          </el-button>
+          <el-button
+            v-if="scope.row.status === 'pending_recheck'"
+            type="success"
+            link
+            size="small"
+            @click="startOneRecheck(scope.row)"
+          >
+            开始复检
+          </el-button>
+          <el-button
+            v-if="scope.row.status === 'rechecking'"
+            type="success"
+            link
+            size="small"
+            @click="goRecheck(scope.row)"
+          >
+            去复检
           </el-button>
         </template>
       </el-table-column>
@@ -232,7 +251,10 @@
   import { computed, ref } from 'vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { formatDate } from '@/utils/format'
-  import { returnDevices as apiReturnDevices } from '@/plugin/inspection/api/work_order'
+  import {
+    returnDevices as apiReturnDevices,
+    startRecheck as apiStartRecheck
+  } from '@/plugin/inspection/api/work_order'
 
   const props = defineProps({
     detail: {
@@ -241,7 +263,7 @@
     }
   })
 
-  const emit = defineEmits(['refresh'])
+  const emit = defineEmits(['refresh', 'go-recheck'])
 
   const returnDeviceIDs = ref([])
   const returnReason = ref('')
@@ -354,7 +376,7 @@
 
   const resultLabel = (result) => {
     if (!resultCompleted(result)) return '未完成'
-    if (resultFailed(result)) return '不通过'
+    if (resultFailed(result)) return '未通过'
     if (
       result.passResult === true ||
       result.minValue != null ||
@@ -381,7 +403,7 @@
   const resultValue = (result) => {
     const values = []
     if (result.passResult === true) values.push('通过')
-    if (result.passResult === false) values.push('不通过')
+    if (result.passResult === false) values.push('未通过')
     if (result.numberResult !== undefined && result.numberResult !== null) {
       values.push(`${result.numberResult}${result.unit || ''}`)
     }
@@ -412,6 +434,12 @@
       rechecking: 'warning'
     }[device.status || device._status] || 'info')
 
+  const visibleReturnReason = (device) => {
+    const status = device.status || device._status
+    if (!['fail', 'returned', 'rework', 'pending_recheck', 'rechecking'].includes(status)) return '-'
+    return device.returnReason || '-'
+  }
+
   const openDeviceDetail = (device) => {
     currentDevice.value = device
     detailVisible.value = true
@@ -420,6 +448,20 @@
   const returnOne = (device) => {
     returnDeviceIDs.value = [device.ID]
     onReturnDevices()
+  }
+
+  const startOneRecheck = async (device) => {
+    const res = await apiStartRecheck({
+      ID: props.detail.order.ID,
+      deviceID: device.ID
+    })
+    if (res.code !== 0) return
+    ElMessage.success('已开始复检')
+    emit('refresh')
+  }
+
+  const goRecheck = (device) => {
+    emit('go-recheck', { deviceID: device.ID })
   }
 
   const onReturnDevices = async () => {
