@@ -73,9 +73,7 @@
               <el-option
                 v-for="(device, index) in visibleDevices"
                 :key="device.ID"
-                :label="`${index + 1}. ${device.sn} (${deviceDoneCount(
-                  device
-                )}/${detail.templateItems.length})`"
+                :label="deviceOptionLabel(device, index)"
                 :value="index"
               />
             </el-select>
@@ -423,6 +421,14 @@
 
   const deviceDoneCount = (device) => {
     return (device?.results || []).filter(resultCompletedForStatus).length
+  }
+
+  const deviceOptionLabel = (device, index) => {
+    const summary = summarizeDeviceResults(device)
+    const failText = summary.fail > 0 ? ` 未通过${summary.fail}` : ''
+    return `${index + 1}. ${device.sn} (${deviceDoneCount(device)}/${
+      detail.value.templateItems.length
+    })${failText}`
   }
 
   const summarizeDeviceResults = (device) => {
