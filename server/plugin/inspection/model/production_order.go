@@ -20,6 +20,7 @@ type ProductionOrder struct {
 	MainboardFirmwareVersion string                  `json:"mainboardFirmwareVersion" gorm:"column:mainboard_firmware_version;size:100;comment:主板固件版本"`
 	PNCode                   string                  `json:"pnCode" gorm:"column:pn_code;size:50;comment:订单PN码"`
 	InstrumentCategory       string                  `json:"instrumentCategory" gorm:"column:instrument_category;size:50;comment:仪器类别"`
+	ProductLine              string                  `json:"productLine" gorm:"column:product_line;size:50;default:rtk;comment:产品线(rtk/unmanned_boat)"`
 	Status                   int                     `json:"status" gorm:"column:status;default:0;comment:状态(0=未派检,1=待检测接收,2=检测中,4=已完成)"`
 	SubmitterID              *uint                   `json:"submitterID" gorm:"column:submitter_id;comment:提交人ID"`
 	SubmitterName            string                  `json:"submitterName" gorm:"column:submitter_name;size:100;comment:提交人姓名"`

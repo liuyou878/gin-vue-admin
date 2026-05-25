@@ -50,6 +50,7 @@ func (s *productionOrderSvc) CreateProductionOrder(req *request.CreateProduction
 			MainboardFirmwareVersion: req.MainboardFirmwareVersion,
 			PNCode:                   req.PNCode,
 			InstrumentCategory:       req.InstrumentCategory,
+			ProductLine:              normalizeProductLine(req.ProductLine),
 			Status:                   0,
 			SubmitDate:               &now,
 			Remark:                   req.Remark,
@@ -118,6 +119,9 @@ func (s *productionOrderSvc) UpdateProductionOrder(req *request.UpdateProduction
 			"instrument_category":        req.InstrumentCategory,
 			"remark":                     req.Remark,
 		}
+		if strings.TrimSpace(req.ProductLine) != "" {
+			updates["product_line"] = normalizeProductLine(req.ProductLine)
+		}
 		if req.Status != nil {
 			updates["status"] = *req.Status
 		}
@@ -177,6 +181,11 @@ func (s *productionOrderSvc) FindProductionOrder(id string) (model.ProductionOrd
 
 func (s *productionOrderSvc) GetProductionOrderList(search request.ProductionOrderSearch) (list []model.ProductionOrder, total int64, err error) {
 	db := global.GVA_DB.Model(&model.ProductionOrder{})
+	if strings.TrimSpace(search.ProductLine) == "" || normalizeProductLine(search.ProductLine) == "rtk" {
+		db = db.Where("(product_line = ? OR product_line = '' OR product_line IS NULL)", "rtk")
+	} else {
+		db = db.Where("product_line = ?", normalizeProductLine(search.ProductLine))
+	}
 	if search.MONumber != "" {
 		db = db.Where("mo_number LIKE ?", "%"+search.MONumber+"%")
 	}
@@ -427,6 +436,7 @@ func (s *productionOrderSvc) DeleteSubmittedDevice(id string) error {
 func (s *productionOrderSvc) SubmitDeviceData(req *request.SubmitDeviceData, submitterID uint, submitterName string) error {
 	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
 		devices := normalizeSubmitDevices(req)
+		productLine := normalizeProductLine(req.ProductLine)
 		if len(devices) == 0 {
 			return errors.New("至少需要提交一台设备")
 		}
@@ -454,6 +464,7 @@ func (s *productionOrderSvc) SubmitDeviceData(req *request.SubmitDeviceData, sub
 				MainboardFirmwareVersion: header.MainboardFirmwareVersion,
 				PNCode:                   header.PNCode,
 				InstrumentCategory:       header.InstrumentCategory,
+				ProductLine:              productLine,
 				Status:                   0,
 				SubmitterID:              &submitterID,
 				SubmitterName:            submitterName,
@@ -466,10 +477,17 @@ func (s *productionOrderSvc) SubmitDeviceData(req *request.SubmitDeviceData, sub
 			if po.Status != 0 && !submitOnlyReworkDevices(tx, po.ID, devices) {
 				return fmt.Errorf("生产订单 %s 已确认或已进入检测流程，不允许继续提交设备数据", req.MONumber)
 			}
+			existingProductLine := normalizeProductLine(po.ProductLine)
+			if existingProductLine != productLine {
+				return fmt.Errorf("生产订单 %s 已是%s类型，不能提交为%s类型", req.MONumber, productLineLabel(existingProductLine), productLineLabel(productLine))
+			}
 			updates := map[string]interface{}{
 				"submitter_id":   submitterID,
 				"submitter_name": submitterName,
 				"submit_date":    time.Now(),
+			}
+			if strings.TrimSpace(po.ProductLine) == "" {
+				updates["product_line"] = productLine
 			}
 			for key, value := range fillMissingOrderHeaderFromSubmit(&po, req, devices[0]) {
 				updates[key] = value
@@ -903,6 +921,20 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+func normalizeProductLine(value string) string {
+	if strings.TrimSpace(value) == "unmanned_boat" {
+		return "unmanned_boat"
+	}
+	return "rtk"
+}
+
+func productLineLabel(value string) string {
+	if normalizeProductLine(value) == "unmanned_boat" {
+		return "无人船"
+	}
+	return "RTK"
+}
+
 func buildOrderHeaderFromSubmit(req *request.SubmitDeviceData, device normalizedSubmitDevice) model.ProductionOrder {
 	modelName := firstNonEmpty(device.Model, extractModelFromDeviceInfo(device.DeviceInfo))
 	return model.ProductionOrder{
@@ -912,6 +944,7 @@ func buildOrderHeaderFromSubmit(req *request.SubmitDeviceData, device normalized
 		MainboardFirmwareVersion: firstNonEmpty(device.MainboardFirmwareVersion, extractMainboardFirmwareVersion(device.DeviceInfo)),
 		PNCode:                   firstNonEmpty(device.PNCode, extractPNCodeFromDeviceInfo(device.DeviceInfo)),
 		InstrumentCategory:       strings.TrimSpace(req.InstrumentCategory),
+		ProductLine:              normalizeProductLine(req.ProductLine),
 	}
 }
 
@@ -935,6 +968,9 @@ func fillMissingOrderHeaderFromSubmit(order *model.ProductionOrder, req *request
 	}
 	if strings.TrimSpace(order.InstrumentCategory) == "" && header.InstrumentCategory != "" {
 		updates["instrument_category"] = header.InstrumentCategory
+	}
+	if strings.TrimSpace(order.ProductLine) == "" && header.ProductLine != "" {
+		updates["product_line"] = header.ProductLine
 	}
 	return updates
 }

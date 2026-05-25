@@ -8,6 +8,7 @@ type ProductionOrderSearch struct {
 	BatchNumber        string `json:"batchNumber" form:"batchNumber"`
 	SN                 string `json:"sn" form:"sn"`
 	InstrumentCategory string `json:"instrumentCategory" form:"instrumentCategory"`
+	ProductLine        string `json:"productLine" form:"productLine"`
 	Status             *int   `json:"status" form:"status"`
 	StartSubmitDate    string `json:"startSubmitDate" form:"startSubmitDate"`
 	EndSubmitDate      string `json:"endSubmitDate" form:"endSubmitDate"`
@@ -25,6 +26,7 @@ type CreateProductionOrder struct {
 	MainboardFirmwareVersion string   `json:"mainboardFirmwareVersion"`
 	PNCode                   string   `json:"pnCode"`
 	InstrumentCategory       string   `json:"instrumentCategory"`
+	ProductLine              string   `json:"productLine"`
 	BatchNumber              string   `json:"batchNumber"`
 	Remark                   string   `json:"remark"`
 	SNs                      []string `json:"sns"`
@@ -40,6 +42,7 @@ type UpdateProductionOrder struct {
 	MainboardFirmwareVersion string `json:"mainboardFirmwareVersion"`
 	PNCode                   string `json:"pnCode"`
 	InstrumentCategory       string `json:"instrumentCategory"`
+	ProductLine              string `json:"productLine"`
 	Status                   *int   `json:"status"`
 	Remark                   string `json:"remark"`
 }
@@ -49,6 +52,7 @@ type SubmitDeviceData struct {
 	MONumber           string             `json:"moNumber" binding:"required"`
 	BatchNumber        string             `json:"batchNumber"`
 	InstrumentCategory string             `json:"instrumentCategory"`
+	ProductLine        string             `json:"productLine"`
 	Devices            []SubmitDeviceItem `json:"devices" binding:"required,min=1"`
 }
 
