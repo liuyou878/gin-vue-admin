@@ -337,10 +337,7 @@
                   :label="b.batchNumber"
                   :value="b.batchNumber"
                 />
-                <el-option
-                  :label="newBatchOption"
-                  :value="newBatchOption"
-                />
+                <el-option :label="newBatchOption" :value="newBatchOption" />
               </el-select>
             </el-form-item>
             <el-form-item label="扫码SN">
@@ -376,7 +373,10 @@
                   :key="item.sn"
                   class="scan-item"
                 >
-                  <span>{{ existingBatchDevices.length + index + 1 }}. {{ item.sn }}</span>
+                  <span
+                    >{{ existingBatchDevices.length + index + 1 }}.
+                    {{ item.sn }}</span
+                  >
                   <el-button
                     type="danger"
                     link
@@ -604,10 +604,8 @@
                   <el-tag size="small" :type="orderStatusTagType(batch.status)">
                     {{ batchStatusLabel(batch.status) }}
                   </el-tag>
-                  <span
-                    v-if="batch.lastOperatorName"
-                    class="batch-operator"
-                  >操作人: {{ batch.lastOperatorName }}</span
+                  <span v-if="batch.lastOperatorName" class="batch-operator"
+                    >操作人: {{ batch.lastOperatorName }}</span
                   >
                 </div>
               </template>
@@ -639,7 +637,11 @@
               </div>
               <el-table :data="batch.devices" border size="small" class="mt-1">
                 <el-table-column prop="sn" label="SN" min-width="140" />
-                <el-table-column label="状态" width="100">
+                <el-table-column
+                  v-if="!showInspectionStatusColumn(batch)"
+                  label="状态"
+                  width="100"
+                >
                   <template #default="scope">
                     <el-tag
                       :type="deviceStatusTagType(scope.row.status)"
@@ -652,7 +654,7 @@
                 <el-table-column
                   v-if="showInspectionStatusColumn(batch)"
                   label="检测状态"
-                  width="130"
+                  width="160"
                 >
                   <template #default="scope">
                     <el-tag
@@ -817,13 +819,22 @@
           <el-tag size="small" :type="batchStatusTag(b.status)" class="ml-1">
             {{ batchStatusLabel(b.status) }}
           </el-tag>
-          <span class="batch-device-count">{{ b.deviceCount || b.devices?.length || 0 }} 台</span>
+          <span class="batch-device-count"
+            >{{ b.deviceCount || b.devices?.length || 0 }} 台</span
+          >
         </el-radio>
       </el-radio-group>
-      <div v-if="availableBatches.length === 0" class="text-muted">没有可用的批次（所有批次均已完成）</div>
+      <div v-if="availableBatches.length === 0" class="text-muted">
+        没有可用的批次（所有批次均已完成）
+      </div>
       <template #footer>
         <el-button @click="batchPickerVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="!pickedBatchID" @click="confirmAddToBatch">确认加入</el-button>
+        <el-button
+          type="primary"
+          :disabled="!pickedBatchID"
+          @click="confirmAddToBatch"
+          >确认加入</el-button
+        >
       </template>
     </el-dialog>
 
@@ -993,7 +1004,9 @@
         inspecting: '正在检测中',
         fail: '不合格',
         pass: '合格'
-      }[status] || status) + progress + failText
+      }[status] || status) +
+      progress +
+      failText
     )
   }
   const inspectionStatusTagType = (device) =>
@@ -1083,7 +1096,10 @@
   const batchScanExistingBatches = computed(() =>
     (batchScanOrder.value?.batches || [])
       .filter((b) => b.status !== 4)
-      .sort((a, b) => new Date(b.CreatedAt).getTime() - new Date(a.CreatedAt).getTime())
+      .sort(
+        (a, b) =>
+          new Date(b.CreatedAt).getTime() - new Date(a.CreatedAt).getTime()
+      )
   )
 
   const newBatchOption = computed(() => {
@@ -1097,12 +1113,12 @@
     )
   )
 
-  const existingBatchDevices = computed(() =>
-    selectedExistingBatch.value?.devices || []
+  const existingBatchDevices = computed(
+    () => selectedExistingBatch.value?.devices || []
   )
 
-  const existingBatchSNs = computed(() =>
-    new Set(existingBatchDevices.value.map((d) => d.sn))
+  const existingBatchSNs = computed(
+    () => new Set(existingBatchDevices.value.map((d) => d.sn))
   )
 
   const unbatchedForScan = computed(() => {
