@@ -64,6 +64,29 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="分批状态">
+          <el-select
+            v-model="searchInfo.batchComplete"
+            placeholder="请选择"
+            clearable
+            size="small"
+            style="width: 130px"
+          >
+            <el-option label="分批完成" :value="1" />
+            <el-option label="未分批完成" :value="0" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="检测异常">
+          <el-select
+            v-model="searchInfo.hasAbnormal"
+            placeholder="请选择"
+            clearable
+            size="small"
+            style="width: 130px"
+          >
+            <el-option label="有异常" :value="1" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="提交时间">
           <el-date-picker
             v-model="submitDateRange"
@@ -866,6 +889,8 @@
     sn: '',
     instrumentCategory: '',
     status: undefined,
+    batchComplete: undefined,
+    hasAbnormal: undefined,
     startSubmitDate: '',
     endSubmitDate: '',
     page: 1,
@@ -1113,6 +1138,8 @@
     searchInfo.sn = ''
     searchInfo.instrumentCategory = ''
     searchInfo.status = undefined
+    searchInfo.batchComplete = undefined
+    searchInfo.hasAbnormal = undefined
     searchInfo.startSubmitDate = ''
     searchInfo.endSubmitDate = ''
     submitDateRange.value = []

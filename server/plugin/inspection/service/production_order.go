@@ -203,6 +203,16 @@ func (s *productionOrderSvc) GetProductionOrderList(search request.ProductionOrd
 	if end, ok := parseDateEnd(search.EndSubmitDate); ok {
 		db = db.Where("submit_date <= ?", end)
 	}
+	if search.BatchComplete != nil {
+		if *search.BatchComplete == 1 {
+			db = db.Where("NOT EXISTS (SELECT 1 FROM production_order_devices pod WHERE pod.production_order_id = production_orders.id AND pod.batch_id IS NULL)")
+		} else {
+			db = db.Where("EXISTS (SELECT 1 FROM production_order_devices pod WHERE pod.production_order_id = production_orders.id AND pod.batch_id IS NULL)")
+		}
+	}
+	if search.HasAbnormal != nil && *search.HasAbnormal == 1 {
+		db = db.Where("EXISTS (SELECT 1 FROM production_order_devices pod WHERE pod.production_order_id = production_orders.id AND pod.status IN ('fail','returned','rework','pending_recheck','rechecking'))")
+	}
 	if search.Status != nil {
 		db = applyProductionCompletionStatusFilter(db, *search.Status)
 	}

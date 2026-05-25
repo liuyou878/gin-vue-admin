@@ -11,6 +11,8 @@ type ProductionOrderSearch struct {
 	Status             *int   `json:"status" form:"status"`
 	StartSubmitDate    string `json:"startSubmitDate" form:"startSubmitDate"`
 	EndSubmitDate      string `json:"endSubmitDate" form:"endSubmitDate"`
+	BatchComplete      *int   `json:"batchComplete" form:"batchComplete"`
+	HasAbnormal        *int   `json:"hasAbnormal" form:"hasAbnormal"`
 	request.PageInfo
 }
 
