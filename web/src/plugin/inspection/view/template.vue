@@ -337,19 +337,23 @@
   }
 
   const confirmPicker = () => {
-    // Full sync: checked items are in, unchecked are out
-    const newSelected = []
+    const pickedIDs = new Set(pickerSelected.value.map((r) => r.ID))
+    // Keep existing items in their current order; remove unchecked ones
+    const kept = selectedItems.value.filter((s) => pickedIDs.has(s.itemID))
+    // Append newly added items at the end, preserving existing order
+    const existingIDs = new Set(kept.map((s) => s.itemID))
     pickerSelected.value.forEach((row) => {
-      const existing = selectedItems.value.find((s) => s.itemID === row.ID)
-      newSelected.push({
-        itemID: row.ID,
-        name: row.name,
-        resultType: row.resultType,
-        unit: row.unit || '',
-        sort: existing ? existing.sort : 0
-      })
+      if (!existingIDs.has(row.ID)) {
+        kept.push({
+          itemID: row.ID,
+          name: row.name,
+          resultType: row.resultType,
+          unit: row.unit || '',
+          sort: 0
+        })
+      }
     })
-    selectedItems.value = newSelected
+    selectedItems.value = kept
     renumberItems()
     showItemPicker.value = false
   }
