@@ -1183,6 +1183,8 @@ func getTemplateItemsForStats(templateID uint) ([]inspectionTemplateItemForStats
 		Select("ti.item_id, ii.result_type, ii.min_value, ii.max_value").
 		Joins("JOIN inspection_items ii ON ii.id = ti.item_id").
 		Where("ti.template_id = ?", templateID).
+		Where("ti.deleted_at IS NULL").
+		Where("ii.deleted_at IS NULL").
 		Order("ti.sort asc, ti.id asc").
 		Scan(&rows).Error
 	if err != nil {

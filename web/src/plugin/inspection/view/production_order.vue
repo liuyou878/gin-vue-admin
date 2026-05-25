@@ -605,7 +605,7 @@
                     {{ batchStatusLabel(batch.status) }}
                   </el-tag>
                   <span v-if="batch.lastOperatorName" class="batch-operator"
-                    >操作人: {{ batch.lastOperatorName }}</span
+                    >分批人: {{ batch.lastOperatorName }}</span
                   >
                 </div>
               </template>

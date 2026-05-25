@@ -1002,9 +1002,20 @@ func (s *workOrderSvc) GetFlowLogs(batchID string, deviceID string) ([]FlowLogIt
 		var batchLogs []model.ProductionBatchStatusLog
 		batchLogErr := global.GVA_DB.Where("production_batch_id = ?", batchID).Order("id asc").Find(&batchLogs).Error
 		if batchLogErr == nil && len(batchLogs) > 0 {
+			seenDeviceBatchActions := map[string]bool{}
 			for _, log := range batchLogs {
 				if isDeviceRecheckBatchLog(log.Action) {
 					continue
+				}
+				if strings.TrimSpace(deviceID) != "" && !isDeviceVisibleBatchAction(log.Action) {
+					continue
+				}
+				if strings.TrimSpace(deviceID) != "" {
+					action := strings.TrimSpace(log.Action)
+					if seenDeviceBatchActions[action] {
+						continue
+					}
+					seenDeviceBatchActions[action] = true
 				}
 				items = append(items, FlowLogItem{
 					ID:           log.ID,
@@ -1015,7 +1026,7 @@ func (s *workOrderSvc) GetFlowLogs(batchID string, deviceID string) ([]FlowLogIt
 					FromStatus:   fmt.Sprintf("%d", log.FromStatus),
 					ToStatus:     fmt.Sprintf("%d", log.ToStatus),
 					Action:       log.Action,
-					Reason:       log.Reason,
+					Reason:       batchReasonForFlowLog(log, deviceID),
 					OperatorID:   log.OperatorID,
 					OperatorName: log.OperatorName,
 					CreatedAt:    log.CreatedAt,
@@ -1032,6 +1043,22 @@ func (s *workOrderSvc) GetFlowLogs(batchID string, deviceID string) ([]FlowLogIt
 		return items[i].CreatedAt.After(items[j].CreatedAt)
 	})
 	return items, nil
+}
+
+func isDeviceVisibleBatchAction(action string) bool {
+	switch strings.TrimSpace(action) {
+	case "生产分批", "生产提交检测接收", "检测接收并开始检测":
+		return true
+	default:
+		return false
+	}
+}
+
+func batchReasonForFlowLog(log model.ProductionBatchStatusLog, deviceID string) string {
+	if strings.TrimSpace(deviceID) != "" && isDeviceVisibleBatchAction(log.Action) {
+		return ""
+	}
+	return log.Reason
 }
 
 func isDeviceRecheckBatchLog(action string) bool {

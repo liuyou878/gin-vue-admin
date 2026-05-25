@@ -109,20 +109,7 @@ const statusTagType = (log) => {
   return deviceStatusTagType(log.toStatus)
 }
 
-const deviceBatchPrefixActions = new Set([
-  '生产分批',
-  '生产提交检测接收',
-  '检测接收并开始检测'
-])
-
-const visibleLogs = computed(() => {
-  if (props.mode !== 'device') return props.logs
-  return props.logs.filter((log) => {
-    if (log.scope !== 'batch') return true
-    const action = log.action || log.title || ''
-    return deviceBatchPrefixActions.has(action)
-  })
-})
+const visibleLogs = computed(() => props.logs)
 
 const systemReasons = new Set([
   '',
