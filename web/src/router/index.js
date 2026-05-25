@@ -55,6 +55,15 @@ const routes = [
     component: () => import('@/plugin/inspection/view/production_mock_submit.vue')
   },
   {
+    path: '/batchImportDevice',
+    name: 'BatchImportDevice',
+    meta: {
+      title: '批量导入设备',
+      client: true
+    },
+    component: () => import('@/plugin/inspection/view/batch_import.vue')
+  },
+  {
     path: '/publicFirmwareDownload',
     name: 'PublicFirmwareDownload',
     meta: {

@@ -90,6 +90,7 @@
   "/src/plugin/inspection/components/FlowLogDrawer.vue": "FlowLogDrawer",
   "/src/plugin/inspection/components/InspectResultOverview.vue": "InspectResultOverview",
   "/src/plugin/inspection/components/ProductionOrderDeviceDialog.vue": "ProductionOrderDeviceDialog",
+  "/src/plugin/inspection/view/batch_import.vue": "Batch_import",
   "/src/plugin/inspection/view/inspection_item.vue": "Inspection_item",
   "/src/plugin/inspection/view/inspect_detail.vue": "Inspect_detail",
   "/src/plugin/inspection/view/inspect_print.vue": "Inspect_print",

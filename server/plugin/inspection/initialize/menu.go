@@ -45,7 +45,12 @@ func Menu(ctx context.Context) {
 		Component: "plugin/inspection/view/production_mock_submit.vue", Sort: 6,
 		Meta: model.Meta{Title: "模拟生产提交", Icon: "cpu"},
 	}
-	utils.RegisterMenus(parent, child1, child2, child3, child4, child5, child6)
+	child7 := model.SysBaseMenu{
+		ParentId: 0, Path: "batchImportDevice", Name: "batchImportDevice", Hidden: false,
+		Component: "plugin/inspection/view/batch_import.vue", Sort: 7,
+		Meta: model.Meta{Title: "批量导入设备", Icon: "upload"},
+	}
+	utils.RegisterMenus(parent, child1, child2, child3, child4, child5, child6, child7)
 	syncWorkOrderMenu(ctx)
 	ensureMenuButton(ctx, "inspectionItem", "delete", "删除")
 	ensureMenuButton(ctx, "inspectionTemplate", "delete", "删除")
