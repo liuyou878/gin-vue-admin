@@ -52,6 +52,14 @@ export const scanAssignBatch = (data) => {
   return service({ url: '/productionOrder/scanAssignBatch', method: 'post', data })
 }
 
+export const addDevicesToBatch = (data) => {
+  return service({ url: '/productionOrder/addDevicesToBatch', method: 'post', data })
+}
+
+export const removeDeviceFromBatch = (data) => {
+  return service({ url: '/productionOrder/removeDeviceFromBatch', method: 'post', data })
+}
+
 export const getDeviceStatusLogs = (params) => {
   return service({ url: '/productionOrder/getDeviceStatusLogs', method: 'get', params })
 }

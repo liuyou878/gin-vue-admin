@@ -103,3 +103,12 @@ type ConfirmReworkReceived struct {
 	DeviceIDs []uint `json:"deviceIDs"`
 	Remark    string `json:"remark"`
 }
+
+type AddDevicesToBatch struct {
+	BatchID uint     `json:"batchID" binding:"required"`
+	SNs     []string `json:"sns" binding:"required,min=1"`
+}
+
+type RemoveDeviceFromBatch struct {
+	DeviceID uint `json:"deviceID" binding:"required"`
+}

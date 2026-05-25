@@ -375,3 +375,49 @@ func (a *productionOrderApi) CreateBatch(c *gin.Context) {
 	}
 	response.OkWithMessage("创建成功", c)
 }
+
+// AddDevicesToBatch 添加设备到批次
+// @Tags     ProductionOrder
+// @Summary  添加设备到批次
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.AddDevicesToBatch true "批次ID和SN列表"
+// @Success  200 {object} response.Response{msg=string} "添加成功"
+// @Router   /productionOrder/addDevicesToBatch [post]
+func (a *productionOrderApi) AddDevicesToBatch(c *gin.Context) {
+	var req request.AddDevicesToBatch
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	claims, _ := utils.GetClaims(c)
+	if err := serviceProductionOrder.AddDevicesToBatch(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
+		response.FailWithMessage("添加失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("添加成功", c)
+}
+
+// RemoveDeviceFromBatch 从批次移除设备
+// @Tags     ProductionOrder
+// @Summary  从批次移除设备
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.RemoveDeviceFromBatch true "设备ID"
+// @Success  200 {object} response.Response{msg=string} "移除成功"
+// @Router   /productionOrder/removeDeviceFromBatch [post]
+func (a *productionOrderApi) RemoveDeviceFromBatch(c *gin.Context) {
+	var req request.RemoveDeviceFromBatch
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	claims, _ := utils.GetClaims(c)
+	if err := serviceProductionOrder.RemoveDeviceFromBatch(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
+		response.FailWithMessage("移除失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("移除成功", c)
+}

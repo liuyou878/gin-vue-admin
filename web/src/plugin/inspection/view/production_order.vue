@@ -636,6 +636,15 @@
                       确认返工完成
                     </el-button>
                     <el-button
+                      v-if="batch.status !== 4"
+                      type="danger"
+                      link
+                      size="small"
+                      @click="handleRemoveFromBatch(scope.row)"
+                    >
+                      移出批次
+                    </el-button>
+                    <el-button
                       type="primary"
                       link
                       size="small"
@@ -707,6 +716,14 @@
                       确认返工完成
                     </el-button>
                     <el-button
+                      type="success"
+                      link
+                      size="small"
+                      @click="openBatchPicker(scope.row)"
+                    >
+                      加入批次
+                    </el-button>
+                    <el-button
                       type="primary"
                       link
                       size="small"
@@ -721,6 +738,33 @@
           </el-collapse>
         </div>
       </div>
+    </el-dialog>
+
+    <el-dialog
+      v-model="batchPickerVisible"
+      title="选择目标批次"
+      width="450px"
+      destroy-on-close
+    >
+      <el-radio-group v-model="pickedBatchID" class="batch-picker-group">
+        <el-radio
+          v-for="b in availableBatches"
+          :key="b.ID"
+          :value="b.ID"
+          class="batch-picker-item"
+        >
+          {{ b.batchNumber }}
+          <el-tag size="small" :type="batchStatusTag(b.status)" class="ml-1">
+            {{ batchStatusLabel(b.status) }}
+          </el-tag>
+          <span class="batch-device-count">{{ b.deviceCount || b.devices?.length || 0 }} 台</span>
+        </el-radio>
+      </el-radio-group>
+      <div v-if="availableBatches.length === 0" class="text-muted">没有可用的批次（所有批次均已完成）</div>
+      <template #footer>
+        <el-button @click="batchPickerVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="!pickedBatchID" @click="confirmAddToBatch">确认加入</el-button>
+      </template>
     </el-dialog>
 
     <FlowLogDrawer
@@ -745,7 +789,9 @@
     findProductionOrder,
     confirmReworkReceived,
     confirmReworkDone,
-    scanAssignBatch
+    scanAssignBatch,
+    addDevicesToBatch,
+    removeDeviceFromBatch
   } from '@/plugin/inspection/api/production_order'
   import { getTemplateList } from '@/plugin/inspection/api/template'
   import {
@@ -764,6 +810,9 @@
   const batchScanVisible = ref(false)
   const detailVisible = ref(false)
   const dispatchVisible = ref(false)
+  const batchPickerVisible = ref(false)
+  const pickedBatchID = ref(null)
+  const pendingDevice = ref(null)
   const formRef = ref(null)
   const scanInputRef = ref(null)
   const detailOrder = ref(null)
@@ -826,6 +875,10 @@
     ({ 0: '未派检', 1: '待检测接收', 2: '检测中', 3: '检测中', 4: '已完成' }[
       value
     ] || value)
+  const batchStatusTag = (value) =>
+    ({ 0: 'info', 1: 'warning', 2: 'primary', 3: 'warning', 4: 'success' }[
+      value
+    ] || 'info')
   const orderStatusTagType = (value) =>
     ({ 0: 'info', 1: 'warning', 2: 'primary', 3: 'warning', 4: 'success' }[
       value
@@ -884,6 +937,58 @@
       return Number(b.ID || 0) - Number(a.ID || 0)
     })
   )
+
+  const availableBatches = computed(() =>
+    (detailOrder.value?.batches || []).filter((b) => b.status !== 4)
+  )
+
+  const openBatchPicker = (device) => {
+    pendingDevice.value = device
+    pickedBatchID.value = null
+    batchPickerVisible.value = true
+  }
+
+  const confirmAddToBatch = async () => {
+    if (!pickedBatchID.value || !pendingDevice.value) return
+    try {
+      const res = await addDevicesToBatch({
+        batchID: pickedBatchID.value,
+        sns: [pendingDevice.value.sn]
+      })
+      if (res.code !== 0) return
+      ElMessage.success(`已将 ${pendingDevice.value.sn} 加入批次`)
+      batchPickerVisible.value = false
+      await refreshDetail()
+    } catch (e) {
+      ElMessage.error('操作失败')
+    }
+  }
+
+  const handleRemoveFromBatch = async (device) => {
+    try {
+      await ElMessageBox.confirm(
+        `确定将 ${device.sn} 移出当前批次吗？`,
+        '移出批次',
+        { type: 'warning', confirmButtonText: '确定' }
+      )
+    } catch {
+      return
+    }
+    try {
+      const res = await removeDeviceFromBatch({ deviceID: device.ID })
+      if (res.code !== 0) return
+      ElMessage.success(`已将 ${device.sn} 移出批次`)
+      await refreshDetail()
+    } catch (e) {
+      ElMessage.error('操作失败')
+    }
+  }
+
+  const refreshDetail = async () => {
+    if (!detailOrder.value) return
+    const res = await findProductionOrder({ id: detailOrder.value.ID })
+    if (res.code === 0) detailOrder.value = res.data
+  }
 
   const unbatchedForScan = computed(() => {
     if (!batchScanOrder.value) return []
@@ -1374,5 +1479,34 @@
     border-radius: 6px;
     background: var(--el-bg-color, #fff);
     border: 1px solid var(--el-border-color-lighter, #ebeef5);
+  }
+
+  .batch-picker-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .batch-picker-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--el-border-color-lighter, #ebeef5);
+    border-radius: 6px;
+    margin-right: 0;
+  }
+
+  .batch-device-count {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--el-text-color-secondary, #909399);
+  }
+
+  .text-muted {
+    color: var(--el-text-color-secondary, #909399);
+    text-align: center;
+    padding: 20px;
   }
 </style>

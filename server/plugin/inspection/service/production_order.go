@@ -648,6 +648,68 @@ func (s *productionOrderSvc) ScanAssignBatch(req *request.ScanAssignBatch, opera
 	})
 }
 
+func (s *productionOrderSvc) AddDevicesToBatch(req *request.AddDevicesToBatch, operatorID uint, operatorName string) error {
+	sns := normalizeSNList(req.SNs)
+	if len(sns) == 0 {
+		return errors.New("没有有效的SN")
+	}
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var batch model.ProductionBatch
+		if err := tx.Where("id = ?", req.BatchID).First(&batch).Error; err != nil {
+			return errors.New("批次不存在")
+		}
+		if batch.Status == 4 {
+			return errors.New("该批次已完成检测，不能添加设备")
+		}
+		for _, sn := range sns {
+			var device model.ProductionOrderDevice
+			if err := tx.Where("sn = ?", sn).First(&device).Error; err != nil {
+				return fmt.Errorf("SN %s 不存在", sn)
+			}
+			if device.ProductionOrderID != batch.ProductionOrderID {
+				return fmt.Errorf("SN %s 不属于该生产订单", sn)
+			}
+			if device.BatchID != nil {
+				if *device.BatchID == batch.ID {
+					continue
+				}
+				var oldBatch model.ProductionBatch
+				if err := tx.Where("id = ?", *device.BatchID).First(&oldBatch).Error; err == nil {
+					return fmt.Errorf("SN %s 已在批次 %s 中，请先从原批次移除", sn, oldBatch.BatchNumber)
+				}
+				return fmt.Errorf("SN %s 已在其他批次中，请先从原批次移除", sn)
+			}
+			if err := tx.Model(&device).Update("batch_id", batch.ID).Error; err != nil {
+				return err
+			}
+		}
+		return createBatchFlowLog(tx, batch, "添加设备到批次", operatorID, operatorName)
+	})
+}
+
+func (s *productionOrderSvc) RemoveDeviceFromBatch(req *request.RemoveDeviceFromBatch, operatorID uint, operatorName string) error {
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var device model.ProductionOrderDevice
+		if err := tx.Where("id = ?", req.DeviceID).First(&device).Error; err != nil {
+			return errors.New("设备不存在")
+		}
+		if device.BatchID == nil {
+			return errors.New("该设备当前不在任何批次中")
+		}
+		var batch model.ProductionBatch
+		if err := tx.Where("id = ?", *device.BatchID).First(&batch).Error; err != nil {
+			return errors.New("批次不存在")
+		}
+		if batch.Status == 4 {
+			return errors.New("该批次已完成检测，不能移除设备")
+		}
+		if err := tx.Model(&device).Update("batch_id", nil).Error; err != nil {
+			return err
+		}
+		return createBatchFlowLog(tx, batch, "从批次移除设备", operatorID, operatorName)
+	})
+}
+
 func createBatchFlowLog(tx *gorm.DB, batch model.ProductionBatch, action string, operatorID uint, operatorName string) error {
 	reason, err := batchDeviceTotalReason(tx, batch.ID, action)
 	if err != nil {
