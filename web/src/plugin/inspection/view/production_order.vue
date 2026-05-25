@@ -303,11 +303,22 @@
 
           <el-form label-width="90px">
             <el-form-item label="批次号">
-              <el-input
-                v-model="batchScanForm.batchNumber"
-                readonly
+              <el-select
+                v-model="batchScanTarget"
+                filterable
                 style="width: 320px"
-              />
+              >
+                <el-option
+                  v-for="b in batchScanExistingBatches"
+                  :key="b.ID"
+                  :label="b.batchNumber"
+                  :value="b.batchNumber"
+                />
+                <el-option
+                  :label="newBatchOption"
+                  :value="newBatchOption"
+                />
+              </el-select>
             </el-form-item>
             <el-form-item label="扫码SN">
               <el-input
@@ -326,16 +337,23 @@
             <div class="scan-title">批次</div>
             <div class="scan-list">
               <el-empty
-                v-if="!scanBasket.length"
+                v-if="!existingBatchDevices.length && !scanBasket.length"
                 description="还没有加入设备"
               />
               <template v-else>
+                <div
+                  v-for="(item, index) in existingBatchDevices"
+                  :key="'exist-' + item.sn"
+                  class="scan-existing-item"
+                >
+                  <span>{{ index + 1 }}. {{ item.sn }}</span>
+                </div>
                 <div
                   v-for="(item, index) in scanBasket"
                   :key="item.sn"
                   class="scan-item"
                 >
-                  <span>{{ index + 1 }}. {{ item.sn }}</span>
+                  <span>{{ existingBatchDevices.length + index + 1 }}. {{ item.sn }}</span>
                   <el-button
                     type="danger"
                     link
@@ -830,9 +848,9 @@
     instrumentCategory: ''
   })
   const batchScanForm = reactive({
-    batchNumber: '',
     scanSN: ''
   })
+  const batchScanTarget = ref('')
   const scanBasket = ref([])
   const submitDateRange = ref([])
 
@@ -990,6 +1008,31 @@
     if (res.code === 0) detailOrder.value = res.data
   }
 
+  const batchScanExistingBatches = computed(() =>
+    (batchScanOrder.value?.batches || [])
+      .filter((b) => b.status !== 4)
+      .sort((a, b) => new Date(b.CreatedAt).getTime() - new Date(a.CreatedAt).getTime())
+  )
+
+  const newBatchOption = computed(() => {
+    if (!batchScanOrder.value) return ''
+    return previewNextBatchNumber(batchScanOrder.value)
+  })
+
+  const selectedExistingBatch = computed(() =>
+    (batchScanOrder.value?.batches || []).find(
+      (b) => b.batchNumber === batchScanTarget.value
+    )
+  )
+
+  const existingBatchDevices = computed(() =>
+    selectedExistingBatch.value?.devices || []
+  )
+
+  const existingBatchSNs = computed(() =>
+    new Set(existingBatchDevices.value.map((d) => d.sn))
+  )
+
   const unbatchedForScan = computed(() => {
     if (!batchScanOrder.value) return []
     const basketSet = new Set(scanBasket.value.map((item) => item.sn))
@@ -1114,7 +1157,7 @@
     const res = await findProductionOrder({ id: row.ID })
     if (res.code !== 0) return
     batchScanOrder.value = res.data
-    batchScanForm.batchNumber = previewNextBatchNumber(res.data)
+    batchScanTarget.value = previewNextBatchNumber(res.data)
     batchScanForm.scanSN = ''
     scanBasket.value = []
     batchScanVisible.value = true
@@ -1151,6 +1194,11 @@
     }
     if (scanBasket.value.some((item) => item.sn === sn)) {
       ElMessage.warning(`SN ${sn} 已在篮子里`)
+      focusScanInput()
+      return
+    }
+    if (existingBatchSNs.value.has(sn)) {
+      ElMessage.warning(`SN ${sn} 已在此批次中`)
       focusScanInput()
       return
     }
@@ -1196,7 +1244,7 @@
     }
     const res = await scanAssignBatch({
       productionOrderID: batchScanOrder.value.ID,
-      batchNumber: batchScanForm.batchNumber,
+      batchNumber: batchScanTarget.value,
       sns: scanBasket.value.map((item) => item.sn)
     })
     if (res.code !== 0) return
@@ -1204,7 +1252,7 @@
     const refresh = await findProductionOrder({ id: batchScanOrder.value.ID })
     if (refresh.code === 0) {
       batchScanOrder.value = refresh.data
-      batchScanForm.batchNumber = previewNextBatchNumber(refresh.data)
+      batchScanTarget.value = previewNextBatchNumber(refresh.data)
     }
     scanBasket.value = []
     getList()
@@ -1468,6 +1516,17 @@
     flex-direction: column;
     gap: 6px;
     overflow-y: auto;
+  }
+
+  .scan-existing-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 10px;
+    border-radius: 6px;
+    background: var(--el-fill-color-light, #f5f7fa);
+    border: 1px solid var(--el-border-color-lighter, #ebeef5);
+    color: var(--el-text-color-secondary, #909399);
   }
 
   .scan-item,

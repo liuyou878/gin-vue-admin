@@ -572,7 +572,8 @@ func (s *productionOrderSvc) AssignBatch(req *request.AssignBatch, operatorID ui
 		if err := tx.Where("id = ?", req.BatchID).First(&batch).Error; err != nil {
 			return errors.New("批次不存在")
 		}
-		for _, sn := range req.SNs {
+		sns := normalizeSNList(req.SNs)
+		for _, sn := range sns {
 			var device model.ProductionOrderDevice
 			if err := tx.Where("sn = ?", sn).First(&device).Error; err != nil {
 				return errors.New("SN不存在: " + sn)
@@ -582,7 +583,17 @@ func (s *productionOrderSvc) AssignBatch(req *request.AssignBatch, operatorID ui
 			}
 			tx.Model(&device).Update("batch_id", req.BatchID)
 		}
-		return createBatchFlowLog(tx, batch, "生产分批", operatorID, operatorName)
+		var total int64
+		tx.Model(&model.ProductionOrderDevice{}).Where("batch_id = ?", batch.ID).Count(&total)
+		return tx.Create(&model.ProductionBatchStatusLog{
+			ProductionBatchID: batch.ID,
+			FromStatus:        batch.Status,
+			ToStatus:          batch.Status,
+			Action:            "生产分批",
+			Reason:            fmt.Sprintf("添加SN: %s；总数%d台", strings.Join(sns, ", "), total),
+			OperatorID:        &operatorID,
+			OperatorName:      operatorName,
+		}).Error
 	})
 }
 
@@ -621,8 +632,8 @@ func (s *productionOrderSvc) ScanAssignBatch(req *request.ScanAssignBatch, opera
 		} else if err != nil {
 			return err
 		}
-		if batch.Status != 0 {
-			return errors.New("该批次已派检或已进入检测流程，不能继续扫码加入设备")
+		if batch.Status == 4 {
+			return errors.New("该批次已完成检测，不能继续扫码加入设备")
 		}
 
 		for _, sn := range sns {
@@ -644,7 +655,17 @@ func (s *productionOrderSvc) ScanAssignBatch(req *request.ScanAssignBatch, opera
 				return err
 			}
 		}
-		return createBatchFlowLog(tx, batch, "生产分批", operatorID, operatorName)
+		var total int64
+		tx.Model(&model.ProductionOrderDevice{}).Where("batch_id = ?", batch.ID).Count(&total)
+		return tx.Create(&model.ProductionBatchStatusLog{
+			ProductionBatchID: batch.ID,
+			FromStatus:        batch.Status,
+			ToStatus:          batch.Status,
+			Action:            "生产分批",
+			Reason:            fmt.Sprintf("添加SN: %s；总数%d台", strings.Join(sns, ", "), total),
+			OperatorID:        &operatorID,
+			OperatorName:      operatorName,
+		}).Error
 	})
 }
 
@@ -661,6 +682,7 @@ func (s *productionOrderSvc) AddDevicesToBatch(req *request.AddDevicesToBatch, o
 		if batch.Status == 4 {
 			return errors.New("该批次已完成检测，不能添加设备")
 		}
+		addedSNs := make([]string, 0, len(sns))
 		for _, sn := range sns {
 			var device model.ProductionOrderDevice
 			if err := tx.Where("sn = ?", sn).First(&device).Error; err != nil {
@@ -682,8 +704,22 @@ func (s *productionOrderSvc) AddDevicesToBatch(req *request.AddDevicesToBatch, o
 			if err := tx.Model(&device).Update("batch_id", batch.ID).Error; err != nil {
 				return err
 			}
+			addedSNs = append(addedSNs, sn)
 		}
-		return createBatchFlowLog(tx, batch, "添加设备到批次", operatorID, operatorName)
+		if len(addedSNs) == 0 {
+			return errors.New("所有设备已在此批次中")
+		}
+		var total int64
+		tx.Model(&model.ProductionOrderDevice{}).Where("batch_id = ?", batch.ID).Count(&total)
+		return tx.Create(&model.ProductionBatchStatusLog{
+			ProductionBatchID: batch.ID,
+			FromStatus:        batch.Status,
+			ToStatus:          batch.Status,
+			Action:            "添加设备到批次",
+			Reason:            fmt.Sprintf("添加SN: %s；总数%d台", strings.Join(addedSNs, ", "), total),
+			OperatorID:        &operatorID,
+			OperatorName:      operatorName,
+		}).Error
 	})
 }
 
@@ -706,7 +742,17 @@ func (s *productionOrderSvc) RemoveDeviceFromBatch(req *request.RemoveDeviceFrom
 		if err := tx.Model(&device).Update("batch_id", nil).Error; err != nil {
 			return err
 		}
-		return createBatchFlowLog(tx, batch, "从批次移除设备", operatorID, operatorName)
+		var remaining int64
+		tx.Model(&model.ProductionOrderDevice{}).Where("batch_id = ?", batch.ID).Count(&remaining)
+		return tx.Create(&model.ProductionBatchStatusLog{
+			ProductionBatchID: batch.ID,
+			FromStatus:        batch.Status,
+			ToStatus:          batch.Status,
+			Action:            "从批次移除设备",
+			Reason:            fmt.Sprintf("移除SN: %s；剩余%d台", device.SN, remaining),
+			OperatorID:        &operatorID,
+			OperatorName:      operatorName,
+		}).Error
 	})
 }
 
