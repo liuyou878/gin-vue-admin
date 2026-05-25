@@ -4,8 +4,11 @@
 
 <script setup>
 import { onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+
 onMounted(() => {
-  const url = `${window.location.origin}${window.location.pathname}#/inspectWorkOrder`
-  window.open(url, '_blank')
+  router.replace({ name: 'InspectWorkOrder' })
 })
 </script>

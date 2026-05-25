@@ -31,6 +31,7 @@
   import { useRouterStore } from '@/pinia/modules/router'
   import { useAppStore } from '@/pinia'
   import { storeToRefs } from 'pinia'
+  import { openFullScreenMenuIfNeeded } from '@/utils/fullscreenMenu'
   const appStore = useAppStore()
   const { device } = storeToRefs(appStore)
 
@@ -95,6 +96,7 @@
   })
 
   const selectMenuItem = (index) => {
+    if (openFullScreenMenuIfNeeded(index)) return
     const query = {}
     const params = {}
     routerStore.routeMap[index]?.parameters &&

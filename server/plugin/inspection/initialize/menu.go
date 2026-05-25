@@ -2,6 +2,7 @@ package initialize
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	model "github.com/flipped-aurora/gin-vue-admin/server/model/system"
@@ -16,7 +17,7 @@ func Menu(ctx context.Context) {
 	}
 	child1 := model.SysBaseMenu{
 		ParentId: 0, Path: "inspectionWorkOrder", Name: "inspectionWorkOrder", Hidden: false,
-		Component: "plugin/inspection/view/work_order_redirect.vue", Sort: 1,
+		Component: "plugin/inspection/view/work_order.vue", Sort: 1,
 		Meta: model.Meta{Title: "检测工单", Icon: "document"},
 	}
 	child2 := model.SysBaseMenu{
@@ -45,10 +46,61 @@ func Menu(ctx context.Context) {
 		Meta: model.Meta{Title: "模拟生产提交", Icon: "cpu"},
 	}
 	utils.RegisterMenus(parent, child1, child2, child3, child4, child5, child6)
+	syncWorkOrderMenu(ctx)
 	ensureMenuButton(ctx, "inspectionItem", "delete", "删除")
 	ensureMenuButton(ctx, "inspectionTemplate", "delete", "删除")
 	ensureMenuButton(ctx, "productionOrder", "delete", "删除")
 	ensureMenuButton(ctx, "submittedDevice", "delete", "删除")
+}
+
+func syncWorkOrderMenu(ctx context.Context) {
+	if global.GVA_DB == nil {
+		return
+	}
+	var keep model.SysBaseMenu
+	if err := global.GVA_DB.WithContext(ctx).
+		Where("name = ?", "inspectionWorkOrder").
+		First(&keep).Error; err == nil {
+		var duplicate model.SysBaseMenu
+		if err := global.GVA_DB.WithContext(ctx).
+			Where("name = ?", "InspectWorkOrder").
+			First(&duplicate).Error; err == nil {
+			mergeAndDeleteDuplicateWorkOrderMenu(ctx, keep.ID, duplicate.ID)
+		}
+	}
+	updates := map[string]interface{}{
+		"path":         "inspectionWorkOrder",
+		"component":    "plugin/inspection/view/work_order.vue",
+		"default_menu": false,
+	}
+	_ = global.GVA_DB.WithContext(ctx).
+		Model(&model.SysBaseMenu{}).
+		Where("name = ?", "inspectionWorkOrder").
+		Updates(updates).Error
+}
+
+func mergeAndDeleteDuplicateWorkOrderMenu(ctx context.Context, keepID uint, duplicateID uint) {
+	var rels []model.SysAuthorityMenu
+	duplicateIDString := fmt.Sprintf("%d", duplicateID)
+	keepIDString := fmt.Sprintf("%d", keepID)
+	_ = global.GVA_DB.WithContext(ctx).
+		Table("sys_authority_menus").
+		Where("sys_base_menu_id = ?", duplicateIDString).
+		Find(&rels).Error
+	for _, rel := range rels {
+		_ = global.GVA_DB.WithContext(ctx).
+			Model(&model.SysAuthorityMenu{}).
+			Where("sys_base_menu_id = ? AND sys_authority_authority_id = ?", keepIDString, rel.AuthorityId).
+			FirstOrCreate(&model.SysAuthorityMenu{
+				MenuId:      keepIDString,
+				AuthorityId: rel.AuthorityId,
+			}).Error
+	}
+	_ = global.GVA_DB.WithContext(ctx).Where("sys_base_menu_id = ?", duplicateIDString).Delete(&model.SysAuthorityMenu{}).Error
+	_ = global.GVA_DB.WithContext(ctx).Where("sys_base_menu_id = ?", duplicateID).Delete(&model.SysBaseMenuParameter{}).Error
+	_ = global.GVA_DB.WithContext(ctx).Where("sys_base_menu_id = ?", duplicateID).Delete(&model.SysBaseMenuBtn{}).Error
+	_ = global.GVA_DB.WithContext(ctx).Where("sys_menu_id = ?", duplicateID).Delete(&model.SysAuthorityBtn{}).Error
+	_ = global.GVA_DB.WithContext(ctx).Delete(&model.SysBaseMenu{}, duplicateID).Error
 }
 
 func ensureMenuButton(ctx context.Context, menuName string, btnName string, desc string) {
