@@ -152,6 +152,12 @@ func (s *productionOrderSvc) FindProductionOrder(id string) (model.ProductionOrd
 	po.UnbatchedCount = countUnbatchedDevices(devices)
 	for i := range po.Batches {
 		po.Batches[i].DeviceCount = len(po.Batches[i].Devices)
+		// 取每个批次最近的操作人
+		var log model.ProductionBatchStatusLog
+		if err := global.GVA_DB.Where("production_batch_id = ?", po.Batches[i].ID).
+			Order("id desc").First(&log).Error; err == nil {
+			po.Batches[i].LastOperatorName = log.OperatorName
+		}
 	}
 	fillBatchSummary(&po)
 	var pass, fail, returned, rework, recheck int64

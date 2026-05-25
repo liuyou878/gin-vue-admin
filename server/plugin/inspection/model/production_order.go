@@ -60,6 +60,7 @@ type ProductionBatch struct {
 	DeviceCount       int                     `json:"deviceCount" gorm:"-"`
 	PassCount         int                     `json:"passCount" gorm:"-"`
 	FailCount         int                     `json:"failCount" gorm:"-"`
+	LastOperatorName  string                  `json:"lastOperatorName" gorm:"-"`
 }
 
 func (ProductionBatch) TableName() string {

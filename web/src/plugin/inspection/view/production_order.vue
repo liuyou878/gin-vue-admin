@@ -581,6 +581,11 @@
                   <el-tag size="small" :type="orderStatusTagType(batch.status)">
                     {{ batchStatusLabel(batch.status) }}
                   </el-tag>
+                  <span
+                    v-if="batch.lastOperatorName"
+                    class="batch-operator"
+                  >操作人: {{ batch.lastOperatorName }}</span
+                  >
                 </div>
               </template>
               <div class="detail-section-actions">
@@ -1467,6 +1472,12 @@
     min-width: 0;
     flex-wrap: wrap;
     font-weight: 600;
+  }
+
+  .batch-operator {
+    color: var(--el-text-color-secondary, #909399);
+    font-size: 12px;
+    font-weight: 400;
   }
 
   .detail-section-actions {
