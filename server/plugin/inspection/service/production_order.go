@@ -152,6 +152,7 @@ func (s *productionOrderSvc) FindProductionOrder(id string) (model.ProductionOrd
 	po.UnbatchedCount = countUnbatchedDevices(devices)
 	for i := range po.Batches {
 		po.Batches[i].DeviceCount = len(po.Batches[i].Devices)
+		fillBatchDeviceInspectionStats(&po.Batches[i])
 		// 取每个批次最近的操作人
 		var log model.ProductionBatchStatusLog
 		if err := global.GVA_DB.Where("production_batch_id = ?", po.Batches[i].ID).
@@ -1112,4 +1113,132 @@ func parseDateOnly(value string) (time.Time, bool) {
 	}
 	date, err := time.ParseInLocation("2006-01-02", value, time.Local)
 	return date, err == nil
+}
+
+type inspectionTemplateItemForStats struct {
+	ItemID     uint
+	ResultType string
+	MinValue   *float64
+	MaxValue   *float64
+}
+
+func fillBatchDeviceInspectionStats(batch *model.ProductionBatch) {
+	if batch == nil || batch.TemplateID == nil || len(batch.Devices) == 0 {
+		return
+	}
+
+	items, err := getTemplateItemsForStats(*batch.TemplateID)
+	if err != nil || len(items) == 0 {
+		return
+	}
+
+	deviceIDs := make([]uint, 0, len(batch.Devices))
+	for _, device := range batch.Devices {
+		deviceIDs = append(deviceIDs, device.ID)
+	}
+
+	var results []model.InspectionDeviceResult
+	if err := global.GVA_DB.Where("production_order_device_id IN ?", deviceIDs).Find(&results).Error; err != nil {
+		return
+	}
+
+	resultMap := make(map[uint]map[uint]model.InspectionDeviceResult, len(deviceIDs))
+	for _, result := range results {
+		if resultMap[result.ProductionOrderDeviceID] == nil {
+			resultMap[result.ProductionOrderDeviceID] = map[uint]model.InspectionDeviceResult{}
+		}
+		resultMap[result.ProductionOrderDeviceID][result.ItemID] = result
+	}
+
+	for i := range batch.Devices {
+		completed := 0
+		failCount := 0
+		deviceResults := resultMap[batch.Devices[i].ID]
+		for _, item := range items {
+			result, ok := deviceResults[item.ItemID]
+			if !ok || !inspectionStatResultCompleted(item.ResultType, result) {
+				continue
+			}
+			completed++
+			if inspectionStatResultFailed(item, result) {
+				failCount++
+			}
+		}
+		batch.Devices[i].InspectionTotal = len(items)
+		batch.Devices[i].InspectionCompleted = completed
+		batch.Devices[i].InspectionFailCount = failCount
+		batch.Devices[i].InspectionDisplayStatus = inspectionDisplayStatus(len(items), completed, failCount)
+	}
+}
+
+func getTemplateItemsForStats(templateID uint) ([]inspectionTemplateItemForStats, error) {
+	var rows []struct {
+		ItemID     uint
+		ResultType string
+		MinValue   *float64
+		MaxValue   *float64
+	}
+	err := global.GVA_DB.
+		Table("inspection_template_items AS ti").
+		Select("ti.item_id, ii.result_type, ii.min_value, ii.max_value").
+		Joins("JOIN inspection_items ii ON ii.id = ti.item_id").
+		Where("ti.template_id = ?", templateID).
+		Order("ti.sort asc, ti.id asc").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	items := make([]inspectionTemplateItemForStats, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, inspectionTemplateItemForStats{
+			ItemID:     row.ItemID,
+			ResultType: row.ResultType,
+			MinValue:   row.MinValue,
+			MaxValue:   row.MaxValue,
+		})
+	}
+	return items, nil
+}
+
+func inspectionStatResultCompleted(resultType string, result model.InspectionDeviceResult) bool {
+	switch resultType {
+	case "number":
+		return result.NumberResult != nil
+	case "pass_fail":
+		return result.PassResult != nil
+	default:
+		return result.PassResult != nil && result.NumberResult != nil
+	}
+}
+
+func inspectionStatResultFailed(item inspectionTemplateItemForStats, result model.InspectionDeviceResult) bool {
+	switch item.ResultType {
+	case "number":
+		if result.NumberResult == nil {
+			return false
+		}
+		return (item.MinValue != nil && *result.NumberResult < *item.MinValue) ||
+			(item.MaxValue != nil && *result.NumberResult > *item.MaxValue)
+	case "pass_fail":
+		return result.PassResult != nil && !*result.PassResult
+	default:
+		passFailed := result.PassResult != nil && !*result.PassResult
+		numberFailed := result.NumberResult != nil &&
+			((item.MinValue != nil && *result.NumberResult < *item.MinValue) ||
+				(item.MaxValue != nil && *result.NumberResult > *item.MaxValue))
+		return passFailed || numberFailed
+	}
+}
+
+func inspectionDisplayStatus(total int, completed int, failCount int) string {
+	if failCount > 0 {
+		return "fail"
+	}
+	if total > 0 && completed >= total {
+		return "pass"
+	}
+	if completed > 0 {
+		return "inspecting"
+	}
+	return "pending"
 }

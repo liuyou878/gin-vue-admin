@@ -156,6 +156,10 @@ type ProductionOrderDevice struct {
 	ReturnByID               *uint            `json:"returnByID" gorm:"column:return_by_id;comment:退回人ID"`
 	ReturnByName             string           `json:"returnByName" gorm:"column:return_by_name;size:100;comment:退回人姓名"`
 	DeviceInfo               string           `json:"deviceInfo" gorm:"column:device_info;type:text;comment:GETALL完整信息JSON"`
+	InspectionTotal          int              `json:"inspectionTotal" gorm:"-"`
+	InspectionCompleted      int              `json:"inspectionCompleted" gorm:"-"`
+	InspectionFailCount      int              `json:"inspectionFailCount" gorm:"-"`
+	InspectionDisplayStatus  string           `json:"inspectionDisplayStatus" gorm:"-"`
 }
 
 func (ProductionOrderDevice) TableName() string {

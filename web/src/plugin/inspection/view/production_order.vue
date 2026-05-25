@@ -649,6 +649,20 @@
                     </el-tag>
                   </template>
                 </el-table-column>
+                <el-table-column
+                  v-if="showInspectionStatusColumn(batch)"
+                  label="检测状态"
+                  width="130"
+                >
+                  <template #default="scope">
+                    <el-tag
+                      :type="inspectionStatusTagType(scope.row)"
+                      size="small"
+                    >
+                      {{ inspectionStatusLabel(scope.row) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="model" label="型号" width="90" />
                 <el-table-column prop="pnCode" label="PN码" width="130" />
                 <el-table-column
@@ -961,6 +975,34 @@
       pending_recheck: 'primary',
       rechecking: 'warning'
     }[value] || 'info')
+  const showInspectionStatusColumn = (batch) =>
+    Number(batch?.status) === 2 || Number(batch?.status) === 3
+  const inspectionStatusLabel = (device) => {
+    const status = device?.inspectionDisplayStatus || 'pending'
+    const progress =
+      Number(device?.inspectionTotal || 0) > 0
+        ? ` ${device.inspectionCompleted || 0}/${device.inspectionTotal}`
+        : ''
+    const failText =
+      Number(device?.inspectionFailCount || 0) > 0
+        ? ` 未通过${device.inspectionFailCount}`
+        : ''
+    return (
+      ({
+        pending: '待检测',
+        inspecting: '正在检测中',
+        fail: '不合格',
+        pass: '合格'
+      }[status] || status) + progress + failText
+    )
+  }
+  const inspectionStatusTagType = (device) =>
+    ({
+      pending: 'info',
+      inspecting: 'warning',
+      fail: 'danger',
+      pass: 'success'
+    }[device?.inspectionDisplayStatus || 'pending'] || 'info')
   const passRateLabel = (passCount, deviceCount) => {
     const total = Number(deviceCount || 0)
     if (!total) return '-'
