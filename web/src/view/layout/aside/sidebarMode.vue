@@ -9,6 +9,7 @@
     >
       <el-scrollbar>
         <el-menu
+          ref="topMenuRef"
           :collapse="true"
           :collapse-transition="false"
           :default-active="topActive"
@@ -71,6 +72,7 @@
     >
       <el-scrollbar>
         <el-menu
+          ref="secondMenuRef"
           :collapse="isCollapse"
           :collapse-transition="false"
           :default-active="active"
@@ -105,7 +107,7 @@
 
 <script setup>
   import AsideComponent from '@/view/layout/aside/asideComponent/index.vue'
-  import { ref, provide, watchEffect, computed } from 'vue'
+  import { ref, provide, watchEffect, computed, nextTick } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { useRouterStore } from '@/pinia/modules/router'
   import { useAppStore } from '@/pinia'
@@ -125,6 +127,8 @@
   const isCollapse = ref(false)
   const active = ref('')
   const topActive = ref('')
+  const topMenuRef = ref(null)
+  const secondMenuRef = ref(null)
   const secondLevelMenus = ref([])
 
   const layoutSideWidth = computed(() => {
@@ -148,6 +152,10 @@
 
   // 选择一级菜单
   const selectTopMenuItem = (index) => {
+    if (openFullScreenMenuIfNeeded(index)) {
+      restoreActiveMenu()
+      return
+    }
     topActive.value = index
 
     // 获取选中的菜单项
@@ -175,7 +183,10 @@
 
   // 导航到指定菜单
   const navigateToMenuItem = (index) => {
-    if (openFullScreenMenuIfNeeded(index)) return
+    if (openFullScreenMenuIfNeeded(index)) {
+      restoreActiveMenu()
+      return
+    }
     const query = {}
     const params = {}
     routerStore.routeMap[index]?.parameters &&
@@ -197,6 +208,13 @@
 
   const toggleCollapse = () => {
     isCollapse.value = !isCollapse.value
+  }
+
+  const restoreActiveMenu = () => {
+    nextTick(() => {
+      topMenuRef.value?.updateActiveIndex?.(topActive.value)
+      secondMenuRef.value?.updateActiveIndex?.(active.value)
+    })
   }
 
 

@@ -5,6 +5,7 @@
       class="bg-white h-[calc(100%-4px)] text-slate-700 dark:text-slate-300 mx-2 dark:bg-slate-900 flex items-center w-[calc(100vw-600px)] overflow-auto"
     >
       <el-menu
+        ref="topMenuRef"
         :default-active="routerStore.topActive"
         mode="horizontal"
         class="!border-r-0 border-b-0 w-full flex gap-1 items-center box-border h-[calc(100%-1px)]"
@@ -31,6 +32,7 @@
     >
       <el-scrollbar>
         <el-menu
+          ref="leftMenuRef"
           :collapse="isCollapse"
           :collapse-transition="false"
           :default-active="active"
@@ -64,7 +66,7 @@
 </template>
 <script setup>
   import AsideComponent from '@/view/layout/aside/asideComponent/index.vue'
-  import { ref, provide, watchEffect, computed } from 'vue'
+  import { ref, provide, watchEffect, computed, nextTick } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { useRouterStore } from '@/pinia/modules/router'
   import { useAppStore } from '@/pinia'
@@ -89,6 +91,8 @@
   const routerStore = useRouterStore()
   const isCollapse = ref(false)
   const active = ref('')
+  const topMenuRef = ref(null)
+  const leftMenuRef = ref(null)
   const layoutSideWidth = computed(() => {
     if (!isCollapse.value) {
       return config.value.layout_side_width
@@ -110,8 +114,18 @@
 
   provide('isCollapse', isCollapse)
 
+  const restoreActiveMenu = () => {
+    nextTick(() => {
+      topMenuRef.value?.updateActiveIndex?.(routerStore.topActive)
+      leftMenuRef.value?.updateActiveIndex?.(active.value)
+    })
+  }
+
   const selectMenuItem = (index, _, ele, top) => {
-    if (openFullScreenMenuIfNeeded(index)) return
+    if (openFullScreenMenuIfNeeded(index)) {
+      restoreActiveMenu()
+      return
+    }
     const query = {}
     const params = {}
     routerStore.routeMap[index]?.parameters &&

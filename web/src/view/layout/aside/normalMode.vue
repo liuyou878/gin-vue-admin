@@ -8,6 +8,7 @@
   >
     <el-scrollbar>
       <el-menu
+        ref="menuRef"
         :collapse="isCollapse"
         :collapse-transition="false"
         :default-active="active"
@@ -41,7 +42,7 @@
 
 <script setup>
   import AsideComponent from '@/view/layout/aside/asideComponent/index.vue'
-  import { ref, provide, watchEffect, computed } from 'vue'
+  import { ref, provide, watchEffect, computed, nextTick } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { useRouterStore } from '@/pinia/modules/router'
   import { useAppStore } from '@/pinia'
@@ -58,6 +59,7 @@
   const routerStore = useRouterStore()
   const isCollapse = ref(false)
   const active = ref('')
+  const menuRef = ref(null)
   const layoutSideWidth = computed(() => {
     if (!isCollapse.value) {
       return config.value.layout_side_width
@@ -83,8 +85,17 @@
 
   provide('isCollapse', isCollapse)
 
+  const restoreActiveMenu = () => {
+    nextTick(() => {
+      menuRef.value?.updateActiveIndex?.(active.value)
+    })
+  }
+
   const selectMenuItem = (index) => {
-    if (openFullScreenMenuIfNeeded(index)) return
+    if (openFullScreenMenuIfNeeded(index)) {
+      restoreActiveMenu()
+      return
+    }
     const query = {}
     const params = {}
     routerStore.routeMap[index]?.parameters &&

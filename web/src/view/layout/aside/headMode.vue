@@ -90,13 +90,22 @@
 
   provide('isCollapse', isCollapse)
 
+  const restoreActiveMenu = () => {
+    nextTick(() => {
+      menuRef.value?.updateActiveIndex?.(active.value)
+    })
+  }
+
   onMounted(() => {
     calculateEllipsis()
     window.addEventListener('resize', calculateEllipsis)
   })
 
   const selectMenuItem = (index) => {
-    if (openFullScreenMenuIfNeeded(index)) return
+    if (openFullScreenMenuIfNeeded(index)) {
+      restoreActiveMenu()
+      return
+    }
     const query = {}
     const params = {}
     routerStore.routeMap[index]?.parameters &&
