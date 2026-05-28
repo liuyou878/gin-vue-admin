@@ -118,3 +118,12 @@ type AddDevicesToBatch struct {
 type RemoveDeviceFromBatch struct {
 	DeviceID uint `json:"deviceID" binding:"required"`
 }
+
+type DeleteEmptyBatch struct {
+	BatchID uint `json:"batchID" binding:"required"`
+}
+
+type UpdateBatchNumber struct {
+	BatchID     uint   `json:"batchID" binding:"required"`
+	BatchNumber string `json:"batchNumber" binding:"required"`
+}

@@ -36,6 +36,8 @@ func Api(ctx context.Context) {
 		{Path: "/productionOrder/createBatch", Description: "创建生产批次", ApiGroup: "生产订单", Method: "POST"},
 		{Path: "/productionOrder/addDevicesToBatch", Description: "添加设备到批次", ApiGroup: "生产订单", Method: "POST"},
 		{Path: "/productionOrder/removeDeviceFromBatch", Description: "从批次移除设备", ApiGroup: "生产订单", Method: "POST"},
+		{Path: "/productionOrder/deleteEmptyBatch", Description: "删除空批次", ApiGroup: "生产订单", Method: "POST"},
+		{Path: "/productionOrder/updateBatchNumber", Description: "修改批次号", ApiGroup: "生产订单", Method: "POST"},
 		{Path: "/productionOrder/findProductionOrder", Description: "查询生产订单详情", ApiGroup: "生产订单", Method: "GET"},
 		{Path: "/productionOrder/getProductionOrderList", Description: "获取生产订单列表", ApiGroup: "生产订单", Method: "GET"},
 		{Path: "/productionOrder/getSubmittedDeviceList", Description: "获取生产工具提交设备列表", ApiGroup: "生产订单", Method: "GET"},
@@ -64,6 +66,8 @@ func Api(ctx context.Context) {
 	grantInheritedPermission("/productionOrder/confirmReworkDone", "POST", "/productionOrder/confirmReworkReceived", "POST")
 	grantInheritedPermission("/productionOrder/scanAssignBatch", "POST", "/productionOrder/addDevicesToBatch", "POST")
 	grantInheritedPermission("/productionOrder/scanAssignBatch", "POST", "/productionOrder/removeDeviceFromBatch", "POST")
+	grantInheritedPermission("/productionOrder/scanAssignBatch", "POST", "/productionOrder/deleteEmptyBatch", "POST")
+	grantInheritedPermission("/productionOrder/scanAssignBatch", "POST", "/productionOrder/updateBatchNumber", "POST")
 	grantInheritedPermission("/workOrder/getInspectionDetail", "GET", "/workOrder/getBatchStatusLogs", "GET")
 	grantInheritedPermission("/workOrder/getInspectionDetail", "GET", "/workOrder/getFlowLogs", "GET")
 }

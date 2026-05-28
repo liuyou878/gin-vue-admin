@@ -386,6 +386,7 @@
         /></el-form-item>
         <el-form-item label="版本名称" prop="versionName"
           ><el-input
+            placeholder="请输入版本名称"
             v-model="firmwareForm.versionName"
             :disabled="
               firmwareDialogType === 'update' &&
@@ -481,6 +482,7 @@
         /></el-form-item> -->
         <el-form-item label="版本说明" prop="releaseNote"
           ><el-input
+            placeholder="请输入"
             v-model="firmwareForm.releaseNote"
             type="textarea"
             :rows="3"

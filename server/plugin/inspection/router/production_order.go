@@ -25,6 +25,8 @@ func (r *productionOrderRouter) Init(private *gin.RouterGroup) {
 		group.POST("createBatch", apiProductionOrder.CreateBatch)
 		group.POST("addDevicesToBatch", apiProductionOrder.AddDevicesToBatch)
 		group.POST("removeDeviceFromBatch", apiProductionOrder.RemoveDeviceFromBatch)
+		group.POST("deleteEmptyBatch", apiProductionOrder.DeleteEmptyBatch)
+		group.POST("updateBatchNumber", apiProductionOrder.UpdateBatchNumber)
 	}
 	{
 		group := private.Group("productionOrder")

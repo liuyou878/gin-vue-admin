@@ -60,6 +60,14 @@ export const removeDeviceFromBatch = (data) => {
   return service({ url: '/productionOrder/removeDeviceFromBatch', method: 'post', data })
 }
 
+export const deleteEmptyBatch = (data) => {
+  return service({ url: '/productionOrder/deleteEmptyBatch', method: 'post', data })
+}
+
+export const updateBatchNumber = (data) => {
+  return service({ url: '/productionOrder/updateBatchNumber', method: 'post', data })
+}
+
 export const getDeviceStatusLogs = (params) => {
   return service({ url: '/productionOrder/getDeviceStatusLogs', method: 'get', params })
 }

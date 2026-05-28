@@ -326,19 +326,36 @@
 
           <el-form label-width="90px">
             <el-form-item label="批次号">
-              <el-select
-                v-model="batchScanTarget"
-                filterable
-                style="width: 320px"
-              >
-                <el-option
-                  v-for="b in batchScanExistingBatches"
-                  :key="b.ID"
-                  :label="b.batchNumber"
-                  :value="b.batchNumber"
-                />
-                <el-option :label="newBatchOption" :value="newBatchOption" />
-              </el-select>
+              <div class="batch-number-control">
+                <el-select
+                  v-model="batchScanTarget"
+                  filterable
+                  class="batch-number-select"
+                >
+                  <el-option
+                    v-for="b in batchScanExistingBatches"
+                    :key="b.ID"
+                    :label="b.batchNumber"
+                    :value="b.batchNumber"
+                  />
+                  <el-option :label="newBatchOption" :value="newBatchOption" />
+                </el-select>
+                <el-button
+                  size="small"
+                  :disabled="!selectedExistingBatch"
+                  @click="handleEditBatchNumber(selectedExistingBatch)"
+                >
+                  修改
+                </el-button>
+                <!-- <el-button
+                  size="small"
+                  type="danger"
+                  :disabled="!canDeleteBatch(selectedExistingBatch)"
+                  @click="handleDeleteEmptyBatch(selectedExistingBatch, 'scan')"
+                >
+                  删除
+                </el-button> -->
+              </div>
             </el-form-item>
             <el-form-item label="扫码SN">
               <el-input
@@ -634,6 +651,15 @@
                 >
                   流转日志
                 </el-button>
+                <!-- <el-button
+                  v-if="canDeleteBatch(batch)"
+                  size="small"
+                  type="danger"
+                  link
+                  @click.stop="handleDeleteEmptyBatch(batch)"
+                >
+                  删除批次
+                </el-button> -->
               </div>
               <el-table :data="batch.devices" border size="small" class="mt-1">
                 <el-table-column prop="sn" label="SN" min-width="140" />
@@ -885,7 +911,9 @@
     confirmReworkDone,
     scanAssignBatch,
     addDevicesToBatch,
-    removeDeviceFromBatch
+    removeDeviceFromBatch,
+    deleteEmptyBatch,
+    updateBatchNumber
   } from '@/plugin/inspection/api/production_order'
   import { getTemplateList } from '@/plugin/inspection/api/template'
   import {
@@ -1077,6 +1105,77 @@
     pendingDevice.value = device
     pickedBatchID.value = null
     batchPickerVisible.value = true
+  }
+
+  const canDeleteBatch = (batch) =>
+    Number(batch?.status) === 0 && Number(batch?.devices?.length || 0) === 0
+
+  const refreshBatchScanOrder = async () => {
+    if (!batchScanOrder.value) return null
+    const res = await findProductionOrder({ id: batchScanOrder.value.ID })
+    if (res.code !== 0) return null
+    batchScanOrder.value = res.data
+    return res.data
+  }
+
+  const handleEditBatchNumber = async (batch) => {
+    if (!batch) return
+    if (Number(batch.status) === 4) {
+      ElMessage.warning('批次已完成，不能修改批次号')
+      return
+    }
+    let value = ''
+    try {
+      const result = await ElMessageBox.prompt(
+        '请输入新的批次号',
+        '修改批次号',
+        {
+          inputValue: batch.batchNumber || '',
+          inputPattern: /\S+/,
+          inputErrorMessage: '批次号不能为空',
+          confirmButtonText: '保存',
+          cancelButtonText: '取消'
+        }
+      )
+      value = String(result.value || '').trim()
+    } catch {
+      return
+    }
+    if (!value || value === batch.batchNumber) return
+
+    const res = await updateBatchNumber({
+      batchID: batch.ID,
+      batchNumber: value
+    })
+    if (res.code !== 0) return
+    ElMessage.success('修改成功')
+    batchScanTarget.value = value
+    if (detailOrder.value) await refreshDetail()
+    await refreshBatchScanOrder()
+    getList()
+  }
+
+  const handleDeleteEmptyBatch = async (batch, source = 'detail') => {
+    if (!batch) return
+    try {
+      await ElMessageBox.confirm(
+        `确定删除空批次 ${batch.batchNumber || '-'} 吗？`,
+        '删除批次',
+        { type: 'warning', confirmButtonText: '删除' }
+      )
+    } catch {
+      return
+    }
+
+    const res = await deleteEmptyBatch({ batchID: batch.ID })
+    if (res.code !== 0) return
+    ElMessage.success('删除成功')
+    if (source === 'scan') {
+      const refreshed = await refreshBatchScanOrder()
+      batchScanTarget.value = refreshed ? previewNextBatchNumber(refreshed) : ''
+    }
+    if (detailOrder.value) await refreshDetail()
+    getList()
   }
 
   const confirmAddToBatch = async () => {
@@ -1291,10 +1390,14 @@
   const previewNextBatchNumber = (order) => {
     const dateText = formatDateCompact()
     const prefix = `${order.moNumber || ''}-${dateText}-`
-    const sameDay = (order.batches || []).filter((batch) =>
-      String(batch.batchNumber || '').startsWith(prefix)
-    )
-    return `${prefix}${String(sameDay.length + 1).padStart(2, '0')}`
+    const maxSeq = (order.batches || []).reduce((max, batch) => {
+      const batchNumber = String(batch.batchNumber || '')
+      if (!batchNumber.startsWith(prefix)) return max
+      const suffix = batchNumber.slice(prefix.length)
+      if (!/^\d+$/.test(suffix)) return max
+      return Math.max(max, Number(suffix))
+    }, 0)
+    return `${prefix}${String(maxSeq + 1).padStart(2, '0')}`
   }
 
   const focusScanInput = () => {
@@ -1532,6 +1635,16 @@
 
   .scan-input {
     width: 420px;
+  }
+
+  .batch-number-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .batch-number-select {
+    width: 400px;
   }
 
   :global(.batch-scan-dialog.el-dialog) {

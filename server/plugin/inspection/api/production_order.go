@@ -421,3 +421,48 @@ func (a *productionOrderApi) RemoveDeviceFromBatch(c *gin.Context) {
 	}
 	response.OkWithMessage("移除成功", c)
 }
+
+// DeleteEmptyBatch 删除空批次
+// @Tags     ProductionOrder
+// @Summary  删除未派检且没有设备的生产批次
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.DeleteEmptyBatch true "批次ID"
+// @Success  200 {object} response.Response{msg=string} "删除成功"
+// @Router   /productionOrder/deleteEmptyBatch [post]
+func (a *productionOrderApi) DeleteEmptyBatch(c *gin.Context) {
+	var req request.DeleteEmptyBatch
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if err := serviceProductionOrder.DeleteEmptyBatch(&req); err != nil {
+		response.FailWithMessage("删除失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("删除成功", c)
+}
+
+// UpdateBatchNumber 修改批次号
+// @Tags     ProductionOrder
+// @Summary  修改未完成批次的批次号
+// @Security ApiKeyAuth
+// @accept   application/json
+// @Produce  application/json
+// @Param    data body request.UpdateBatchNumber true "批次号"
+// @Success  200 {object} response.Response{msg=string} "修改成功"
+// @Router   /productionOrder/updateBatchNumber [post]
+func (a *productionOrderApi) UpdateBatchNumber(c *gin.Context) {
+	var req request.UpdateBatchNumber
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	claims, _ := utils.GetClaims(c)
+	if err := serviceProductionOrder.UpdateBatchNumber(&req, claims.BaseClaims.ID, claims.NickName); err != nil {
+		response.FailWithMessage("修改失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("修改成功", c)
+}

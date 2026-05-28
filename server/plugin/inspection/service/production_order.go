@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -791,6 +792,70 @@ func (s *productionOrderSvc) RemoveDeviceFromBatch(req *request.RemoveDeviceFrom
 	})
 }
 
+func (s *productionOrderSvc) DeleteEmptyBatch(req *request.DeleteEmptyBatch) error {
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var batch model.ProductionBatch
+		if err := tx.Where("id = ?", req.BatchID).First(&batch).Error; err != nil {
+			return errors.New("批次不存在")
+		}
+		var deviceCount int64
+		if err := tx.Model(&model.ProductionOrderDevice{}).Where("batch_id = ?", batch.ID).Count(&deviceCount).Error; err != nil {
+			return err
+		}
+		if deviceCount > 0 {
+			return errors.New("该批次还有设备，不能删除")
+		}
+		if batch.Status != 0 {
+			return errors.New("只有未派检的空批次可以删除")
+		}
+		if err := tx.Unscoped().Where("production_batch_id = ?", batch.ID).Delete(&model.ProductionBatchStatusLog{}).Error; err != nil {
+			return err
+		}
+		return tx.Unscoped().Delete(&batch).Error
+	})
+}
+
+func (s *productionOrderSvc) UpdateBatchNumber(req *request.UpdateBatchNumber, operatorID uint, operatorName string) error {
+	batchNumber := strings.TrimSpace(req.BatchNumber)
+	if batchNumber == "" {
+		return errors.New("批次号不能为空")
+	}
+	return global.GVA_DB.Transaction(func(tx *gorm.DB) error {
+		var batch model.ProductionBatch
+		if err := tx.Where("id = ?", req.BatchID).First(&batch).Error; err != nil {
+			return errors.New("批次不存在")
+		}
+		if batch.Status == 4 {
+			return errors.New("批次已完成，不能修改批次号")
+		}
+		if batch.BatchNumber == batchNumber {
+			return nil
+		}
+		var exists int64
+		if err := tx.Model(&model.ProductionBatch{}).
+			Where("production_order_id = ? AND batch_number = ? AND id <> ?", batch.ProductionOrderID, batchNumber, batch.ID).
+			Count(&exists).Error; err != nil {
+			return err
+		}
+		if exists > 0 {
+			return errors.New("该批次号已存在")
+		}
+		oldBatchNumber := batch.BatchNumber
+		if err := tx.Model(&batch).Update("batch_number", batchNumber).Error; err != nil {
+			return err
+		}
+		return tx.Create(&model.ProductionBatchStatusLog{
+			ProductionBatchID: batch.ID,
+			FromStatus:        batch.Status,
+			ToStatus:          batch.Status,
+			Action:            "修改批次号",
+			Reason:            fmt.Sprintf("批次号由 %s 修改为 %s", oldBatchNumber, batchNumber),
+			OperatorID:        &operatorID,
+			OperatorName:      operatorName,
+		}).Error
+	})
+}
+
 func createBatchFlowLog(tx *gorm.DB, batch model.ProductionBatch, action string, operatorID uint, operatorName string) error {
 	reason, err := batchDeviceTotalReason(tx, batch.ID, action)
 	if err != nil {
@@ -819,26 +884,32 @@ func createBatchFlowLog(tx *gorm.DB, batch model.ProductionBatch, action string,
 func nextBatchNumber(tx *gorm.DB, order model.ProductionOrder) (string, error) {
 	dateText := time.Now().Format("20060102")
 	prefix := fmt.Sprintf("%s-%s-", order.MONumber, dateText)
-	var count int64
+	var rows []string
 	if err := tx.Model(&model.ProductionBatch{}).
+		Select("batch_number").
 		Where("production_order_id = ? AND batch_number LIKE ?", order.ID, prefix+"%").
-		Count(&count).Error; err != nil {
+		Pluck("batch_number", &rows).Error; err != nil {
 		return "", err
 	}
 
-	for seq := int(count) + 1; seq < 1000; seq++ {
-		batchNumber := fmt.Sprintf("%s%02d", prefix, seq)
-		var exists int64
-		if err := tx.Model(&model.ProductionBatch{}).
-			Where("production_order_id = ? AND batch_number = ?", order.ID, batchNumber).
-			Count(&exists).Error; err != nil {
-			return "", err
+	maxSeq := 0
+	for _, batchNumber := range rows {
+		suffix := strings.TrimPrefix(batchNumber, prefix)
+		if suffix == "" || strings.Contains(suffix, "-") {
+			continue
 		}
-		if exists == 0 {
-			return batchNumber, nil
+		seq, err := strconv.Atoi(suffix)
+		if err != nil {
+			continue
+		}
+		if seq > maxSeq {
+			maxSeq = seq
 		}
 	}
-	return "", errors.New("今日批次流水号已用完")
+	if maxSeq >= 999 {
+		return "", errors.New("今日批次流水号已用完")
+	}
+	return fmt.Sprintf("%s%02d", prefix, maxSeq+1), nil
 }
 
 func normalizeSNList(sns []string) []string {
