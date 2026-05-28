@@ -378,7 +378,7 @@
         <el-form-item label="版本号" prop="versionCode"
           ><el-input
             v-model="firmwareForm.versionCode"
-            placeholder="例如 1.0.0"
+            placeholder="请输入版本号"
             :disabled="
               firmwareDialogType === 'update' &&
               firmwareForm.publishStatus === 'published'
@@ -1016,16 +1016,11 @@
     message,
     trigger: ['blur', 'change']
   })
-  const versionCodeRule = {
-    pattern: /^\d+(\.\d+){2}$/,
-    message: '版本号格式需为数字点分格式，例如 1.0.0',
-    trigger: ['blur', 'change']
-  }
   const firmwareRules = {
     categoryId: [requiredRule('请选择设备类别')],
     modelId: [requiredRule('请选择设备型号')],
     modelIds: [requiredRule('请选择设备型号')],
-    versionCode: [requiredRule('请输入版本号'), versionCodeRule],
+    versionCode: [requiredRule('请输入版本号')],
     versionName: [requiredRule('请输入版本名称')],
     packageUrl: [requiredRule('请先上传安装包')],
     releaseNote: [requiredRule('请填写版本说明')]

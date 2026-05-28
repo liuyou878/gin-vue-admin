@@ -51,9 +51,6 @@ func validateFirmwareVersionCode(versionCode string) error {
 	if versionCode == "" {
 		return errors.New("请填写版本号")
 	}
-	if !firmwareVersionCodePattern.MatchString(versionCode) {
-		return errors.New("版本号格式需为数字点分格式，例如 1.0.0")
-	}
 	return nil
 }
 
@@ -92,6 +89,9 @@ func ensureFirmwareVersionNotLowerThanPublished(tx *gorm.DB, versionCode string,
 	if len(modelIDs) == 0 {
 		return nil
 	}
+	if !firmwareVersionCodePattern.MatchString(strings.TrimSpace(versionCode)) {
+		return nil
+	}
 	var rows []modelLatestPublishedVersionInfo
 	err := tx.Table("alpha_model_firmware_rels").
 		Select("alpha_model_firmware_rels.model_id, alpha_device_models.model_name, alpha_firmware_versions.version_code").
@@ -104,6 +104,9 @@ func ensureFirmwareVersionNotLowerThanPublished(tx *gorm.DB, versionCode string,
 	}
 	latestByModel := make(map[uint]modelLatestPublishedVersionInfo, len(rows))
 	for _, row := range rows {
+		if !firmwareVersionCodePattern.MatchString(strings.TrimSpace(row.VersionCode)) {
+			continue
+		}
 		current, exists := latestByModel[row.ModelID]
 		if !exists {
 			latestByModel[row.ModelID] = row
