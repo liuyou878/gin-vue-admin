@@ -111,14 +111,14 @@
 
     <el-table :data="tableData" border v-loading="loading" size="small">
       <el-table-column prop="moNumber" label="MO号" min-width="140" />
-      <el-table-column label="批次数" width="90">
+      <el-table-column label="批次数" width="80">
         <template #default="scope">
           <el-tag size="small" type="info">{{
             scope.row.batchCount || 0
           }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="未分批" width="90">
+      <el-table-column label="未分批" width="80">
         <template #default="scope">
           <el-tag
             size="small"
@@ -128,11 +128,49 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="model" label="型号" width="100" />
+      <el-table-column prop="model" label="型号" width="80" />
+      <el-table-column label="设备数" width="80">
+        <template #default="scope">
+          <DeviceStatusCount
+            :row="scope.row"
+            type="all"
+            :count="scope.row.deviceCount"
+            allow-rework-actions
+            @changed="getList"
+          />
+        </template>
+      </el-table-column>
+      <el-table-column label="合格数" width="80">
+        <template #default="scope">
+          <DeviceStatusCount
+            :row="scope.row"
+            type="pass"
+            :count="scope.row.passCount"
+            allow-rework-actions
+            @changed="getList"
+          />
+        </template>
+      </el-table-column>
+      <el-table-column label="异常数" width="80">
+        <template #default="scope">
+          <DeviceStatusCount
+            :row="scope.row"
+            type="abnormal"
+            :count="scope.row.abnormalCount"
+            allow-rework-actions
+            @changed="getList"
+          />
+        </template>
+      </el-table-column>
+      <el-table-column label="合格率" width="100">
+        <template #default="scope">
+          {{ passRateLabel(scope.row.passCount, scope.row.deviceCount) }}
+        </template>
+      </el-table-column>
       <el-table-column
         prop="firmwareVersion"
         label="固件版本"
-        min-width="130"
+        min-width="100"
       />
       <el-table-column
         prop="mainboardFirmwareVersion"
@@ -159,44 +197,6 @@
       <el-table-column label="提交时间" width="170">
         <template #default="scope">
           {{ formatDate(scope.row.submitDate) || '-' }}
-        </template>
-      </el-table-column>
-      <el-table-column label="设备数" width="80">
-        <template #default="scope">
-          <DeviceStatusCount
-            :row="scope.row"
-            type="all"
-            :count="scope.row.deviceCount"
-            allow-rework-actions
-            @changed="getList"
-          />
-        </template>
-      </el-table-column>
-      <el-table-column label="合格数" width="90">
-        <template #default="scope">
-          <DeviceStatusCount
-            :row="scope.row"
-            type="pass"
-            :count="scope.row.passCount"
-            allow-rework-actions
-            @changed="getList"
-          />
-        </template>
-      </el-table-column>
-      <el-table-column label="异常数" width="90">
-        <template #default="scope">
-          <DeviceStatusCount
-            :row="scope.row"
-            type="abnormal"
-            :count="scope.row.abnormalCount"
-            allow-rework-actions
-            @changed="getList"
-          />
-        </template>
-      </el-table-column>
-      <el-table-column label="合格率" width="100">
-        <template #default="scope">
-          {{ passRateLabel(scope.row.passCount, scope.row.deviceCount) }}
         </template>
       </el-table-column>
       <el-table-column label="操作" width="260" fixed="right">
@@ -677,7 +677,7 @@
                   label="主板固件"
                   width="130"
                 />
-                <el-table-column label="操作" width="170" fixed="right">
+                <el-table-column label="操作" width="220" fixed="right">
                   <template #default="scope">
                     <el-button
                       v-if="scope.row.status === 'returned'"
@@ -705,6 +705,16 @@
                       @click="handleRemoveFromBatch(scope.row)"
                     >
                       移出批次
+                    </el-button>
+                    <el-button
+                      type="primary"
+                      link
+                      size="small"
+                      @click="
+                        openInspectionDetail({ batch, device: scope.row })
+                      "
+                    >
+                      检测明细
                     </el-button>
                     <el-button
                       type="primary"
@@ -757,7 +767,7 @@
                   label="主板固件"
                   width="130"
                 />
-                <el-table-column label="操作" width="170" fixed="right">
+                <el-table-column label="操作" width="220" fixed="right">
                   <template #default="scope">
                     <el-button
                       v-if="scope.row.status === 'returned'"
@@ -784,6 +794,14 @@
                       @click="openBatchPicker(scope.row)"
                     >
                       加入批次
+                    </el-button>
+                    <el-button
+                      type="primary"
+                      link
+                      size="small"
+                      @click="openInspectionDetail({ device: scope.row })"
+                    >
+                      检测明细
                     </el-button>
                     <el-button
                       type="primary"
@@ -845,6 +863,11 @@
       :logs="flowLogs"
       :mode="flowLogMode"
     />
+    <DeviceInspectionDetailDrawer
+      v-model="inspectionDetailVisible"
+      :device="inspectionDetailDevice"
+      :loading="inspectionDetailLoading"
+    />
   </div>
 </template>
 
@@ -868,10 +891,12 @@
   import {
     assignOrderTemplate,
     exportInspectionExcel,
-    getFlowLogs
+    getFlowLogs,
+    getInspectionDetail
   } from '@/plugin/inspection/api/work_order'
   import DeviceStatusCount from '@/plugin/inspection/components/DeviceStatusCount.vue'
   import FlowLogDrawer from '@/plugin/inspection/components/FlowLogDrawer.vue'
+  import DeviceInspectionDetailDrawer from '@/plugin/inspection/components/DeviceInspectionDetailDrawer.vue'
 
   const btnAuth = useBtnAuth()
   const loading = ref(false)
@@ -896,6 +921,9 @@
   const flowLogDrawerTitle = ref('流转日志')
   const flowLogMode = ref('flow')
   const flowLogs = ref([])
+  const inspectionDetailVisible = ref(false)
+  const inspectionDetailLoading = ref(false)
+  const inspectionDetailDevice = ref(null)
   const dispatchForm = reactive({
     templateID: null,
     instrumentCategory: ''
@@ -1433,6 +1461,34 @@
     })
     if (res.code === 0) {
       flowLogs.value = res.data || []
+    }
+  }
+
+  const openInspectionDetail = async ({ batch, device }) => {
+    inspectionDetailDevice.value = device ? { ...device, results: [] } : null
+    inspectionDetailVisible.value = true
+    const batchID = batch?.ID || device?.batchID
+    if (!batchID || !device?.ID) {
+      ElMessage.warning('该设备还没有批次，暂无检测明细')
+      return
+    }
+
+    inspectionDetailLoading.value = true
+    try {
+      const res = await getInspectionDetail({ id: batchID })
+      if (res.code !== 0) return
+      const matchedDevice = (res.data?.devices || []).find(
+        (item) => Number(item.ID) === Number(device.ID)
+      )
+      inspectionDetailDevice.value = matchedDevice || {
+        ...device,
+        results: []
+      }
+      if (!matchedDevice) {
+        ElMessage.warning('未找到该设备的检测明细')
+      }
+    } finally {
+      inspectionDetailLoading.value = false
     }
   }
 

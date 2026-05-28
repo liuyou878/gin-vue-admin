@@ -80,6 +80,14 @@
           >
             继续复检
           </el-button>
+          <el-button
+            type="primary"
+            link
+            size="small"
+            @click="openInspectionDetail(scope.row)"
+          >
+            检测明细
+          </el-button>
           <el-button type="primary" link size="small" @click="openFlowLogs(scope.row)">
             设备日志
           </el-button>
@@ -108,6 +116,11 @@
       :logs="flowLogs"
       mode="device"
     />
+    <DeviceInspectionDetailDrawer
+      v-model="inspectionDetailVisible"
+      :device="inspectionDetailDevice"
+      :loading="inspectionDetailLoading"
+    />
   </el-dialog>
 </template>
 
@@ -119,9 +132,13 @@
     confirmReworkDone,
     getSubmittedDeviceList
   } from '@/plugin/inspection/api/production_order'
-  import { getFlowLogs } from '@/plugin/inspection/api/work_order'
-  import { startRecheck } from '@/plugin/inspection/api/work_order'
+  import {
+    getFlowLogs,
+    getInspectionDetail,
+    startRecheck
+  } from '@/plugin/inspection/api/work_order'
   import FlowLogDrawer from '@/plugin/inspection/components/FlowLogDrawer.vue'
+  import DeviceInspectionDetailDrawer from '@/plugin/inspection/components/DeviceInspectionDetailDrawer.vue'
 
   const props = defineProps({
     modelValue: {
@@ -162,6 +179,9 @@
   const logVisible = ref(false)
   const logDevice = ref(null)
   const flowLogs = ref([])
+  const inspectionDetailVisible = ref(false)
+  const inspectionDetailLoading = ref(false)
+  const inspectionDetailDevice = ref(null)
 
   const searchInfo = reactive({
     sn: '',
@@ -333,6 +353,30 @@
     const res = await getFlowLogs({ batchID: row.batchID, deviceID: row.ID })
     if (res.code === 0) {
       flowLogs.value = res.data || []
+    }
+  }
+
+  const openInspectionDetail = async (row) => {
+    inspectionDetailDevice.value = { ...row, results: [] }
+    inspectionDetailVisible.value = true
+    if (!row.batchID) {
+      ElMessage.warning('该设备还没有批次，暂无检测明细')
+      return
+    }
+
+    inspectionDetailLoading.value = true
+    try {
+      const res = await getInspectionDetail({ id: row.batchID })
+      if (res.code !== 0) return
+      const device = (res.data?.devices || []).find(
+        (item) => Number(item.ID) === Number(row.ID)
+      )
+      inspectionDetailDevice.value = device || { ...row, results: [] }
+      if (!device) {
+        ElMessage.warning('未找到该设备的检测明细')
+      }
+    } finally {
+      inspectionDetailLoading.value = false
     }
   }
 
